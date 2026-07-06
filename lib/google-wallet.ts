@@ -14,6 +14,31 @@ export interface GoogleWalletPassInput {
   totalVisits: number;
   bgColor: string;
   accentColor: string;
+  nextReward?: string;
+  referralCount?: number;
+  referralPoints?: number;
+}
+
+function buildTextModules(opts: {
+  totalVisits: number;
+  nextReward?: string;
+  referralCount?: number;
+  referralPoints?: number;
+}): Array<{ header: string; body: string; id: string }> {
+  const modules = [
+    { header: "Visites", body: String(opts.totalVisits), id: "visits" },
+  ];
+  if (opts.nextReward) {
+    modules.push({ header: "Prochain cadeau", body: opts.nextReward, id: "reward" });
+  }
+  if ((opts.referralCount ?? 0) > 0 || (opts.referralPoints ?? 0) > 0) {
+    modules.push({
+      header: "Parrainages",
+      body: `${opts.referralCount ?? 0} filleul${(opts.referralCount ?? 0) > 1 ? "s" : ""} · ${opts.referralPoints ?? 0} pt${(opts.referralPoints ?? 0) > 1 ? "s" : ""} à dépenser`,
+      id: "referral",
+    });
+  }
+  return modules;
 }
 
 function sanitizeId(id: string): string {
@@ -104,6 +129,8 @@ export async function buildGoogleWalletUrl(input: GoogleWalletPassInput): Promis
     },
   };
 
+  const appUrl = process.env.AUTH_URL ?? "https://app.getcomeback.fr";
+
   const loyaltyObject = {
     id: objectId,
     classId,
@@ -114,12 +141,12 @@ export async function buildGoogleWalletUrl(input: GoogleWalletPassInput): Promis
       balance: { string: balanceLabel },
       label: input.loyaltyMode === "stamps" ? "Tampons" : "Points",
     },
-    textModulesData: [
-      { header: "Visites", body: String(input.totalVisits), id: "visits" },
-    ],
+    textModulesData: buildTextModules(input),
+    // Même format que la carte Apple : le commerçant scanne le QR avec sa caméra
+    // et arrive directement sur la page de traitement de la visite.
     barcode: {
       type: "QR_CODE",
-      value: input.customerCardId,
+      value: `${appUrl}/process/${input.customerCardId}`,
       alternateText: input.customerCardId.slice(-8).toUpperCase(),
     },
   };
@@ -144,22 +171,27 @@ export async function buildGoogleWalletUrl(input: GoogleWalletPassInput): Promis
 
 // ── Live object update via REST API ──────────────────────────────────────────
 
-export async function updateGoogleWalletObject(
-  customerCardId: string,
-  loyaltyMode: "stamps" | "points",
-  stamps: number,
-  stampsRequired: number,
-  points: number,
-  totalVisits: number,
-): Promise<void> {
+export interface GoogleWalletUpdateInput {
+  customerCardId: string;
+  loyaltyMode: "stamps" | "points";
+  stamps: number;
+  stampsRequired: number;
+  points: number;
+  totalVisits: number;
+  nextReward?: string;
+  referralCount?: number;
+  referralPoints?: number;
+}
+
+export async function updateGoogleWalletObject(input: GoogleWalletUpdateInput): Promise<void> {
   if (!isConfigured()) return; // Google Wallet non configuré — skip silencieusement
 
   const issuerId = process.env.GOOGLE_WALLET_ISSUER_ID!;
-  const objectId = `${issuerId}.${sanitizeId(customerCardId)}`;
+  const objectId = `${issuerId}.${sanitizeId(input.customerCardId)}`;
 
-  const balanceLabel = loyaltyMode === "stamps"
-    ? `${stamps} / ${stampsRequired} tampons`
-    : `${points} points`;
+  const balanceLabel = input.loyaltyMode === "stamps"
+    ? `${input.stamps} / ${input.stampsRequired} tampons`
+    : `${input.points} points`;
 
   try {
     const accessToken = await getAccessToken();
@@ -174,11 +206,9 @@ export async function updateGoogleWalletObject(
         body: JSON.stringify({
           loyaltyPoints: {
             balance: { string: balanceLabel },
-            label: loyaltyMode === "stamps" ? "Tampons" : "Points",
+            label: input.loyaltyMode === "stamps" ? "Tampons" : "Points",
           },
-          textModulesData: [
-            { header: "Visites", body: String(totalVisits), id: "visits" },
-          ],
+          textModulesData: buildTextModules(input),
         }),
       },
     );

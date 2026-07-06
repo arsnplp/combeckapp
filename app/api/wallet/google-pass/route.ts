@@ -19,9 +19,10 @@ export async function GET(req: NextRequest) {
   let storeName = "ComeBack";
   let loyaltyMode: "stamps" | "points" = "stamps";
   let stampsRequired = 8;
-  let accentColor = "#2563eb";
+  let accentColor = "#16a34a";
   let bgColor = "#1e293b";
   let cardName = "Carte fidélité";
+  let nextReward: string | undefined;
 
   try {
     const settingsPath = path.join(process.cwd(), "data", "tenants", tenantId, "settings.json");
@@ -35,6 +36,10 @@ export async function GET(req: NextRequest) {
       bgColor = loyaltyCard.backgroundColor ?? bgColor;
       cardName = loyaltyCard.name ?? cardName;
     }
+    const rewards = (settings.rewards ?? []) as Array<{ name: string; cost: number; mode: string; referral?: boolean }>;
+    nextReward = rewards
+      .filter((r) => r.mode === loyaltyMode && !r.referral)
+      .sort((a, b) => a.cost - b.cost)[0]?.name;
   } catch {
     // defaults
   }
@@ -54,6 +59,9 @@ export async function GET(req: NextRequest) {
       totalVisits: customer.totalVisits ?? 0,
       bgColor,
       accentColor,
+      nextReward,
+      referralCount: (cc as { referralCount?: number }).referralCount ?? 0,
+      referralPoints: (cc as { referralPoints?: number }).referralPoints ?? 0,
     });
     return NextResponse.json({ url });
   } catch (err) {

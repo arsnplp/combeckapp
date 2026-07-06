@@ -140,7 +140,11 @@ export async function POST(req: NextRequest) {
     // Bonus parrainage — crédite le parrain d'un point de parrainage
     const ref = body.ref;
     if (ref) {
-      try { db_addReferral(tenantId, ref); } catch { /* ignore referral errors */ }
+      try {
+        db_addReferral(tenantId, ref);
+        // La carte wallet du parrain affiche ses parrainages → synchro
+        walletNotificationService.updatePoints(ref).catch(console.error);
+      } catch { /* ignore referral errors */ }
     }
 
     // Email de bienvenue (fire-and-forget, uniquement pour nouveaux comptes)

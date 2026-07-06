@@ -243,6 +243,7 @@ export class WalletNotificationService {
 
     let loyaltyMode: "stamps" | "points" = "stamps";
     let stampsRequired = 8;
+    let nextReward: string | undefined;
     try {
       const settingsPath = path.join(process.cwd(), "data", "tenants", tenantId, "settings.json");
       if (existsSync(settingsPath)) {
@@ -252,17 +253,24 @@ export class WalletNotificationService {
           loyaltyMode = loyaltyCard.loyaltyMode ?? "stamps";
           stampsRequired = loyaltyCard.stampsRequired ?? 8;
         }
+        const rewards = (settings.rewards ?? []) as Array<{ name: string; cost: number; mode: string; referral?: boolean }>;
+        nextReward = rewards
+          .filter((r) => r.mode === loyaltyMode && !r.referral)
+          .sort((a, b) => a.cost - b.cost)[0]?.name;
       }
     } catch { /* defaults */ }
 
-    await updateGoogleWalletObject(
+    await updateGoogleWalletObject({
       customerCardId,
       loyaltyMode,
-      cc.stamps ?? 0,
+      stamps: cc.stamps ?? 0,
       stampsRequired,
-      cc.points ?? 0,
-      customer?.totalVisits ?? 0,
-    );
+      points: cc.points ?? 0,
+      totalVisits: customer?.totalVisits ?? 0,
+      nextReward,
+      referralCount: (cc as { referralCount?: number }).referralCount ?? 0,
+      referralPoints: (cc as { referralPoints?: number }).referralPoints ?? 0,
+    });
   }
 
   /**

@@ -57,10 +57,11 @@ export async function POST(req: NextRequest) {
     markUsed(tokenKey);
     db_incrementRewardUsage(tenantId, r.rewardName);
 
-    // Notifier Apple Wallet pour mettre à jour la carte en temps réel
+    // Notifier les wallets pour mettre à jour la carte en temps réel
+    // (referral : le solde de points de parrainage affiché sur la carte Google change)
     if (r.costType === "stamps") {
       walletNotificationService.updateStamps(r.customerCardId).catch(console.error);
-    } else if (r.costType === "points") {
+    } else {
       walletNotificationService.updatePoints(r.customerCardId).catch(console.error);
     }
 
