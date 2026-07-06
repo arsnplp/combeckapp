@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 
 export async function GET(req: NextRequest) {
   const state = randomBytes(16).toString("hex");
-  const appUrl = process.env.AUTH_URL ?? "https://comeback.nairox.fr";
+  const appUrl = process.env.AUTH_URL ?? "https://app.getcomeback.fr";
 
   const cardId = req.nextUrl.searchParams.get("cardId") ?? "";
   const welcomePoints = req.nextUrl.searchParams.get("welcomePoints") ?? "0";

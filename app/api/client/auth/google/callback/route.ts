@@ -6,7 +6,7 @@ import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { createClientSession } from "@/lib/client-sessions";
 
 export async function GET(req: NextRequest) {
-  const appUrl = process.env.AUTH_URL ?? "https://comeback.nairox.fr";
+  const appUrl = process.env.AUTH_URL ?? "https://app.getcomeback.fr";
   const { searchParams } = req.nextUrl;
   const code = searchParams.get("code");
   const state = searchParams.get("state");

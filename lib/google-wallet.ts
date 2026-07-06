@@ -99,7 +99,7 @@ export async function buildGoogleWalletUrl(input: GoogleWalletPassInput): Promis
     reviewStatus: "UNDER_REVIEW",
     hexBackgroundColor: input.bgColor,
     programLogo: {
-      sourceUri: { uri: `${process.env.AUTH_URL ?? "https://comeback.nairox.fr"}/api/settings/logo?tenantId=${input.tenantId}` },
+      sourceUri: { uri: `${process.env.AUTH_URL ?? "https://app.getcomeback.fr"}/api/settings/logo?tenantId=${input.tenantId}` },
       contentDescription: { defaultValue: { language: "fr-FR", value: input.storeName } },
     },
   };
@@ -128,7 +128,7 @@ export async function buildGoogleWalletUrl(input: GoogleWalletPassInput): Promis
     aud: "google",
     typ: "savetowallet",
     iat: Math.floor(Date.now() / 1000),
-    origins: [process.env.AUTH_URL ?? "https://comeback.nairox.fr"],
+    origins: [process.env.AUTH_URL ?? "https://app.getcomeback.fr"],
     payload: {
       loyaltyClasses: [loyaltyClass],
       loyaltyObjects: [loyaltyObject],

@@ -46,9 +46,9 @@ export default function AppSidebar() {
   return (
     <aside className="sticky top-0 z-40 flex h-screen w-full flex-col border-r border-slate-200 bg-white">
       {/* Brand */}
-      <div className="flex h-[57px] flex-shrink-0 items-center border-b border-slate-100 px-5">
+      <div className="flex h-[72px] flex-shrink-0 items-center border-b border-slate-100 px-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="Comeback" className="h-7 w-auto object-contain" />
+        <img src="/logo.png" alt="Comeback" className="w-full h-auto object-contain object-left" />
       </div>
 
       {/* Nav */}
