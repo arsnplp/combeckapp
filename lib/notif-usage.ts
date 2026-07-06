@@ -1,43 +1,18 @@
-import fs from "fs";
-import path from "path";
+import { supabase } from "./supabase";
 
-interface NotifLog {
-  month: string; // YYYY-MM
-  count: number;
-}
-
-function logPath(tenantId: string): string {
-  return path.join(process.cwd(), "data", "tenants", tenantId, "notif-usage.json");
-}
-
-function read(tenantId: string): NotifLog {
-  try {
-    const data = JSON.parse(fs.readFileSync(logPath(tenantId), "utf8"));
-    return data;
-  } catch {
-    return { month: "", count: 0 };
-  }
-}
-
-function write(tenantId: string, log: NotifLog) {
-  const p = logPath(tenantId);
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p, JSON.stringify(log, null, 2));
-}
-
-export function getMonthlyNotifCount(tenantId: string): number {
-  const log = read(tenantId);
+export async function getMonthlyNotifCount(tenantId: string): Promise<number> {
   const thisMonth = new Date().toISOString().slice(0, 7);
-  if (log.month !== thisMonth) return 0;
-  return log.count;
+  const { data } = await supabase().from("notification_usage").select("count")
+    .eq("merchant_id", tenantId).eq("month", thisMonth).maybeSingle();
+  return data?.count ?? 0;
 }
 
-export function incrementNotifCount(tenantId: string, amount: number): void {
+export async function incrementNotifCount(tenantId: string, amount: number): Promise<void> {
   const thisMonth = new Date().toISOString().slice(0, 7);
-  const log = read(tenantId);
-  if (log.month !== thisMonth) {
-    write(tenantId, { month: thisMonth, count: amount });
-  } else {
-    write(tenantId, { month: thisMonth, count: log.count + amount });
-  }
+  const current = await getMonthlyNotifCount(tenantId);
+  await supabase().from("notification_usage").upsert({
+    merchant_id: tenantId,
+    month: thisMonth,
+    count: current + amount,
+  }, { onConflict: "merchant_id,month" });
 }

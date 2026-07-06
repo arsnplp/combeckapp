@@ -17,7 +17,7 @@ export async function GET(
   const passTypeId = decodeURIComponent(passTypeIdentifier);
   const updatedSince = req.nextUrl.searchParams.get("passesUpdatedSince") ?? undefined;
 
-  const passes = walletDb_getPassesForDevice(deviceLibraryIdentifier, passTypeId, updatedSince);
+  const passes = await walletDb_getPassesForDevice(deviceLibraryIdentifier, passTypeId, updatedSince);
 
   if (passes.length === 0) {
     return new NextResponse(null, { status: 204 });

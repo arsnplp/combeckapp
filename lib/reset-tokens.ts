@@ -1,57 +1,33 @@
-import fs from "fs";
-import path from "path";
 import { randomBytes } from "crypto";
+import { supabase } from "./supabase";
 
-const TOKENS_PATH = path.join(process.cwd(), "data", "reset-tokens.json");
 const TTL_MS = 60 * 60 * 1000; // 1 heure
 
-interface ResetToken {
-  token: string;
-  email: string;
-  type: "client" | "restaurant";
-  expiresAt: string;
-  used: boolean;
-}
+// Mapping legacy → colonnes auth_tokens.type
+const TYPE_MAP = { client: "client_reset", restaurant: "merchant_reset" } as const;
 
-function read(): ResetToken[] {
-  try { return JSON.parse(fs.readFileSync(TOKENS_PATH, "utf8")); }
-  catch { return []; }
-}
-
-function write(tokens: ResetToken[]) {
-  fs.mkdirSync(path.dirname(TOKENS_PATH), { recursive: true });
-  fs.writeFileSync(TOKENS_PATH, JSON.stringify(tokens, null, 2));
-}
-
-function cleanup(tokens: ResetToken[]): ResetToken[] {
-  const now = Date.now();
-  return tokens.filter((t) => !t.used && new Date(t.expiresAt).getTime() > now);
-}
-
-export function createResetToken(email: string, type: "client" | "restaurant"): string {
-  const tokens = cleanup(read());
+export async function createResetToken(email: string, type: "client" | "restaurant"): Promise<string> {
+  const sb = supabase();
+  const dbType = TYPE_MAP[type];
+  const normalized = email.toLowerCase().trim();
   // Invalider les anciens tokens du même email/type
-  const filtered = tokens.filter((t) => !(t.email === email && t.type === type));
+  await sb.from("auth_tokens").delete().eq("type", dbType).ilike("email", normalized);
   const token = randomBytes(32).toString("hex");
-  filtered.push({
+  await sb.from("auth_tokens").insert({
     token,
-    email: email.toLowerCase().trim(),
-    type,
-    expiresAt: new Date(Date.now() + TTL_MS).toISOString(),
-    used: false,
+    type: dbType,
+    email: normalized,
+    expires_at: new Date(Date.now() + TTL_MS).toISOString(),
   });
-  write(filtered);
   return token;
 }
 
-export function consumeResetToken(token: string, type: "client" | "restaurant"): string | null {
-  const tokens = read();
-  const idx = tokens.findIndex(
-    (t) => t.token === token && t.type === type && !t.used && new Date(t.expiresAt).getTime() > Date.now()
-  );
-  if (idx === -1) return null;
-  const email = tokens[idx].email;
-  tokens[idx].used = true;
-  write(tokens);
-  return email;
+export async function consumeResetToken(token: string, type: "client" | "restaurant"): Promise<string | null> {
+  const sb = supabase();
+  const { data } = await sb.from("auth_tokens").select("email, expires_at")
+    .eq("token", token).eq("type", TYPE_MAP[type]).maybeSingle();
+  if (!data) return null;
+  await sb.from("auth_tokens").delete().eq("token", token); // usage unique
+  if (new Date(data.expires_at).getTime() <= Date.now()) return null;
+  return data.email;
 }

@@ -17,12 +17,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Le mot de passe doit faire au moins 8 caractères." }, { status: 400 });
   }
 
-  const email = consumeResetToken(token, "restaurant");
+  const email = await consumeResetToken(token, "restaurant");
   if (!email) {
     return NextResponse.json({ error: "Lien invalide ou expiré." }, { status: 400 });
   }
 
-  const user = getUserByEmail(email);
+  const user = await getUserByEmail(email);
   if (!user) {
     return NextResponse.json({ error: "Compte introuvable." }, { status: 404 });
   }

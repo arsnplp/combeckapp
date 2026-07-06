@@ -12,7 +12,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   if (!session?.user?.id) redirect("/login");
 
   // Marchands Google sans nom de commerce → onboarding obligatoire
-  const dbUser = getUserById(session.user.id);
+  const dbUser = await getUserById(session.user.id);
   if (dbUser?.onboardingNeeded) redirect("/onboarding");
 
   return (

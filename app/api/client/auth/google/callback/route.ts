@@ -67,11 +67,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${appUrl}/client/login?error=no_email`);
     }
 
-    createClientAccountFromGoogle(email, name);
+    await createClientAccountFromGoogle(email, name);
 
     const res = NextResponse.redirect(`${appUrl}/client/cards`);
 
-    const token = createClientSession(email);
+    const token = await createClientSession(email);
     res.cookies.set("comeback_client", token, {
       httpOnly: true,
       sameSite: "lax",
@@ -84,12 +84,13 @@ export async function GET(req: NextRequest) {
     // If coming from a join page, register the card
     const cardId = cookiePayload.cardId;
     if (cardId) {
-      const tenantId = findTenantByCardId(cardId);
+      const tenantId = await findTenantByCardId(cardId);
       if (tenantId) {
-        const user = getUserById(tenantId);
+        const user = await getUserById(tenantId);
         const limit = (PLAN_LIMITS[user?.plan ?? "starter"]).clients;
-        const current = db_getAll(tenantId).customers.length;
-        const alreadyIn = db_getAll(tenantId).customers.find(
+        const db = await db_getAll(tenantId);
+        const current = db.customers.length;
+        const alreadyIn = db.customers.find(
           (c) => c.email.toLowerCase() === email.toLowerCase(),
         );
         if (!alreadyIn && (limit === Infinity || current < limit)) {
@@ -97,7 +98,7 @@ export async function GET(req: NextRequest) {
           const customerId = `c${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
           const customerCardId = `cc${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
           const welcomePoints = parseInt(cookiePayload.welcomePoints ?? "0", 10);
-          db_addCustomer(
+          await db_addCustomer(
             tenantId,
             { id: customerId, name, email: email.toLowerCase(), phone: "", joinDate: now, totalVisits: 0, lastVisitAt: null },
             { id: customerCardId, customerId, cardId, stamps: 0, points: welcomePoints, referralCount: 0, referralPoints: 0, joinDate: now, lastActivity: now },

@@ -1,10 +1,7 @@
-import fs from "fs";
-import path from "path";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import type { PlanId } from "@/types";
-
-const USERS_PATH = path.join(process.cwd(), "data", "users.json");
+import { supabase } from "./supabase";
 
 export interface DbUser {
   id: string;
@@ -21,88 +18,116 @@ export interface DbUser {
   onboardingNeeded?: boolean;
 }
 
-function read(): DbUser[] {
-  try {
-    return JSON.parse(fs.readFileSync(USERS_PATH, "utf8"));
-  } catch {
-    return [];
-  }
+interface MerchantRow {
+  id: string;
+  email: string;
+  password_hash: string;
+  password_plain: string | null;
+  store_name: string;
+  city: string;
+  plan: string;
+  created_at: string;
+  email_verified: boolean;
+  email_verification_token: string | null;
+  google_id: string | null;
+  onboarding_needed: boolean;
 }
 
-function write(users: DbUser[]) {
-  const tmp = USERS_PATH + ".tmp";
-  fs.mkdirSync(path.dirname(USERS_PATH), { recursive: true });
-  fs.writeFileSync(tmp, JSON.stringify(users, null, 2));
-  fs.renameSync(tmp, USERS_PATH);
+function mapUser(r: MerchantRow): DbUser {
+  return {
+    id: r.id,
+    email: r.email,
+    passwordHash: r.password_hash,
+    passwordPlain: r.password_plain ?? undefined,
+    storeName: r.store_name,
+    city: r.city || undefined,
+    plan: r.plan as PlanId,
+    createdAt: r.created_at,
+    emailVerified: r.email_verified,
+    emailVerificationToken: r.email_verification_token,
+    googleId: r.google_id ?? undefined,
+    onboardingNeeded: r.onboarding_needed,
+  };
 }
 
-export function getUserByEmail(email: string): DbUser | null {
-  return read().find((u) => u.email.toLowerCase() === email.toLowerCase()) ?? null;
+const COLS = "id, email, password_hash, password_plain, store_name, city, plan, created_at, email_verified, email_verification_token, google_id, onboarding_needed";
+
+export async function getUserByEmail(email: string): Promise<DbUser | null> {
+  const { data } = await supabase().from("merchants").select(COLS)
+    .ilike("email", email.toLowerCase().trim()).maybeSingle();
+  return data ? mapUser(data as MerchantRow) : null;
 }
 
-export function getUserById(id: string): DbUser | null {
-  return read().find((u) => u.id === id) ?? null;
+export async function getUserById(id: string): Promise<DbUser | null> {
+  const { data } = await supabase().from("merchants").select(COLS).eq("id", id).maybeSingle();
+  return data ? mapUser(data as MerchantRow) : null;
 }
 
-export function getAllUsers(): DbUser[] {
-  return read();
+export async function getAllUsers(): Promise<DbUser[]> {
+  const { data } = await supabase().from("merchants").select(COLS)
+    .eq("is_admin", false).order("created_at");
+  return ((data ?? []) as MerchantRow[]).map(mapUser);
 }
 
-export function getUserByVerificationToken(token: string): DbUser | null {
-  return read().find((u) => u.emailVerificationToken === token) ?? null;
+export async function getUserByVerificationToken(token: string): Promise<DbUser | null> {
+  const { data } = await supabase().from("merchants").select(COLS)
+    .eq("email_verification_token", token).maybeSingle();
+  return data ? mapUser(data as MerchantRow) : null;
 }
 
-export function setEmailVerified(id: string): void {
-  const users = read();
-  const idx = users.findIndex((u) => u.id === id);
-  if (idx < 0) return;
-  users[idx].emailVerified = true;
-  users[idx].emailVerificationToken = null;
-  write(users);
+export async function setEmailVerified(id: string): Promise<void> {
+  await supabase().from("merchants")
+    .update({ email_verified: true, email_verification_token: null }).eq("id", id);
 }
 
-export function deleteUser(id: string): void {
-  const users = read().filter((u) => u.id !== id);
-  write(users);
+export async function deleteUser(id: string): Promise<void> {
+  await supabase().from("merchants").delete().eq("id", id);
 }
 
 export async function updateUserPassword(id: string, newPassword: string): Promise<void> {
-  const users = read();
-  const idx = users.findIndex((u) => u.id === id);
-  if (idx < 0) throw new Error("USER_NOT_FOUND");
-  users[idx].passwordHash = await bcrypt.hash(newPassword, 12);
-  users[idx].passwordPlain = newPassword;
-  write(users);
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  const { data } = await supabase().from("merchants")
+    .update({ password_hash: passwordHash, password_plain: newPassword })
+    .eq("id", id).select("id");
+  if (!data?.length) throw new Error("USER_NOT_FOUND");
 }
 
-export function createUserFromGoogle(email: string, name: string): DbUser {
-  const users = read();
-  const existing = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+export async function createUserFromGoogle(email: string, name: string): Promise<DbUser> {
+  const normalized = email.toLowerCase().trim();
+  const existing = await getUserByEmail(normalized);
   if (existing) return existing;
   const user: DbUser = {
     id: `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    email: email.toLowerCase().trim(),
+    email: normalized,
     passwordHash: "",
-    storeName: "",
+    storeName: name.trim() || "",
     plan: "starter",
     createdAt: new Date().toISOString(),
     emailVerified: true,
-    googleId: email.toLowerCase().trim(),
+    googleId: normalized,
     onboardingNeeded: true,
   };
-  users.push(user);
-  write(users);
+  await supabase().from("merchants").insert({
+    id: user.id,
+    email: user.email,
+    password_hash: "",
+    store_name: user.storeName,
+    plan: user.plan,
+    created_at: user.createdAt,
+    email_verified: true,
+    google_id: normalized,
+    onboarding_needed: true,
+    is_admin: false,
+  });
   return user;
 }
 
-export function completeOnboarding(id: string, storeName: string, city?: string): void {
-  const users = read();
-  const idx = users.findIndex((u) => u.id === id);
-  if (idx < 0) return;
-  users[idx].storeName = storeName.trim();
-  if (city?.trim()) users[idx].city = city.trim();
-  users[idx].onboardingNeeded = false;
-  write(users);
+export async function completeOnboarding(id: string, storeName: string, city?: string): Promise<void> {
+  await supabase().from("merchants").update({
+    store_name: storeName.trim(),
+    ...(city?.trim() ? { city: city.trim() } : {}),
+    onboarding_needed: false,
+  }).eq("id", id);
 }
 
 export async function createUser(
@@ -112,15 +137,13 @@ export async function createUser(
   plan: PlanId = "starter",
   city?: string,
 ): Promise<DbUser> {
-  const users = read();
-  if (users.find((u) => u.email.toLowerCase() === email.toLowerCase())) {
-    throw new Error("EMAIL_EXISTS");
-  }
+  const normalized = email.toLowerCase().trim();
+  if (await getUserByEmail(normalized)) throw new Error("EMAIL_EXISTS");
   const passwordHash = await bcrypt.hash(password, 12);
   const verificationToken = randomBytes(32).toString("hex");
   const user: DbUser = {
     id: `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    email: email.toLowerCase().trim(),
+    email: normalized,
     passwordHash,
     storeName: storeName.trim(),
     city: city?.trim(),
@@ -129,7 +152,18 @@ export async function createUser(
     emailVerified: false,
     emailVerificationToken: verificationToken,
   };
-  users.push(user);
-  write(users);
+  const { error } = await supabase().from("merchants").insert({
+    id: user.id,
+    email: user.email,
+    password_hash: passwordHash,
+    store_name: user.storeName,
+    city: user.city ?? "",
+    plan,
+    created_at: user.createdAt,
+    email_verified: false,
+    email_verification_token: verificationToken,
+    is_admin: false,
+  });
+  if (error) throw new Error(error.message.includes("merchants_email_key") ? "EMAIL_EXISTS" : error.message);
   return user;
 }

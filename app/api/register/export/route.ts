@@ -1,19 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db_getAll } from "@/lib/server-db";
-import fs from "fs";
-import path from "path";
-
-function readSettings(tenantId: string) {
-  try {
-    const p = path.join(process.cwd(), "data", "tenants", tenantId, "settings.json");
-    return JSON.parse(fs.readFileSync(p, "utf8")) as {
-      loyaltyCards?: Array<{ id: string; name: string }>;
-    };
-  } catch {
-    return {};
-  }
-}
+import { getTenantSettings } from "@/lib/settings-db";
 
 function escapeCsv(value: string | number | null | undefined): string {
   const str = String(value ?? "");
@@ -30,8 +18,8 @@ export async function GET() {
   }
 
   const tenantId = session.user.id;
-  const data = db_getAll(tenantId);
-  const settings = readSettings(tenantId);
+  const data = await db_getAll(tenantId);
+  const settings = await getTenantSettings(tenantId);
   const cardNames = new Map<string, string>(
     (settings.loyaltyCards ?? []).map((c) => [c.id, c.name])
   );

@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
   // Auth check: must be logged in as this client OR be admin
   const token = req.cookies.get("comeback_client")?.value;
-  const cookieEmail = token ? resolveClientSession(token) : null;
+  const cookieEmail = token ? await resolveClientSession(token) : null;
   const session = await auth();
   const isAdmin = !!session?.user?.isAdmin;
 
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Verify the email has cards
-  const cards = findClientCards(normalizedEmail);
+  const cards = await findClientCards(normalizedEmail);
   if (cards.length === 0) {
     return NextResponse.json({ error: "Aucune carte trouvée pour cet email." }, { status: 404 });
   }

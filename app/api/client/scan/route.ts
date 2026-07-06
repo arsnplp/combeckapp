@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   }
   processingTokens.add(tokenKey);
 
-  const r = getRedemption(tokenKey);
+  const r = await getRedemption(tokenKey);
 
   try {
     if (!r) return NextResponse.json({ error: "QR code invalide ou inexistant." }, { status: 404 });
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Ce QR code n'appartient pas à votre établissement." }, { status: 403 });
     }
 
-    const db = db_getAll(tenantId);
+    const db = await db_getAll(tenantId);
     const cc = db.customerCards.find((c) => c.id === r.customerCardId);
     const customer = db.customers.find((c) => c.id === r.customerId);
     if (!cc) return NextResponse.json({ error: "Client introuvable." }, { status: 404 });
@@ -50,12 +50,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Pas assez de points de parrainage (${(cc as { referralPoints?: number }).referralPoints ?? 0}/${r.cost}).` }, { status: 422 });
     }
 
-    const result = db_deductReward(tenantId, r.customerCardId, r.costType, r.cost);
+    const result = await db_deductReward(tenantId, r.customerCardId, r.costType, r.cost);
     if (!result.success) {
       return NextResponse.json({ error: result.reason ?? "Erreur lors de la déduction." }, { status: 422 });
     }
-    markUsed(tokenKey);
-    db_incrementRewardUsage(tenantId, r.rewardName);
+    await markUsed(tokenKey);
+    await db_incrementRewardUsage(tenantId, r.rewardName);
 
     // Notifier les wallets pour mettre à jour la carte en temps réel
     // (referral : le solde de points de parrainage affiché sur la carte Google change)
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       walletNotificationService.updatePoints(r.customerCardId).catch(console.error);
     }
 
-    db_addRedemption(tenantId, {
+    await db_addRedemption(tenantId, {
       customerId: r.customerId,
       customerCardId: r.customerCardId,
       rewardName: r.rewardName,

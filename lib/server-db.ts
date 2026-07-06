@@ -1,12 +1,6 @@
-import fs from "fs";
-import path from "path";
-import { indexAddCustomer, indexRemoveCustomer } from "./client-index";
+import { supabase } from "./supabase";
 
-// ── Chemin par tenant ─────────────────────────────────────────────────────────
-
-function dbPath(tenantId: string): string {
-  return path.join(process.cwd(), "data", "tenants", tenantId, "db.json");
-}
+// ── Types (identiques à l'ancienne version JSON) ──────────────────────────────
 
 export interface DbRedemption {
   id: string;
@@ -17,12 +11,6 @@ export interface DbRedemption {
   cost: number;
   costType: "stamps" | "points" | "referral";
   redeemedAt: string;
-}
-
-interface DbShape {
-  customers: DbCustomer[];
-  customerCards: DbCustomerCard[];
-  redemptions: DbRedemption[];
 }
 
 export interface DbCustomer {
@@ -47,99 +35,172 @@ export interface DbCustomerCard {
   lastActivity: string;
 }
 
-function read(tenantId: string): DbShape {
-  try {
-    const raw = JSON.parse(fs.readFileSync(dbPath(tenantId), "utf8"));
-    return { customers: [], customerCards: [], redemptions: [], ...raw };
-  } catch {
-    return { customers: [], customerCards: [], redemptions: [] };
-  }
+interface DbShape {
+  customers: DbCustomer[];
+  customerCards: DbCustomerCard[];
+  redemptions: DbRedemption[];
 }
 
-function write(tenantId: string, data: DbShape) {
-  const p = dbPath(tenantId);
-  const tmp = p + ".tmp";
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-  fs.renameSync(tmp, p); // atomic — protège contre la corruption si le process crash mid-write
+// ── Mappers lignes SQL → formes legacy ────────────────────────────────────────
+
+interface CustomerRow {
+  id: string; name: string; email: string; phone: string;
+  join_date: string; total_visits: number; last_visit_at: string | null;
+}
+interface CardRow {
+  id: string; customer_id: string; card_id: string; stamps: number; points: number;
+  referral_count: number; referral_points: number; join_date: string; last_activity: string;
+}
+interface RedemptionRow {
+  id: string; customer_id: string | null; customer_card_id: string | null;
+  reward_name: string; reward_emoji: string; cost: number; cost_type: string; redeemed_at: string;
 }
 
-export function db_getAll(tenantId: string): DbShape {
-  return read(tenantId);
+const mapCustomer = (r: CustomerRow): DbCustomer => ({
+  id: r.id, name: r.name, email: r.email, phone: r.phone,
+  joinDate: r.join_date, totalVisits: r.total_visits, lastVisitAt: r.last_visit_at,
+});
+const mapCard = (r: CardRow): DbCustomerCard => ({
+  id: r.id, customerId: r.customer_id, cardId: r.card_id, stamps: r.stamps, points: r.points,
+  referralCount: r.referral_count, referralPoints: r.referral_points,
+  joinDate: r.join_date, lastActivity: r.last_activity,
+});
+const mapRedemption = (r: RedemptionRow): DbRedemption => ({
+  id: r.id, customerId: r.customer_id ?? "", customerCardId: r.customer_card_id ?? "",
+  rewardName: r.reward_name, rewardEmoji: r.reward_emoji, cost: r.cost,
+  costType: r.cost_type as DbRedemption["costType"], redeemedAt: r.redeemed_at,
+});
+
+// ── Lecture globale d'un tenant ───────────────────────────────────────────────
+
+export async function db_getAll(tenantId: string): Promise<DbShape> {
+  const sb = supabase();
+  const [customers, cards, redemptions] = await Promise.all([
+    sb.from("customers").select("*").eq("merchant_id", tenantId).order("join_date"),
+    sb.from("customer_cards").select("*").eq("merchant_id", tenantId).order("join_date"),
+    sb.from("redemptions").select("*").eq("merchant_id", tenantId).order("redeemed_at"),
+  ]);
+  return {
+    customers: ((customers.data ?? []) as CustomerRow[]).map(mapCustomer),
+    customerCards: ((cards.data ?? []) as CardRow[]).map(mapCard),
+    redemptions: ((redemptions.data ?? []) as RedemptionRow[]).map(mapRedemption),
+  };
 }
 
 const TWO_HOURS = 2 * 60 * 60 * 1000;
 
-function maybeRecordVisit(data: DbShape, customerId: string): void {
-  const idx = data.customers.findIndex((c) => c.id === customerId);
-  if (idx === -1) return;
-  const c = data.customers[idx];
-  const last = c.lastVisitAt ? new Date(c.lastVisitAt).getTime() : 0;
+async function maybeRecordVisit(customerId: string): Promise<void> {
+  const sb = supabase();
+  const { data: c } = await sb.from("customers")
+    .select("total_visits, last_visit_at").eq("id", customerId).maybeSingle();
+  if (!c) return;
+  const last = c.last_visit_at ? new Date(c.last_visit_at).getTime() : 0;
   if (Date.now() - last > TWO_HOURS) {
-    data.customers[idx].totalVisits = (c.totalVisits ?? 0) + 1;
-    data.customers[idx].lastVisitAt = new Date().toISOString();
+    await sb.from("customers").update({
+      total_visits: (c.total_visits ?? 0) + 1,
+      last_visit_at: new Date().toISOString(),
+    }).eq("id", customerId);
   }
 }
 
-export function db_addCustomer(tenantId: string, customer: DbCustomer, customerCard: DbCustomerCard): void {
-  const data = read(tenantId);
-  data.customers.push({ ...customer, totalVisits: 0, lastVisitAt: null });
-  data.customerCards.push(customerCard);
-  write(tenantId, data);
-  if (customer.email) indexAddCustomer(customer.email, tenantId);
+export async function db_addCustomer(
+  tenantId: string,
+  customer: DbCustomer,
+  customerCard: DbCustomerCard,
+): Promise<void> {
+  const sb = supabase();
+  const { error: e1 } = await sb.from("customers").insert({
+    id: customer.id,
+    merchant_id: tenantId,
+    name: customer.name,
+    email: (customer.email ?? "").toLowerCase(),
+    phone: customer.phone ?? "",
+    total_visits: 0,
+    last_visit_at: null,
+    join_date: customer.joinDate,
+  });
+  if (e1) throw new Error(e1.message);
+  const { error: e2 } = await sb.from("customer_cards").insert({
+    id: customerCard.id,
+    merchant_id: tenantId,
+    customer_id: customerCard.customerId,
+    card_id: customerCard.cardId,
+    stamps: customerCard.stamps ?? 0,
+    points: customerCard.points ?? 0,
+    referral_count: customerCard.referralCount ?? 0,
+    referral_points: customerCard.referralPoints ?? 0,
+    join_date: customerCard.joinDate,
+    last_activity: customerCard.lastActivity,
+  });
+  if (e2) throw new Error(e2.message);
 }
 
-export function db_addStamp(tenantId: string, customerCardId: string): DbCustomerCard | null {
-  const data = read(tenantId);
-  const idx = data.customerCards.findIndex((c) => c.id === customerCardId);
-  if (idx === -1) return null;
-  data.customerCards[idx].stamps += 1;
-  data.customerCards[idx].lastActivity = new Date().toISOString();
-  maybeRecordVisit(data, data.customerCards[idx].customerId);
-  write(tenantId, data);
-  return data.customerCards[idx];
+async function getCardInTenant(tenantId: string, customerCardId: string): Promise<CardRow | null> {
+  const { data } = await supabase().from("customer_cards").select("*")
+    .eq("id", customerCardId).eq("merchant_id", tenantId).maybeSingle();
+  return (data as CardRow) ?? null;
 }
 
-export function db_deleteCustomer(tenantId: string, customerId: string): void {
-  const data = read(tenantId);
-  const customer = data.customers.find((c) => c.id === customerId);
-  data.customers = data.customers.filter((c) => c.id !== customerId);
-  data.customerCards = data.customerCards.filter((cc) => cc.customerId !== customerId);
-  write(tenantId, data);
-  if (customer?.email) indexRemoveCustomer(customer.email, tenantId);
+export async function db_addStamp(tenantId: string, customerCardId: string): Promise<DbCustomerCard | null> {
+  const cc = await getCardInTenant(tenantId, customerCardId);
+  if (!cc) return null;
+  const now = new Date().toISOString();
+  const { data } = await supabase().from("customer_cards")
+    .update({ stamps: cc.stamps + 1, last_activity: now })
+    .eq("id", customerCardId).select("*").maybeSingle();
+  await maybeRecordVisit(cc.customer_id);
+  return data ? mapCard(data as CardRow) : null;
 }
 
-export function db_addReferral(tenantId: string, customerCardId: string): DbCustomerCard | null {
-  const data = read(tenantId);
-  const idx = data.customerCards.findIndex((c) => c.id === customerCardId);
-  if (idx === -1) return null;
-  data.customerCards[idx].referralCount = (data.customerCards[idx].referralCount ?? 0) + 1;
-  data.customerCards[idx].referralPoints = (data.customerCards[idx].referralPoints ?? 0) + 1;
-  write(tenantId, data);
-  return data.customerCards[idx];
+export async function db_deleteCustomer(tenantId: string, customerId: string): Promise<void> {
+  // customer_cards + redemptions liés suivent via FK cascade / set null
+  await supabase().from("customers").delete()
+    .eq("id", customerId).eq("merchant_id", tenantId);
 }
 
-export function db_addPoints(tenantId: string, customerCardId: string, points: number): DbCustomerCard | null {
-  const data = read(tenantId);
-  const idx = data.customerCards.findIndex((c) => c.id === customerCardId);
-  if (idx === -1) return null;
-  data.customerCards[idx].points += points;
-  data.customerCards[idx].lastActivity = new Date().toISOString();
-  maybeRecordVisit(data, data.customerCards[idx].customerId);
-  write(tenantId, data);
-  return data.customerCards[idx];
+export async function db_addReferral(tenantId: string, customerCardId: string): Promise<DbCustomerCard | null> {
+  const cc = await getCardInTenant(tenantId, customerCardId);
+  if (!cc) return null;
+  const { data } = await supabase().from("customer_cards")
+    .update({
+      referral_count: (cc.referral_count ?? 0) + 1,
+      referral_points: (cc.referral_points ?? 0) + 1,
+    })
+    .eq("id", customerCardId).select("*").maybeSingle();
+  return data ? mapCard(data as CardRow) : null;
+}
+
+export async function db_addPoints(tenantId: string, customerCardId: string, points: number): Promise<DbCustomerCard | null> {
+  const cc = await getCardInTenant(tenantId, customerCardId);
+  if (!cc) return null;
+  const now = new Date().toISOString();
+  const { data } = await supabase().from("customer_cards")
+    .update({ points: cc.points + points, last_activity: now })
+    .eq("id", customerCardId).select("*").maybeSingle();
+  await maybeRecordVisit(cc.customer_id);
+  return data ? mapCard(data as CardRow) : null;
 }
 
 // ── Historique rédemptions ────────────────────────────────────────────────────
 
-export function db_addRedemption(tenantId: string, r: Omit<DbRedemption, "id">): void {
-  const data = read(tenantId);
-  data.redemptions.push({ id: `red_${Date.now()}`, ...r });
-  write(tenantId, data);
+export async function db_addRedemption(tenantId: string, r: Omit<DbRedemption, "id">): Promise<void> {
+  await supabase().from("redemptions").insert({
+    id: `red_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    merchant_id: tenantId,
+    customer_id: r.customerId || null,
+    customer_card_id: r.customerCardId || null,
+    reward_name: r.rewardName,
+    reward_emoji: r.rewardEmoji,
+    cost: r.cost,
+    cost_type: r.costType,
+    redeemed_at: r.redeemedAt,
+  });
 }
 
-export function db_getRedemptions(tenantId: string): DbRedemption[] {
-  return read(tenantId).redemptions;
+export async function db_getRedemptions(tenantId: string): Promise<DbRedemption[]> {
+  const { data } = await supabase().from("redemptions").select("*")
+    .eq("merchant_id", tenantId).order("redeemed_at");
+  return ((data ?? []) as RedemptionRow[]).map(mapRedemption);
 }
 
 // ── Déduction récompenses (portail client) ────────────────────────────────────
@@ -150,64 +211,52 @@ export interface DeductResult {
   card?: DbCustomerCard;
 }
 
-export function db_deductReward(
+export async function db_deductReward(
   tenantId: string,
   customerCardId: string,
   costType: "stamps" | "points" | "referral",
   cost: number,
-): DeductResult {
-  const data = read(tenantId);
-  const idx = data.customerCards.findIndex((c) => c.id === customerCardId);
-  if (idx === -1) return { success: false, reason: "Carte introuvable" };
-  const cc = data.customerCards[idx];
-  if (costType === "stamps" && cc.stamps < cost) return { success: false, reason: "Pas assez de tampons", card: cc };
-  if (costType === "points" && cc.points < cost) return { success: false, reason: "Pas assez de points", card: cc };
-  if (costType === "referral" && (cc.referralPoints ?? 0) < cost) return { success: false, reason: "Pas assez de points de parrainage", card: cc };
-  if (costType === "stamps") data.customerCards[idx].stamps -= cost;
-  else if (costType === "points") data.customerCards[idx].points -= cost;
-  else data.customerCards[idx].referralPoints = (data.customerCards[idx].referralPoints ?? 0) - cost;
-  data.customerCards[idx].lastActivity = new Date().toISOString();
-  maybeRecordVisit(data, data.customerCards[idx].customerId);
-  write(tenantId, data);
-  return { success: true, card: data.customerCards[idx] };
+): Promise<DeductResult> {
+  const cc = await getCardInTenant(tenantId, customerCardId);
+  if (!cc) return { success: false, reason: "Carte introuvable" };
+  const card = mapCard(cc);
+  if (costType === "stamps" && cc.stamps < cost) return { success: false, reason: "Pas assez de tampons", card };
+  if (costType === "points" && cc.points < cost) return { success: false, reason: "Pas assez de points", card };
+  if (costType === "referral" && (cc.referral_points ?? 0) < cost) return { success: false, reason: "Pas assez de points de parrainage", card };
+
+  const patch: Record<string, unknown> = { last_activity: new Date().toISOString() };
+  if (costType === "stamps") patch.stamps = cc.stamps - cost;
+  else if (costType === "points") patch.points = cc.points - cost;
+  else patch.referral_points = (cc.referral_points ?? 0) - cost;
+
+  const { data } = await supabase().from("customer_cards")
+    .update(patch).eq("id", customerCardId).select("*").maybeSingle();
+  await maybeRecordVisit(cc.customer_id);
+  return { success: true, card: data ? mapCard(data as CardRow) : card };
 }
 
-// ── Recherche cross-tenant (pour les routes Apple Wallet sans session) ─────────
+// ── Recherche cross-tenant (routes Apple Wallet sans session) ─────────────────
 
-export function findTenantByCustomerCardId(customerCardId: string): { tenantId: string; card: DbCustomerCard } | null {
-  const tenantsDir = path.join(process.cwd(), "data", "tenants");
-  if (!fs.existsSync(tenantsDir)) return null;
-  for (const tenantId of fs.readdirSync(tenantsDir)) {
-    const data = read(tenantId);
-    const card = data.customerCards.find((cc) => cc.id === customerCardId);
-    if (card) return { tenantId, card };
+export async function findTenantByCustomerCardId(
+  customerCardId: string,
+): Promise<{ tenantId: string; card: DbCustomerCard } | null> {
+  const { data } = await supabase().from("customer_cards").select("*, merchant_id")
+    .eq("id", customerCardId).maybeSingle();
+  if (!data) return null;
+  return { tenantId: data.merchant_id as string, card: mapCard(data as CardRow) };
+}
+
+export async function db_incrementRewardUsage(tenantId: string, rewardName: string): Promise<void> {
+  const sb = supabase();
+  const { data } = await sb.from("rewards").select("id, usage_count")
+    .eq("merchant_id", tenantId).eq("name", rewardName);
+  for (const r of data ?? []) {
+    await sb.from("rewards").update({ usage_count: (r.usage_count ?? 0) + 1 }).eq("id", r.id);
   }
-  return null;
 }
 
-export function db_incrementRewardUsage(tenantId: string, rewardName: string): void {
-  const settingsPath = path.join(process.cwd(), "data", "tenants", tenantId, "settings.json");
-  try {
-    const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-    const rewards: Array<{ id: string; name: string; usageCount?: number }> = settings.rewards ?? [];
-    let changed = false;
-    for (const r of rewards) {
-      if (r.name === rewardName) { r.usageCount = (r.usageCount ?? 0) + 1; changed = true; }
-    }
-    if (changed) fs.writeFileSync(settingsPath, JSON.stringify({ ...settings, rewards }, null, 2));
-  } catch { /* settings manquants */ }
-}
-
-export function findTenantByCardId(cardId: string): string | null {
-  const tenantsDir = path.join(process.cwd(), "data", "tenants");
-  if (!fs.existsSync(tenantsDir)) return null;
-  for (const tenantId of fs.readdirSync(tenantsDir)) {
-    const settingsPath = path.join(process.cwd(), "data", "tenants", tenantId, "settings.json");
-    try {
-      const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-      const cards: Array<{ id: string }> = settings.loyaltyCards ?? [];
-      if (cards.some((c) => c.id === cardId)) return tenantId;
-    } catch { /* pas de settings pour ce tenant */ }
-  }
-  return null;
+export async function findTenantByCardId(cardId: string): Promise<string | null> {
+  const { data } = await supabase().from("loyalty_cards").select("merchant_id")
+    .eq("id", cardId).maybeSingle();
+  return (data?.merchant_id as string) ?? null;
 }

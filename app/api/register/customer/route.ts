@@ -21,11 +21,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Vérifier la limite du plan
-    const user = getUserById(tenantId);
+    const user = await getUserById(tenantId);
     if (user) {
       const limit = (PLAN_LIMITS[user.plan] ?? PLAN_LIMITS["starter"]).clients;
       if (limit !== Infinity) {
-        const current = db_getAll(tenantId).customers.length;
+        const current = (await db_getAll(tenantId)).customers.length;
         if (current >= limit) {
           return NextResponse.json(
             { error: `Limite de ${limit} clients atteinte pour ce commerce.` },
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     const now = joinDate ?? new Date().toISOString();
 
-    db_addCustomer(
+    await db_addCustomer(
       tenantId,
       { id: customerId, name, email: email || "", phone: phone || "", joinDate: now, totalVisits: 0, lastVisitAt: null },
       { id: customerCardId, customerId, cardId, stamps: stamps ?? 0, points: points ?? 0, referralCount: 0, referralPoints: 0, joinDate: now, lastActivity: now },

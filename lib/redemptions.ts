@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import { supabase } from "./supabase";
 
 export interface Redemption {
   token: string;
@@ -17,69 +16,43 @@ export interface Redemption {
   createdAt: string;
 }
 
-const REDEMPTIONS_DIR = path.join(process.cwd(), "data", "redemptions");
-
-function ensureDir() {
-  if (!fs.existsSync(REDEMPTIONS_DIR)) fs.mkdirSync(REDEMPTIONS_DIR, { recursive: true });
-}
-
-function cleanupOld() {
-  try {
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-    for (const f of fs.readdirSync(REDEMPTIONS_DIR)) {
-      if (!f.endsWith(".json")) continue;
-      const p = path.join(REDEMPTIONS_DIR, f);
-      try {
-        const r: Redemption = JSON.parse(fs.readFileSync(p, "utf8"));
-        if (r.exp < cutoff || (r.used && r.usedAt && new Date(r.usedAt).getTime() < cutoff)) {
-          fs.unlinkSync(p);
-        }
-      } catch { /* skip */ }
-    }
-  } catch { /* skip */ }
-}
-
-function filePath(token: string) {
-  return path.join(REDEMPTIONS_DIR, `${token}.json`);
-}
-
-export function createRedemption(
+export async function createRedemption(
   data: Omit<Redemption, "token" | "used" | "usedAt" | "createdAt">,
-): Redemption {
-  ensureDir();
-  cleanupOld();
+): Promise<Redemption> {
   const token = crypto.randomUUID();
   const r: Redemption = { ...data, token, used: false, usedAt: null, createdAt: new Date().toISOString() };
-  fs.writeFileSync(filePath(token), JSON.stringify(r, null, 2));
+  const sb = supabase();
+  await sb.from("redemption_tokens").insert({
+    id: token,
+    merchant_id: data.tenantId,
+    payload: r,
+    used: false,
+  });
+  // Nettoyage opportuniste des tokens de plus de 24h
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  sb.from("redemption_tokens").delete().lt("created_at", cutoff).then(() => {});
   return r;
 }
 
-export function getRedemption(token: string): Redemption | null {
-  try { return JSON.parse(fs.readFileSync(filePath(token), "utf8")); }
-  catch { return null; }
+export async function getRedemption(token: string): Promise<Redemption | null> {
+  const { data } = await supabase().from("redemption_tokens")
+    .select("payload, used").eq("id", token).maybeSingle();
+  if (!data) return null;
+  return { ...(data.payload as Redemption), used: data.used };
 }
 
-export function markUsed(token: string): void {
-  const r = getRedemption(token);
-  if (!r) return;
-  r.used = true;
-  r.usedAt = new Date().toISOString();
-  fs.writeFileSync(filePath(token), JSON.stringify(r, null, 2));
+export async function markUsed(token: string): Promise<void> {
+  const { data } = await supabase().from("redemption_tokens")
+    .select("payload").eq("id", token).maybeSingle();
+  if (!data) return;
+  const payload = { ...(data.payload as Redemption), used: true, usedAt: new Date().toISOString() };
+  await supabase().from("redemption_tokens")
+    .update({ used: true, payload }).eq("id", token);
 }
 
-export function cancelPendingForCard(customerCardId: string): void {
-  ensureDir();
-  const now = Date.now();
-  try {
-    for (const f of fs.readdirSync(REDEMPTIONS_DIR)) {
-      if (!f.endsWith(".json")) continue;
-      const p = path.join(REDEMPTIONS_DIR, f);
-      try {
-        const r: Redemption = JSON.parse(fs.readFileSync(p, "utf8"));
-        if (r.customerCardId === customerCardId && !r.used && r.exp > now) {
-          fs.unlinkSync(p);
-        }
-      } catch { /* skip */ }
-    }
-  } catch { /* skip */ }
+export async function cancelPendingForCard(customerCardId: string): Promise<void> {
+  await supabase().from("redemption_tokens").delete()
+    .eq("used", false)
+    .eq("payload->>customerCardId", customerCardId)
+    .gt("payload->exp", Date.now());
 }

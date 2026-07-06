@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findTenantByCustomerCardId, db_getAll } from "@/lib/server-db";
-import path from "path";
-import fs from "fs";
+import { getTenantSettings } from "@/lib/settings-db";
 
 // Public: permet au client de retélécharger sa carte wallet avec le solde actuel
 export async function GET(req: NextRequest) {
   const ccId = req.nextUrl.searchParams.get("ccId");
   if (!ccId) return NextResponse.json({ error: "ccId manquant." }, { status: 400 });
 
-  const found = findTenantByCustomerCardId(ccId);
+  const found = await findTenantByCustomerCardId(ccId);
   if (!found) return NextResponse.json({ error: "Carte introuvable." }, { status: 404 });
 
   const { tenantId, card: cc } = found;
 
   // Lire les données du client
-  const db = db_getAll(tenantId);
+  const db = await db_getAll(tenantId);
   const customer = db.customers.find((c) => c.id === cc.customerId);
   if (!customer) return NextResponse.json({ error: "Client introuvable." }, { status: 404 });
 
@@ -27,10 +26,9 @@ export async function GET(req: NextRequest) {
   let cardName = "Carte fidélité";
 
   try {
-    const settingsPath = path.join(process.cwd(), "data", "tenants", tenantId, "settings.json");
-    const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-    storeName = settings.settings?.storeName ?? storeName;
-    const loyaltyCard = (settings.loyaltyCards ?? []).find((c: { id: string }) => c.id === cc.cardId);
+    const settings = await getTenantSettings(tenantId);
+    storeName = (settings.settings.storeName as string) || storeName;
+    const loyaltyCard = settings.loyaltyCards.find((c) => c.id === cc.cardId);
     if (loyaltyCard) {
       loyaltyMode = loyaltyCard.loyaltyMode ?? "stamps";
       stampsRequired = loyaltyCard.stampsRequired ?? 8;

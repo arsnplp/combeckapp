@@ -25,7 +25,7 @@ export async function POST(
   const { deviceLibraryIdentifier, serialNumber } = await params;
   const token = extractToken(req);
 
-  const pass = walletDb_getPassBySerial(serialNumber);
+  const pass = await walletDb_getPassBySerial(serialNumber);
   if (!pass || pass.authenticationToken !== token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -39,7 +39,7 @@ export async function POST(
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
-  const isNew = walletDb_registerDevice({
+  const isNew = await walletDb_registerDevice({
     id: `dev-${deviceLibraryIdentifier}-${pass.id}`,
     deviceLibraryIdentifier,
     pushToken,
@@ -61,11 +61,11 @@ export async function DELETE(
   const { deviceLibraryIdentifier, serialNumber } = await params;
   const token = extractToken(req);
 
-  const pass = walletDb_getPassBySerial(serialNumber);
+  const pass = await walletDb_getPassBySerial(serialNumber);
   if (!pass || pass.authenticationToken !== token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const removed = walletDb_unregisterDevice(deviceLibraryIdentifier, pass.id);
+  const removed = await walletDb_unregisterDevice(deviceLibraryIdentifier, pass.id);
   return NextResponse.json({ ok: true }, { status: removed ? 200 : 404 });
 }

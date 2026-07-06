@@ -14,11 +14,11 @@ export async function POST(req: NextRequest) {
     if (!message?.trim()) return NextResponse.json({ error: "Missing message" }, { status: 400 });
 
     const tenantId = session.user.id;
-    const user = getUserById(tenantId);
+    const user = await getUserById(tenantId);
     if (user) {
       const limit = (PLAN_LIMITS[user.plan] ?? PLAN_LIMITS["starter"]).notifs;
       if (limit !== Infinity) {
-        const used = getMonthlyNotifCount(tenantId);
+        const used = await getMonthlyNotifCount(tenantId);
         if (used >= limit) {
           return NextResponse.json(
             { error: `Limite mensuelle de ${limit} notifications atteinte (plan ${user.plan}).` },
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     const success = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success).length;
 
-    if (success > 0 && user) incrementNotifCount(tenantId, success);
+    if (success > 0 && user) await incrementNotifCount(tenantId, success);
 
     console.log(`[Campaign] Sent to ${success} devices, ${failed} failed`);
     return NextResponse.json({ ok: true, success, failed, total: results.length });

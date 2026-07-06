@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
   // Réutiliser le token existant si ce pass a déjà été émis — sinon Apple Wallet
   // garde l'ancien token et ne peut plus authentifier les mises à jour (401).
-  const existingPass = walletDb_getPassBySerial(serialNumber);
+  const existingPass = await walletDb_getPassBySerial(serialNumber);
   const authenticationToken = existingPass?.authenticationToken ?? randomBytes(20).toString("hex");
   const webServiceURL = process.env.WALLET_WEB_SERVICE_URL; // e.g. https://app.comeback.app/api/wallet
 
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
 
     // Persist pass metadata so the web service can regenerate it on update
     if (customerCardId) {
-      walletDb_upsertPass({
+      await walletDb_upsertPass({
         id: `wp-${serialNumber}`,
         serialNumber,
         authenticationToken,

@@ -1,8 +1,5 @@
-import fs from "fs";
-import path from "path";
 import bcrypt from "bcryptjs";
-
-const ACCOUNTS_PATH = path.join(process.cwd(), "data", "client-accounts.json");
+import { supabase } from "./supabase";
 
 export interface ClientAccount {
   email: string;
@@ -13,28 +10,40 @@ export interface ClientAccount {
   googleId?: string;
 }
 
-function read(): ClientAccount[] {
-  try {
-    return JSON.parse(fs.readFileSync(ACCOUNTS_PATH, "utf8"));
-  } catch {
-    return [];
-  }
+interface ClientRow {
+  id: string;
+  email: string;
+  password_hash: string;
+  password_plain: string | null;
+  name: string;
+  google_id: string | null;
+  created_at: string;
 }
 
-function write(accounts: ClientAccount[]) {
-  const tmp = ACCOUNTS_PATH + ".tmp";
-  fs.mkdirSync(path.dirname(ACCOUNTS_PATH), { recursive: true });
-  fs.writeFileSync(tmp, JSON.stringify(accounts, null, 2));
-  fs.renameSync(tmp, ACCOUNTS_PATH);
+function mapAccount(r: ClientRow): ClientAccount {
+  return {
+    email: r.email,
+    passwordHash: r.password_hash,
+    passwordPlain: r.password_plain ?? undefined,
+    name: r.name,
+    createdAt: r.created_at,
+    googleId: r.google_id ?? undefined,
+  };
 }
 
-export function getClientAccount(email: string): ClientAccount | null {
-  const normalized = email.toLowerCase().trim();
-  return read().find((a) => a.email.toLowerCase() === normalized) ?? null;
+function clientId(email: string): string {
+  return `cl_${email.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
 }
 
-export function getAllClientAccounts(): ClientAccount[] {
-  return read();
+export async function getClientAccount(email: string): Promise<ClientAccount | null> {
+  const { data } = await supabase().from("clients").select("*")
+    .ilike("email", email.toLowerCase().trim()).maybeSingle();
+  return data ? mapAccount(data as ClientRow) : null;
+}
+
+export async function getAllClientAccounts(): Promise<ClientAccount[]> {
+  const { data } = await supabase().from("clients").select("*").order("created_at");
+  return ((data ?? []) as ClientRow[]).map(mapAccount);
 }
 
 export async function createClientAccount(
@@ -43,8 +52,6 @@ export async function createClientAccount(
   name: string,
 ): Promise<ClientAccount> {
   const normalized = email.toLowerCase().trim();
-  const accounts = read();
-  const existing = accounts.findIndex((a) => a.email.toLowerCase() === normalized);
   const passwordHash = await bcrypt.hash(password, 10);
   const account: ClientAccount = {
     email: normalized,
@@ -52,43 +59,51 @@ export async function createClientAccount(
     name,
     createdAt: new Date().toISOString(),
   };
-  if (existing >= 0) {
-    accounts[existing] = account;
+  const sb = supabase();
+  const { data: existing } = await sb.from("clients").select("id").ilike("email", normalized).maybeSingle();
+  if (existing) {
+    await sb.from("clients").update({
+      password_hash: passwordHash, password_plain: null, name, created_at: account.createdAt,
+    }).eq("id", existing.id);
   } else {
-    accounts.push(account);
+    await sb.from("clients").insert({
+      id: clientId(normalized), email: normalized,
+      password_hash: passwordHash, name, created_at: account.createdAt,
+    });
   }
-  write(accounts);
   return account;
 }
 
 export async function verifyClientPassword(email: string, password: string): Promise<boolean> {
-  const account = getClientAccount(email);
+  const account = await getClientAccount(email);
   if (!account) return false;
   return bcrypt.compare(password, account.passwordHash);
 }
 
 export async function resetClientPassword(email: string, newPassword: string): Promise<void> {
   const normalized = email.toLowerCase().trim();
-  const accounts = read();
-  const idx = accounts.findIndex((a) => a.email.toLowerCase() === normalized);
   const passwordHash = await bcrypt.hash(newPassword, 10);
-  if (idx >= 0) {
-    accounts[idx].passwordHash = passwordHash;
-    accounts[idx].passwordPlain = newPassword;
+  const sb = supabase();
+  const { data: existing } = await sb.from("clients").select("id").ilike("email", normalized).maybeSingle();
+  if (existing) {
+    await sb.from("clients").update({ password_hash: passwordHash, password_plain: newPassword }).eq("id", existing.id);
   } else {
-    accounts.push({ email: normalized, passwordHash, passwordPlain: newPassword, name: normalized, createdAt: new Date().toISOString() });
+    await sb.from("clients").insert({
+      id: clientId(normalized), email: normalized,
+      password_hash: passwordHash, password_plain: newPassword,
+      name: normalized, created_at: new Date().toISOString(),
+    });
   }
-  write(accounts);
 }
 
-export function createClientAccountFromGoogle(email: string, name: string): ClientAccount {
+export async function createClientAccountFromGoogle(email: string, name: string): Promise<ClientAccount> {
   const normalized = email.toLowerCase().trim();
-  const accounts = read();
-  const existing = accounts.find((a) => a.email.toLowerCase() === normalized);
+  const sb = supabase();
+  const existing = await getClientAccount(normalized);
   if (existing) {
     if (!existing.googleId) {
+      await sb.from("clients").update({ google_id: normalized }).ilike("email", normalized);
       existing.googleId = normalized;
-      write(accounts);
     }
     return existing;
   }
@@ -99,12 +114,13 @@ export function createClientAccountFromGoogle(email: string, name: string): Clie
     createdAt: new Date().toISOString(),
     googleId: normalized,
   };
-  accounts.push(account);
-  write(accounts);
+  await sb.from("clients").insert({
+    id: clientId(normalized), email: normalized, password_hash: "",
+    name: account.name, google_id: normalized, created_at: account.createdAt,
+  });
   return account;
 }
 
-export function deleteClientAccount(email: string): void {
-  const normalized = email.toLowerCase().trim();
-  write(read().filter((a) => a.email.toLowerCase() !== normalized));
+export async function deleteClientAccount(email: string): Promise<void> {
+  await supabase().from("clients").delete().ilike("email", email.toLowerCase().trim());
 }

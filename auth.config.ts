@@ -2,6 +2,7 @@ import type { NextAuthConfig } from "next-auth";
 import { NextResponse } from "next/server";
 
 export const authConfig = {
+  trustHost: true, // derrière le reverse proxy nginx
   pages: {
     signIn: "/login",
   },
@@ -46,6 +47,7 @@ export const authConfig = {
         pathname.startsWith("/api/wallet") ||
         pathname.startsWith("/api/settings/logo") ||
         pathname.startsWith("/api/client/login") ||
+        pathname.startsWith("/api/client/check-email") ||
         pathname.startsWith("/api/client/logout") ||
         pathname.startsWith("/api/client/set-password") ||
         pathname.startsWith("/api/client/forgot-password") ||

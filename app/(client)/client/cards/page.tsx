@@ -11,10 +11,10 @@ import GdprSection from "./GdprSection";
 export default async function CardsPage() {
   const cookieStore = await cookies();
   const token = cookieStore.get("comeback_client")?.value;
-  const email = token ? resolveClientSession(token) : null;
+  const email = token ? await resolveClientSession(token) : null;
   if (!email) redirect("/client/login");
 
-  const cards = findClientCards(email);
+  const cards = await findClientCards(email);
   if (cards.length === 0) redirect("/client/login");
 
   const clientName = cards[0].customerName;

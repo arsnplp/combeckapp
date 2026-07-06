@@ -13,6 +13,7 @@ import {
 import { db_getAll, findTenantByCustomerCardId } from "./server-db";
 import { generateClientPass } from "./apple-wallet";
 import { updateGoogleWalletObject } from "./google-wallet";
+import { getTenantSettings } from "./settings-db";
 
 // ── Certificate cache ─────────────────────────────────────────────────────────
 
@@ -123,31 +124,30 @@ async function sendApnsPush(pushToken: string): Promise<void> {
 // ── Pass regeneration ─────────────────────────────────────────────────────────
 
 export async function regeneratePass(passId: string): Promise<Buffer | null> {
-  const walletPass = walletDb_getPass(passId);
+  const walletPass = await walletDb_getPass(passId);
   if (!walletPass) return null;
 
-  const found = findTenantByCustomerCardId(walletPass.customerCardId);
+  const found = await findTenantByCustomerCardId(walletPass.customerCardId);
   const cc = found?.card ?? undefined;
 
   const opts = walletPass.passData;
 
-  // Lire les paramètres à jour depuis settings.json (stampsRequired, couleurs, nom)
+  // Lire les paramètres à jour depuis Supabase (stampsRequired, couleurs, nom)
   let stampsRequired = opts.stampsRequired;
   let accentColor = opts.accentColor;
   let bgColor = opts.bgColor;
   let storeName = opts.storeName;
-  let nextReward = opts.nextReward;
+  const nextReward = opts.nextReward;
   if (found) {
     try {
-      const settingsPath = path.join(process.cwd(), "data", "tenants", found.tenantId, "settings.json");
-      const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
-      const lc = (settings.loyaltyCards ?? []).find((c: { id: string }) => c.id === cc?.cardId);
+      const settings = await getTenantSettings(found.tenantId);
+      const lc = settings.loyaltyCards.find((c) => c.id === cc?.cardId);
       if (lc) {
         stampsRequired = lc.stampsRequired ?? stampsRequired;
         accentColor = lc.accentColor ?? accentColor;
         bgColor = lc.backgroundColor ?? bgColor;
       }
-      storeName = settings.settings?.storeName ?? storeName;
+      storeName = (settings.settings.storeName as string) || storeName;
     } catch { /* garde les valeurs sauvegardées */ }
   }
 
@@ -188,8 +188,8 @@ export class WalletNotificationService {
    * fetch the freshly-generated .pkpass and update the card on the user's device.
    */
   async sendPassUpdate(passId: string): Promise<PushResult[]> {
-    walletDb_touchPass(passId);
-    const devices = walletDb_getDevicesForPass(passId);
+    await walletDb_touchPass(passId);
+    const devices = await walletDb_getDevicesForPass(passId);
     console.log(`[Wallet] sendPassUpdate passId=${passId} devices=${devices.length}`);
     const results: PushResult[] = [];
 
@@ -214,7 +214,7 @@ export class WalletNotificationService {
    */
   async updatePoints(customerCardId: string): Promise<PushResult[]> {
     // Apple Wallet
-    const pass = walletDb_getPassByCustomerCard(customerCardId);
+    const pass = await walletDb_getPassByCustomerCard(customerCardId);
     const appleResults = pass ? await this.sendPassUpdate(pass.id) : [];
 
     // Google Wallet
@@ -225,7 +225,7 @@ export class WalletNotificationService {
 
   async updateStamps(customerCardId: string): Promise<PushResult[]> {
     // Apple Wallet
-    const pass = walletDb_getPassByCustomerCard(customerCardId);
+    const pass = await walletDb_getPassByCustomerCard(customerCardId);
     const appleResults = pass ? await this.sendPassUpdate(pass.id) : [];
 
     // Google Wallet
@@ -235,29 +235,25 @@ export class WalletNotificationService {
   }
 
   private async _updateGoogle(customerCardId: string): Promise<void> {
-    const found = findTenantByCustomerCardId(customerCardId);
+    const found = await findTenantByCustomerCardId(customerCardId);
     if (!found) return;
     const { tenantId, card: cc } = found;
-    const db = db_getAll(tenantId);
+    const db = await db_getAll(tenantId);
     const customer = db.customers.find((c) => c.id === cc.customerId);
 
     let loyaltyMode: "stamps" | "points" = "stamps";
     let stampsRequired = 8;
     let nextReward: string | undefined;
     try {
-      const settingsPath = path.join(process.cwd(), "data", "tenants", tenantId, "settings.json");
-      if (existsSync(settingsPath)) {
-        const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
-        const loyaltyCard = (settings.loyaltyCards ?? []).find((c: { id: string }) => c.id === cc.cardId);
-        if (loyaltyCard) {
-          loyaltyMode = loyaltyCard.loyaltyMode ?? "stamps";
-          stampsRequired = loyaltyCard.stampsRequired ?? 8;
-        }
-        const rewards = (settings.rewards ?? []) as Array<{ name: string; cost: number; mode: string; referral?: boolean }>;
-        nextReward = rewards
-          .filter((r) => r.mode === loyaltyMode && !r.referral)
-          .sort((a, b) => a.cost - b.cost)[0]?.name;
+      const settings = await getTenantSettings(tenantId);
+      const loyaltyCard = settings.loyaltyCards.find((c) => c.id === cc.cardId);
+      if (loyaltyCard) {
+        loyaltyMode = loyaltyCard.loyaltyMode ?? "stamps";
+        stampsRequired = loyaltyCard.stampsRequired ?? 8;
       }
+      nextReward = settings.rewards
+        .filter((r) => r.mode === loyaltyMode && !r.referral)
+        .sort((a, b) => a.cost - b.cost)[0]?.name;
     } catch { /* defaults */ }
 
     await updateGoogleWalletObject({
@@ -279,7 +275,7 @@ export class WalletNotificationService {
    * and iOS shows a "pass updated" notification.
    */
   async sendCampaign(passId: string, message: string): Promise<PushResult[]> {
-    walletDb_setCampaignMessage(passId, message);
+    await walletDb_setCampaignMessage(passId, message);
     return this.sendPassUpdate(passId);
   }
 
@@ -287,7 +283,7 @@ export class WalletNotificationService {
    * Sends a campaign to ALL registered passes.
    */
   async sendCampaignToAll(message: string): Promise<PushResult[]> {
-    const passes = walletDb_getAllPasses();
+    const passes = await walletDb_getAllPasses();
     const results: PushResult[] = [];
     for (const pass of passes) {
       const r = await this.sendCampaign(pass.id, message);
@@ -298,7 +294,7 @@ export class WalletNotificationService {
 
   async sendCampaignToCustomers(message: string, customerIds: string[]): Promise<PushResult[]> {
     const idSet = new Set(customerIds);
-    const passes = walletDb_getAllPasses().filter((p) => idSet.has(p.customerId));
+    const passes = (await walletDb_getAllPasses()).filter((p) => idSet.has(p.customerId));
     const results: PushResult[] = [];
     for (const pass of passes) {
       const r = await this.sendCampaign(pass.id, message);

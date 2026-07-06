@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   const { userId } = await req.json();
   if (!userId) return NextResponse.json({ error: "userId manquant." }, { status: 400 });
 
-  const user = getUserById(userId);
+  const user = await getUserById(userId);
   if (!user) return NextResponse.json({ error: "Utilisateur introuvable." }, { status: 404 });
 
   const token = createImpersonateToken(userId);

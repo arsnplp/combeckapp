@@ -18,12 +18,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Le mot de passe doit faire au moins 6 caractères." }, { status: 400 });
   }
 
-  const email = consumeResetToken(token, "client");
+  const email = await consumeResetToken(token, "client");
   if (!email) {
     return NextResponse.json({ error: "Lien invalide ou expiré." }, { status: 400 });
   }
 
-  const cards = findClientCards(email);
+  const cards = await findClientCards(email);
   if (cards.length === 0) {
     return NextResponse.json({ error: "Compte introuvable." }, { status: 404 });
   }

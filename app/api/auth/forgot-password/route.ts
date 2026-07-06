@@ -16,11 +16,11 @@ export async function POST(req: NextRequest) {
   }
 
   const normalizedEmail = email.toLowerCase().trim();
-  const user = getUserByEmail(normalizedEmail);
+  const user = await getUserByEmail(normalizedEmail);
 
   if (user) {
     try {
-      const token = createResetToken(normalizedEmail, "restaurant");
+      const token = await createResetToken(normalizedEmail, "restaurant");
       await sendPasswordResetRestaurant(normalizedEmail, token);
     } catch (e) {
       console.error("[forgot-password/restaurant]", e);

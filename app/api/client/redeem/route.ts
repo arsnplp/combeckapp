@@ -8,7 +8,7 @@ const QR_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 export async function POST(req: NextRequest) {
   const token = req.cookies.get("comeback_client")?.value;
-  const email = token ? resolveClientSession(token) : null;
+  const email = token ? await resolveClientSession(token) : null;
   if (!email) return NextResponse.json({ error: "Non connecté." }, { status: 401 });
 
   const { customerCardId, rewardId } = await req.json();
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Trouver la carte client
-  const allCards = findClientCards(email);
+  const allCards = await findClientCards(email);
   const clientCard = allCards.find((c) => c.customerCardId === customerCardId);
   if (!clientCard) return NextResponse.json({ error: "Carte introuvable." }, { status: 404 });
 
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   const cost = reward.cost;
 
   // Vérifier solde en temps réel (re-lit le fichier)
-  const db = db_getAll(clientCard.tenantId);
+  const db = await db_getAll(clientCard.tenantId);
   const cc = db.customerCards.find((c) => c.id === customerCardId);
   if (!cc) return NextResponse.json({ error: "Carte introuvable." }, { status: 404 });
 
@@ -51,9 +51,9 @@ export async function POST(req: NextRequest) {
   }
 
   // Cancel any existing pending QR for this card before creating a new one
-  cancelPendingForCard(customerCardId);
+  await cancelPendingForCard(customerCardId);
 
-  const redemption = createRedemption({
+  const redemption = await createRedemption({
     tenantId: clientCard.tenantId,
     customerId: clientCard.customerId,
     customerCardId,

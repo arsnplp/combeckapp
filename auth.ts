@@ -43,7 +43,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (impersonateToken) {
           const userId = consumeImpersonateToken(impersonateToken);
           if (!userId) return null;
-          const user = getUserById(userId);
+          const user = await getUserById(userId);
           if (!user) return null;
           return { id: user.id, email: user.email, name: user.storeName, impersonatedBy: "admin" };
         }
@@ -61,7 +61,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         // Utilisateurs normaux
-        const user = getUserByEmail(email);
+        const user = await getUserByEmail(email);
         if (!user) return null;
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
@@ -73,10 +73,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   callbacks: {
     ...authConfig.callbacks,
-    jwt({ token, user, account }) {
+    async jwt({ token, user, account }) {
       if (account?.provider === "google" && user?.email) {
         // Google sign-in : trouver ou créer le compte marchand
-        const dbUser = getUserByEmail(user.email) ?? createUserFromGoogle(user.email, user.name ?? "");
+        const dbUser = (await getUserByEmail(user.email)) ?? (await createUserFromGoogle(user.email, user.name ?? ""));
         token.id = dbUser.id;
         token.isAdmin = false;
       } else if (user) {

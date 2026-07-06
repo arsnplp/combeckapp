@@ -13,6 +13,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Le nom du commerce est requis." }, { status: 400 });
   }
 
-  completeOnboarding(session.user.id, storeName, city);
+  await completeOnboarding(session.user.id, storeName, city);
   return NextResponse.json({ ok: true });
 }

@@ -13,6 +13,7 @@ import { sendWelcomeClient } from "@/lib/mailer";
 import { checkRateLimit, getIp, tooManyRequests } from "@/lib/rate-limit";
 import { createClientSession } from "@/lib/client-sessions";
 import { z } from "zod";
+import { getTenantSettings } from "@/lib/settings-db";
 
 const RegisterSchema = z.discriminatedUnion("mode", [
   z.object({
@@ -51,15 +52,15 @@ export async function POST(req: NextRequest) {
     // password existe sur les deux variantes mais avec types différents — on accède via body directement
     const password = "password" in body ? (body.password as string | undefined) : undefined;
 
-    const tenantId = findTenantByCardId(cardId);
+    const tenantId = await findTenantByCardId(cardId);
     if (!tenantId) return NextResponse.json({ error: "Card not found" }, { status: 404 });
 
     // Vérifier la limite de clients selon le plan
-    const user = getUserById(tenantId);
+    const user = await getUserById(tenantId);
     if (user) {
       const limit = (PLAN_LIMITS[user.plan] ?? PLAN_LIMITS["starter"]).clients;
       if (limit !== Infinity) {
-        const current = db_getAll(tenantId).customers.length;
+        const current = (await db_getAll(tenantId)).customers.length;
         if (current >= limit) {
           return NextResponse.json(
             { error: `Limite de ${limit} clients atteinte pour ce commerce.` },
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
       if (!email || !password) {
         return NextResponse.json({ error: "Email et mot de passe requis." }, { status: 400 });
       }
-      const account = getClientAccount(email);
+      const account = await getClientAccount(email);
       if (!account) {
         return NextResponse.json({ error: "Aucun compte trouvé avec cet email." }, { status: 401 });
       }
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest) {
 
       // Bloquer si l'email est déjà pris
       if (email) {
-        const existingAccount = getClientAccount(email);
+        const existingAccount = await getClientAccount(email);
         if (existingAccount) {
           return NextResponse.json(
             { error: "Cet email est déjà associé à un compte ComeBack. Utilisez \"J'ai déjà un compte\"." },
@@ -120,7 +121,7 @@ export async function POST(req: NextRequest) {
 
     // Empêcher la double inscription au même restaurant
     if (clientEmail) {
-      const alreadyIn = db_getAll(tenantId).customers.find(
+      const alreadyIn = (await db_getAll(tenantId)).customers.find(
         (c) => c.email.toLowerCase() === clientEmail,
       );
       if (alreadyIn) {
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest) {
     const customerId = `c${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
     const customerCardId = `cc${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
 
-    db_addCustomer(tenantId,
+    await db_addCustomer(tenantId,
       { id: customerId, name: clientName, email: clientEmail, phone: clientPhone, joinDate: now, totalVisits: 0, lastVisitAt: null },
       { id: customerCardId, customerId, cardId, stamps: 0, points: welcomePoints ?? 0, referralCount: 0, referralPoints: 0, joinDate: now, lastActivity: now }
     );
@@ -141,7 +142,7 @@ export async function POST(req: NextRequest) {
     const ref = body.ref;
     if (ref) {
       try {
-        db_addReferral(tenantId, ref);
+        await db_addReferral(tenantId, ref);
         // La carte wallet du parrain affiche ses parrainages → synchro
         walletNotificationService.updatePoints(ref).catch(console.error);
       } catch { /* ignore referral errors */ }
@@ -149,7 +150,7 @@ export async function POST(req: NextRequest) {
 
     // Email de bienvenue (fire-and-forget, uniquement pour nouveaux comptes)
     if (mode !== "existing" && clientEmail) {
-      const tenantUser = getUserById(tenantId);
+      const tenantUser = await getUserById(tenantId);
       const storeName = tenantUser?.storeName ?? "ce commerce";
       sendWelcomeClient(clientEmail, clientName, storeName).catch(console.error);
     }
@@ -158,7 +159,7 @@ export async function POST(req: NextRequest) {
 
     // Auto-connecter le client avec un token de session opaque
     if (clientEmail) {
-      const token = createClientSession(clientEmail);
+      const token = await createClientSession(clientEmail);
       res.cookies.set("comeback_client", token, {
         httpOnly: true,
         sameSite: "lax",
@@ -178,7 +179,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ customers: [], customerCards: [], redemptions: [] });
-  const data = db_getAll(session.user.id);
+  const data = await db_getAll(session.user.id);
 
   // Recherche rapide par nom/email (pour le scanner)
   const q = req.nextUrl.searchParams.get("q")?.toLowerCase().trim();
@@ -187,14 +188,11 @@ export async function GET(req: NextRequest) {
       (c) => c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || c.phone.includes(q),
     );
     const ids = new Set(filtered.map((c) => c.id));
-    // Lire les loyalty cards depuis settings.json du tenant
+    // Lire les loyalty cards depuis Supabase
     let loyaltyCards: { id: string; name: string; loyaltyMode: string }[] = [];
     try {
-      const fs = (await import("fs")).default;
-      const path = (await import("path")).default;
-      const p = path.join(process.cwd(), "data", "tenants", session.user.id, "settings.json");
-      const s = JSON.parse(fs.readFileSync(p, "utf8"));
-      loyaltyCards = s.loyaltyCards ?? [];
+      const blob = await getTenantSettings(session.user.id);
+      loyaltyCards = blob.loyaltyCards;
     } catch { /* pas de settings */ }
     return NextResponse.json({
       customers: filtered,
@@ -217,15 +215,15 @@ export async function PATCH(req: NextRequest) {
     const { action, customerCardId, points } = body;
     const tenantId = session.user.id;
     if (action === "stamp") {
-      db_addStamp(tenantId, customerCardId);
+      await db_addStamp(tenantId, customerCardId);
       walletNotificationService.updateStamps(customerCardId).catch(console.error);
     } else if (action === "points") {
-      db_addPoints(tenantId, customerCardId, points ?? 0);
+      await db_addPoints(tenantId, customerCardId, points ?? 0);
       walletNotificationService.updatePoints(customerCardId).catch(console.error);
     } else if (action === "reward") {
       const { rewardName, rewardEmoji, cost, costType, customerId } = body;
-      db_deductReward(tenantId, customerCardId, costType, cost);
-      db_addRedemption(tenantId, {
+      await db_deductReward(tenantId, customerCardId, costType, cost);
+      await db_addRedemption(tenantId, {
         customerId,
         customerCardId,
         rewardName,
@@ -234,7 +232,7 @@ export async function PATCH(req: NextRequest) {
         costType,
         redeemedAt: new Date().toISOString(),
       });
-      db_incrementRewardUsage(tenantId, rewardName);
+      await db_incrementRewardUsage(tenantId, rewardName);
       if (costType === "stamps") walletNotificationService.updateStamps(customerCardId).catch(console.error);
       else walletNotificationService.updatePoints(customerCardId).catch(console.error);
     }
@@ -252,7 +250,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const { customerId } = await req.json();
     if (!customerId) return NextResponse.json({ error: "Missing customerId" }, { status: 400 });
-    db_deleteCustomer(session.user.id, customerId);
+    await db_deleteCustomer(session.user.id, customerId);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

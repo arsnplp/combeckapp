@@ -23,7 +23,7 @@ export async function GET(
   const { serialNumber } = await params;
   const token = extractToken(req);
 
-  const walletPass = walletDb_getPassBySerial(serialNumber);
+  const walletPass = await walletDb_getPassBySerial(serialNumber);
   if (!walletPass || walletPass.authenticationToken !== token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -16,11 +16,11 @@ export async function POST(req: NextRequest) {
   }
 
   const normalizedEmail = email.toLowerCase().trim();
-  const cards = findClientCards(normalizedEmail);
+  const cards = await findClientCards(normalizedEmail);
 
   if (cards.length > 0) {
     try {
-      const token = createResetToken(normalizedEmail, "client");
+      const token = await createResetToken(normalizedEmail, "client");
       await sendPasswordResetClient(normalizedEmail, token);
     } catch (e) {
       console.error("[forgot-password/client]", e);

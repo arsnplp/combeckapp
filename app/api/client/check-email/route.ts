@@ -6,6 +6,6 @@ export async function POST(req: NextRequest) {
   if (!email || typeof email !== "string") {
     return NextResponse.json({ exists: false });
   }
-  const account = getClientAccount(email.toLowerCase().trim());
+  const account = await getClientAccount(email.toLowerCase().trim());
   return NextResponse.json({ exists: !!account });
 }

@@ -23,12 +23,12 @@ export async function POST(req: NextRequest) {
   const { email, password } = parsed.data;
   const normalizedEmail = email.toLowerCase().trim();
 
-  const cards = findClientCards(normalizedEmail);
+  const cards = await findClientCards(normalizedEmail);
   if (cards.length === 0) {
     return NextResponse.json({ error: "Aucune carte de fidélité trouvée pour cet email." }, { status: 404 });
   }
 
-  const account = getClientAccount(normalizedEmail);
+  const account = await getClientAccount(normalizedEmail);
 
   if (account) {
     if (!password) {
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
   const firstLogin = !account;
 
-  const token = createClientSession(normalizedEmail);
+  const token = await createClientSession(normalizedEmail);
   const response = NextResponse.json({ ok: true, count: cards.length, firstLogin });
   response.cookies.set("comeback_client", token, {
     httpOnly: true,

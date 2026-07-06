@@ -1,94 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import fs from "fs";
-import path from "path";
-import { db_getAll } from "@/lib/server-db";
+import { supabase } from "@/lib/supabase";
 import { getClientAccount } from "@/lib/client-accounts";
 import { resolveClientSession } from "@/lib/client-sessions";
-
-function readSettings(tenantId: string) {
-  try {
-    const p = path.join(process.cwd(), "data", "tenants", tenantId, "settings.json");
-    return JSON.parse(fs.readFileSync(p, "utf8")) as {
-      settings?: { storeName?: string; storeCity?: string };
-      loyaltyCards?: Array<{ id: string; name: string; loyaltyMode: string }>;
-    };
-  } catch {
-    return {};
-  }
-}
 
 export async function GET(_req: NextRequest) {
   const cookieStore = await cookies();
   const token = cookieStore.get("comeback_client")?.value;
-  const email = token ? resolveClientSession(token) : null;
+  const email = token ? await resolveClientSession(token) : null;
 
   if (!email) {
     return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   }
 
-  const account = getClientAccount(email);
+  const account = await getClientAccount(email);
+  const sb = supabase();
 
-  // Collect data across all tenants
-  const tenantsDir = path.join(process.cwd(), "data", "tenants");
-  const tenantData: Array<{
-    storeName: string;
-    storeCity: string;
-    cards: Array<{
-      cardName: string;
-      loyaltyMode: string;
-      stamps: number;
-      points: number;
-      joinDate: string;
-      lastActivity: string;
-    }>;
-    redemptions: Array<{
-      rewardName: string;
-      cost: number;
-      costType: string;
-      redeemedAt: string;
-    }>;
-  }> = [];
+  // Toutes les fiches du client, avec commerce, cartes et historique
+  const { data: customers } = await sb.from("customers")
+    .select(`
+      id,
+      merchants ( store_name, city ),
+      customer_cards ( stamps, points, join_date, last_activity, loyalty_cards ( name, loyalty_mode ) ),
+      redemptions ( reward_name, cost, cost_type, redeemed_at )
+    `)
+    .ilike("email", email.toLowerCase().trim());
 
-  if (fs.existsSync(tenantsDir)) {
-    for (const tenantId of fs.readdirSync(tenantsDir)) {
-      const db = db_getAll(tenantId);
-      const customer = db.customers.find(
-        (c) => c.email.toLowerCase() === email.toLowerCase()
-      );
-      if (!customer) continue;
-
-      const s = readSettings(tenantId);
-      const cardMap = new Map((s.loyaltyCards ?? []).map((c) => [c.id, c]));
-      const storeName = s.settings?.storeName ?? "Commerce";
-      const storeCity = s.settings?.storeCity ?? "";
-
-      const ccs = db.customerCards.filter((cc) => cc.customerId === customer.id);
-      const redemptions = db.redemptions.filter((r) => r.customerId === customer.id);
-
-      tenantData.push({
-        storeName,
-        storeCity,
-        cards: ccs.map((cc) => {
-          const card = cardMap.get(cc.cardId);
-          return {
-            cardName: card?.name ?? cc.cardId,
-            loyaltyMode: card?.loyaltyMode ?? "stamps",
-            stamps: cc.stamps,
-            points: cc.points,
-            joinDate: cc.joinDate,
-            lastActivity: cc.lastActivity,
-          };
-        }),
-        redemptions: redemptions.map((r) => ({
-          rewardName: r.rewardName,
-          cost: r.cost,
-          costType: r.costType,
-          redeemedAt: r.redeemedAt,
-        })),
-      });
-    }
-  }
+  const tenantData = (customers ?? []).map((cust) => {
+    const merchant = cust.merchants as unknown as { store_name: string; city: string } | null;
+    return {
+      storeName: merchant?.store_name ?? "Commerce",
+      storeCity: merchant?.city ?? "",
+      cards: ((cust.customer_cards as unknown as Array<{
+        stamps: number; points: number; join_date: string; last_activity: string;
+        loyalty_cards: { name: string; loyalty_mode: string } | null;
+      }>) ?? []).map((cc) => ({
+        cardName: cc.loyalty_cards?.name ?? "Carte",
+        loyaltyMode: cc.loyalty_cards?.loyalty_mode ?? "stamps",
+        stamps: cc.stamps,
+        points: cc.points,
+        joinDate: cc.join_date,
+        lastActivity: cc.last_activity,
+      })),
+      redemptions: ((cust.redemptions as unknown as Array<{
+        reward_name: string; cost: number; cost_type: string; redeemed_at: string;
+      }>) ?? []).map((r) => ({
+        rewardName: r.reward_name,
+        cost: r.cost,
+        costType: r.cost_type,
+        redeemedAt: r.redeemed_at,
+      })),
+    };
+  });
 
   const exportData = {
     exportedAt: new Date().toISOString(),

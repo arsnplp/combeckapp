@@ -8,12 +8,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL("/verify-email?error=missing", req.url));
   }
 
-  const user = getUserByVerificationToken(token);
+  const user = await getUserByVerificationToken(token);
   if (!user) {
     return NextResponse.redirect(new URL("/verify-email?error=invalid", req.url));
   }
 
-  setEmailVerified(user.id);
+  await setEmailVerified(user.id);
   return NextResponse.redirect(new URL("/login?verified=1", req.url));
 }
 
@@ -25,12 +25,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Token manquant." }, { status: 400 });
     }
 
-    const user = getUserByVerificationToken(token);
+    const user = await getUserByVerificationToken(token);
     if (!user) {
       return NextResponse.json({ error: "Lien invalide ou expiré." }, { status: 400 });
     }
 
-    setEmailVerified(user.id);
+    await setEmailVerified(user.id);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Erreur serveur." }, { status: 500 });

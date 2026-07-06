@@ -19,13 +19,13 @@ export default async function TenantCardPage({
 }) {
   const cookieStore = await cookies();
   const token = cookieStore.get("comeback_client")?.value;
-  const email = token ? resolveClientSession(token) : null;
+  const email = token ? await resolveClientSession(token) : null;
   if (!email) redirect("/client/login");
 
   const { tenantId } = await params;
   const { ccid } = await searchParams;
 
-  const allCards = findClientCards(email);
+  const allCards = await findClientCards(email);
   const card = allCards.find(
     (c) => c.tenantId === tenantId && (!ccid || c.customerCardId === ccid),
   );
