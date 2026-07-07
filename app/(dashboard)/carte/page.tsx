@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Pencil, Trash2, CreditCard, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, CreditCard, Check, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import WalletPreview from "@/components/carte/WalletPreview";
 import { useStore } from "@/lib/store-context";
 import { useNetworkOrigin } from "@/lib/use-network-origin";
+import { fetchPlanFeatures } from "@/lib/plan-features";
 import type { LoyaltyCard, LoyaltyMode, RankThresholds } from "@/types";
 import QRCode from "qrcode";
 
@@ -89,6 +90,7 @@ export default function CartePage() {
   const [qrDataUrl, setQrDataUrl]   = useState<string>("");
   const [saved, setSaved]           = useState(false);
   const [limitError, setLimitError] = useState("");
+  const [maxCards, setMaxCards]     = useState(Infinity);
 
   const selected = loyaltyCards.find((c) => c.id === selectedId) ?? loyaltyCards[0] ?? null;
   const patch = (p: Partial<CardForm>) => setForm((prev) => ({ ...prev, ...p }));
@@ -96,6 +98,10 @@ export default function CartePage() {
   useEffect(() => {
     if (!selectedId && loyaltyCards.length > 0) setSelectedId(loyaltyCards[0].id);
   }, [loyaltyCards, selectedId]);
+
+  useEffect(() => {
+    fetchPlanFeatures().then((f) => setMaxCards(f?.maxCards ?? 1));
+  }, []);
 
   useEffect(() => {
     if (!selected || !networkOrigin) { setQrDataUrl(""); return; }
@@ -120,8 +126,8 @@ export default function CartePage() {
 
   const openCreate = () => {
     setLimitError("");
-    if (hasStamps && hasPoints) {
-      setLimitError("Limite atteinte : vous avez déjà 1 carte à tampons et 1 carte à points.");
+    if (loyaltyCards.length >= maxCards) {
+      setLimitError(`Limite du plan atteinte : maximum ${maxCards} carte${maxCards > 1 ? 's' : ''}. Passez au plan supérieur pour en ajouter plus.`);
       return;
     }
     const f = defaultForm();
