@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   db_addCustomer, db_addPoints, db_addStamp,
   db_deleteCustomer, db_getAll, findTenantByCardId,
-  db_deductReward, db_addRedemption, db_incrementRewardUsage, db_addReferral,
+  db_deductReward, db_addRedemption, db_incrementRewardUsage,
+  db_recordPendingReferral, db_creditPendingReferrals,
 } from "@/lib/server-db";
 import { walletNotificationService } from "@/lib/wallet-notification-service";
 import { auth } from "@/auth";
@@ -23,7 +24,6 @@ const RegisterSchema = z.discriminatedUnion("mode", [
     email: z.string().email().optional().or(z.literal("")),
     phone: z.string().max(30).optional(),
     password: z.string().min(6).max(128).optional(),
-    welcomePoints: z.number().int().min(0).optional(),
     ref: z.string().optional(),
   }),
   z.object({
@@ -31,10 +31,20 @@ const RegisterSchema = z.discriminatedUnion("mode", [
     cardId: z.string().min(1),
     email: z.string().email(),
     password: z.string().min(1).max(128),
-    welcomePoints: z.number().int().min(0).optional(),
     ref: z.string().optional(),
   }),
 ]);
+
+// Première visite réelle d'un filleul → crédite son parrain + synchro wallet
+function creditReferralsOnFirstVisit(tenantId: string, customerId: string): void {
+  db_creditPendingReferrals(tenantId, customerId)
+    .then((referrerCards) => {
+      for (const cardId of referrerCards) {
+        walletNotificationService.updatePoints(cardId).catch(console.error);
+      }
+    })
+    .catch(console.error);
+}
 
 // POST — appelé depuis /join/[cardId] (sans session auth) — cherche le tenant par cardId
 export async function POST(req: NextRequest) {
@@ -48,12 +58,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Données invalides." }, { status: 400 });
     }
     const body = parsed.data;
-    const { mode, cardId, welcomePoints } = body;
+    const { mode, cardId } = body;
     // password existe sur les deux variantes mais avec types différents — on accède via body directement
     const password = "password" in body ? (body.password as string | undefined) : undefined;
 
     const tenantId = await findTenantByCardId(cardId);
     if (!tenantId) return NextResponse.json({ error: "Card not found" }, { status: 404 });
+
+    // Points de bienvenue : TOUJOURS lus depuis la config de la carte côté serveur
+    // (jamais depuis le client — sinon n'importe qui s'injecte des points)
+    let welcomePoints = 0;
+    try {
+      const blob = await getTenantSettings(tenantId);
+      welcomePoints = blob.loyaltyCards.find((c) => c.id === cardId)?.welcomePoints ?? 0;
+    } catch { /* 0 par défaut */ }
 
     // Vérifier la limite de clients selon le plan
     const user = await getUserById(tenantId);
@@ -135,16 +153,16 @@ export async function POST(req: NextRequest) {
 
     await db_addCustomer(tenantId,
       { id: customerId, name: clientName, email: clientEmail, phone: clientPhone, joinDate: now, totalVisits: 0, lastVisitAt: null },
-      { id: customerCardId, customerId, cardId, stamps: 0, points: welcomePoints ?? 0, referralCount: 0, referralPoints: 0, joinDate: now, lastActivity: now }
+      { id: customerCardId, customerId, cardId, stamps: 0, points: welcomePoints, referralCount: 0, referralPoints: 0, joinDate: now, lastActivity: now }
     );
 
-    // Bonus parrainage — crédite le parrain d'un point de parrainage
+    // Parrainage : enregistré en attente — le parrain sera crédité à la
+    // première visite réelle du filleul (anti-farm), et seulement si le
+    // filleul a un compte avec email.
     const ref = body.ref;
     if (ref) {
       try {
-        await db_addReferral(tenantId, ref);
-        // La carte wallet du parrain affiche ses parrainages → synchro
-        walletNotificationService.updatePoints(ref).catch(console.error);
+        await db_recordPendingReferral(tenantId, ref, customerId, clientEmail);
       } catch { /* ignore referral errors */ }
     }
 
@@ -215,11 +233,13 @@ export async function PATCH(req: NextRequest) {
     const { action, customerCardId, points } = body;
     const tenantId = session.user.id;
     if (action === "stamp") {
-      await db_addStamp(tenantId, customerCardId);
+      const card = await db_addStamp(tenantId, customerCardId);
       walletNotificationService.updateStamps(customerCardId).catch(console.error);
+      if (card) creditReferralsOnFirstVisit(tenantId, card.customerId);
     } else if (action === "points") {
-      await db_addPoints(tenantId, customerCardId, points ?? 0);
+      const card = await db_addPoints(tenantId, customerCardId, points ?? 0);
       walletNotificationService.updatePoints(customerCardId).catch(console.error);
+      if (card) creditReferralsOnFirstVisit(tenantId, card.customerId);
     } else if (action === "reward") {
       const { rewardName, rewardEmoji, cost, costType, customerId } = body;
       await db_deductReward(tenantId, customerCardId, costType, cost);

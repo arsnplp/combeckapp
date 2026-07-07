@@ -4,6 +4,7 @@ import { findTenantByCardId, db_getAll, db_addCustomer } from "@/lib/server-db";
 import { getUserById } from "@/lib/users";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { createClientSession } from "@/lib/client-sessions";
+import { getTenantSettings } from "@/lib/settings-db";
 
 export async function GET(req: NextRequest) {
   const appUrl = process.env.AUTH_URL ?? "https://app.getcomeback.fr";
@@ -97,7 +98,12 @@ export async function GET(req: NextRequest) {
           const now = new Date().toISOString();
           const customerId = `c${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
           const customerCardId = `cc${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
-          const welcomePoints = parseInt(cookiePayload.welcomePoints ?? "0", 10);
+          // Points de bienvenue lus depuis la config serveur, pas depuis le cookie
+          let welcomePoints = 0;
+          try {
+            const blob = await getTenantSettings(tenantId);
+            welcomePoints = blob.loyaltyCards.find((c) => c.id === cardId)?.welcomePoints ?? 0;
+          } catch { /* 0 par défaut */ }
           await db_addCustomer(
             tenantId,
             { id: customerId, name, email: email.toLowerCase(), phone: "", joinDate: now, totalVisits: 0, lastVisitAt: null },

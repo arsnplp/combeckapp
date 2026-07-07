@@ -7,7 +7,6 @@ export interface DbUser {
   id: string;
   email: string;
   passwordHash: string;
-  passwordPlain?: string;
   storeName: string;
   city?: string;
   plan: PlanId;
@@ -22,7 +21,6 @@ interface MerchantRow {
   id: string;
   email: string;
   password_hash: string;
-  password_plain: string | null;
   store_name: string;
   city: string;
   plan: string;
@@ -38,7 +36,6 @@ function mapUser(r: MerchantRow): DbUser {
     id: r.id,
     email: r.email,
     passwordHash: r.password_hash,
-    passwordPlain: r.password_plain ?? undefined,
     storeName: r.store_name,
     city: r.city || undefined,
     plan: r.plan as PlanId,
@@ -50,7 +47,7 @@ function mapUser(r: MerchantRow): DbUser {
   };
 }
 
-const COLS = "id, email, password_hash, password_plain, store_name, city, plan, created_at, email_verified, email_verification_token, google_id, onboarding_needed";
+const COLS = "id, email, password_hash, store_name, city, plan, created_at, email_verified, email_verification_token, google_id, onboarding_needed";
 
 export async function getUserByEmail(email: string): Promise<DbUser | null> {
   const { data } = await supabase().from("merchants").select(COLS)
@@ -87,7 +84,7 @@ export async function deleteUser(id: string): Promise<void> {
 export async function updateUserPassword(id: string, newPassword: string): Promise<void> {
   const passwordHash = await bcrypt.hash(newPassword, 12);
   const { data } = await supabase().from("merchants")
-    .update({ password_hash: passwordHash, password_plain: newPassword })
+    .update({ password_hash: passwordHash, password_plain: null })
     .eq("id", id).select("id");
   if (!data?.length) throw new Error("USER_NOT_FOUND");
 }

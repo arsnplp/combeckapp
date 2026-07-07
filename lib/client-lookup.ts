@@ -115,7 +115,7 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
         referralPoints: cc.referral_points ?? 0,
         accentColor: lc.accent_color ?? "#16a34a",
         backgroundColor: lc.background_color ?? "#1e1b4b",
-        logoUrl: merchant?.logo_url ?? "",
+        logoUrl: merchant?.logo_url ? `/api/settings/logo?tenantId=${cust.merchant_id as string}&t=${merchant.logo_url}` : "",
         rewards: cardRewards,
         referral: {
           enabled: lc.referral_enabled ?? false,

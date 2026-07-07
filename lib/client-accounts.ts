@@ -4,7 +4,6 @@ import { supabase } from "./supabase";
 export interface ClientAccount {
   email: string;
   passwordHash: string;
-  passwordPlain?: string;
   name: string;
   createdAt: string;
   googleId?: string;
@@ -14,7 +13,6 @@ interface ClientRow {
   id: string;
   email: string;
   password_hash: string;
-  password_plain: string | null;
   name: string;
   google_id: string | null;
   created_at: string;
@@ -24,7 +22,6 @@ function mapAccount(r: ClientRow): ClientAccount {
   return {
     email: r.email,
     passwordHash: r.password_hash,
-    passwordPlain: r.password_plain ?? undefined,
     name: r.name,
     createdAt: r.created_at,
     googleId: r.google_id ?? undefined,
@@ -86,11 +83,11 @@ export async function resetClientPassword(email: string, newPassword: string): P
   const sb = supabase();
   const { data: existing } = await sb.from("clients").select("id").ilike("email", normalized).maybeSingle();
   if (existing) {
-    await sb.from("clients").update({ password_hash: passwordHash, password_plain: newPassword }).eq("id", existing.id);
+    await sb.from("clients").update({ password_hash: passwordHash, password_plain: null }).eq("id", existing.id);
   } else {
     await sb.from("clients").insert({
       id: clientId(normalized), email: normalized,
-      password_hash: passwordHash, password_plain: newPassword,
+      password_hash: passwordHash,
       name: normalized, created_at: new Date().toISOString(),
     });
   }

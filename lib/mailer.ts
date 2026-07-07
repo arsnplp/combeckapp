@@ -6,7 +6,7 @@ function getResend() {
   return new Resend(key);
 }
 
-const FROM = process.env.RESEND_FROM_EMAIL ?? "ComeBack <noreply@nairox.fr>";
+const FROM = process.env.RESEND_FROM_EMAIL ?? "ComeBack <noreply@getcomeback.fr>";
 const APP_URL = process.env.AUTH_URL ?? "https://app.getcomeback.fr";
 
 function html(title: string, body: string): string {

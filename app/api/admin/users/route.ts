@@ -35,7 +35,6 @@ export async function GET() {
     plan: u.plan,
     monthlyRevenue: PLAN_PRICES[u.plan] ?? 0,
     createdAt: u.createdAt,
-    passwordPlain: u.passwordPlain ?? null,
     clients: customerCounts.get(u.id) ?? 0,
     cards: cardCounts.get(u.id) ?? 0,
     loyaltyCards: loyaltyCounts.get(u.id) ?? 0,

@@ -8,7 +8,6 @@ interface ClientSummary {
   name: string;
   phone: string;
   hasPassword: boolean;
-  passwordPlain: string | null;
   joinDate: string;
   cards: Array<{
     tenantId: string;
@@ -49,7 +48,6 @@ export async function GET() {
         name: customer.name as string,
         phone: (customer.phone as string) ?? "",
         hasPassword: !!acct,
-        passwordPlain: acct?.passwordPlain ?? null,
         joinDate: customer.join_date as string,
         cards: [],
       });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, CreditCard, Store, Loader2, RefreshCw, Euro, LogIn, Key, Check, X, Trash2, ShieldAlert, ShieldCheck, Eye, EyeOff } from "lucide-react";
+import { Users, CreditCard, Store, Loader2, RefreshCw, Euro, LogIn, Key, Check, X, Trash2, ShieldAlert, ShieldCheck } from "lucide-react";
 import { signIn } from "next-auth/react";
 import type { PlanId } from "@/types";
 
@@ -16,7 +16,6 @@ interface TenantUser {
   clients: number;
   cards: number;
   loyaltyCards: number;
-  passwordPlain: string | null;
 }
 
 interface ClientCard {
@@ -33,7 +32,6 @@ interface ClientSummary {
   name: string;
   phone: string;
   hasPassword: boolean;
-  passwordPlain: string | null;
   joinDate: string;
   cards: ClientCard[];
 }
@@ -111,7 +109,6 @@ export default function AdminPage() {
   const [resetSuccess, setResetSuccess] = useState<string | null>(null);
   const [deletingClient, setDeletingClient] = useState<string | null>(null);
   const [certInfo, setCertInfo] = useState<CertInfo | null>(null);
-  const [showPwdFor, setShowPwdFor] = useState<Set<string>>(new Set());
 
   const handleAccess = async (userId: string) => {
     setImpersonating(userId);
@@ -411,23 +408,6 @@ export default function AdminPage() {
                               MDP
                             </button>
                           )}
-                          <div className="flex items-center gap-1 mt-0.5">
-                            {u.passwordPlain ? (
-                              <>
-                                <code className="text-[10px] text-slate-400 bg-white/[0.04] border border-white/[0.06] rounded px-1.5 py-0.5 font-mono">
-                                  {showPwdFor.has(u.id) ? u.passwordPlain : "••••••"}
-                                </code>
-                                <button
-                                  onClick={() => setShowPwdFor((prev) => { const next = new Set(prev); next.has(u.id) ? next.delete(u.id) : next.add(u.id); return next; })}
-                                  className="text-slate-600 hover:text-slate-300 transition-colors"
-                                >
-                                  {showPwdFor.has(u.id) ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                                </button>
-                              </>
-                            ) : (
-                              <span className="text-[10px] text-slate-600 italic">défini par l&apos;utilisateur</span>
-                            )}
-                          </div>
                         </div>
                       </td>
                     </tr>
@@ -533,23 +513,6 @@ export default function AdminPage() {
                               <Trash2 className="h-3 w-3" />
                               Supprimer
                             </button>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {c.passwordPlain ? (
-                              <>
-                                <code className="text-[10px] text-slate-400 bg-white/[0.04] border border-white/[0.06] rounded px-1.5 py-0.5 font-mono">
-                                  {showPwdFor.has(c.email) ? c.passwordPlain : "••••••"}
-                                </code>
-                                <button
-                                  onClick={() => setShowPwdFor((prev) => { const next = new Set(prev); next.has(c.email) ? next.delete(c.email) : next.add(c.email); return next; })}
-                                  className="text-slate-600 hover:text-slate-300 transition-colors"
-                                >
-                                  {showPwdFor.has(c.email) ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                                </button>
-                              </>
-                            ) : (
-                              <span className="text-[10px] text-slate-600 italic">défini par l&apos;utilisateur</span>
-                            )}
                           </div>
                         </div>
                       )}

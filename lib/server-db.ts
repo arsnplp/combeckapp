@@ -158,6 +158,74 @@ export async function db_deleteCustomer(tenantId: string, customerId: string): P
     .eq("id", customerId).eq("merchant_id", tenantId);
 }
 
+/**
+ * Enregistre un parrainage EN ATTENTE — le parrain ne sera crédité qu'à la
+ * première visite réelle du filleul (anti-farm : les fausses inscriptions
+ * sans visite ne rapportent rien).
+ * Conditions : filleul avec email, pas d'auto-parrainage, parrain du même commerce.
+ */
+export async function db_recordPendingReferral(
+  tenantId: string,
+  referrerCardId: string,
+  referredCustomerId: string,
+  referredEmail: string,
+): Promise<boolean> {
+  const email = (referredEmail ?? "").toLowerCase().trim();
+  if (!email) return false; // pas de compte email → pas de parrainage
+
+  const sb = supabase();
+
+  // Le parrain doit exister dans CE commerce
+  const { data: refCard } = await sb.from("customer_cards")
+    .select("id, customer_id").eq("id", referrerCardId).eq("merchant_id", tenantId).maybeSingle();
+  if (!refCard) return false;
+
+  // Anti auto-parrainage : le parrain ne peut pas être le filleul
+  const { data: refCustomer } = await sb.from("customers")
+    .select("email").eq("id", refCard.customer_id).maybeSingle();
+  if (refCustomer?.email && refCustomer.email.toLowerCase() === email) return false;
+
+  // Un seul parrainage par filleul
+  const { data: existing } = await sb.from("referrals")
+    .select("id").eq("referred_customer_id", referredCustomerId).maybeSingle();
+  if (existing) return false;
+
+  const { error } = await sb.from("referrals").insert({
+    id: `ref_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    merchant_id: tenantId,
+    referrer_card_id: referrerCardId,
+    referred_customer_id: referredCustomerId,
+    referred_email: email,
+    credited: false,
+  });
+  return !error;
+}
+
+/**
+ * Crédite les parrainages en attente pour un filleul qui vient de faire sa
+ * première visite réelle. Retourne les cartes des parrains crédités
+ * (pour synchroniser leurs cartes wallet).
+ */
+export async function db_creditPendingReferrals(tenantId: string, customerId: string): Promise<string[]> {
+  const sb = supabase();
+  const { data: pending } = await sb.from("referrals")
+    .select("id, referrer_card_id")
+    .eq("merchant_id", tenantId)
+    .eq("referred_customer_id", customerId)
+    .eq("credited", false);
+  if (!pending?.length) return [];
+
+  const credited: string[] = [];
+  for (const r of pending) {
+    const { data: updated } = await sb.from("referrals")
+      .update({ credited: true }).eq("id", r.id).eq("credited", false).select("id");
+    if (!updated?.length) continue; // déjà crédité par une requête concurrente
+    const card = await db_addReferral(tenantId, r.referrer_card_id);
+    if (card) credited.push(r.referrer_card_id);
+  }
+  return credited;
+}
+
 export async function db_addReferral(tenantId: string, customerCardId: string): Promise<DbCustomerCard | null> {
   const cc = await getCardInTenant(tenantId, customerCardId);
   if (!cc) return null;
