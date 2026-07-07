@@ -40,11 +40,26 @@ export default function RecurringNotifications() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/notifications/recurring");
-      if (!res.ok) return;
-      const data = await res.json();
-      setItems(data.items ?? []);
-      setPlanAllowed(data.planAllowed ?? false);
+      // Vérifier d'abord le plan
+      const planRes = await fetch("/api/plan-features");
+      if (!planRes.ok) {
+        setLoading(false);
+        setPlanAllowed(false);
+        return;
+      }
+      const planData = await planRes.json();
+      setPlanAllowed(planData.canReferral ?? false); // Pro/Business ont canReferral true
+
+      if (planData.canReferral) {
+        // Charger les items que si éligible
+        const res = await fetch("/api/notifications/recurring");
+        if (!res.ok) {
+          setLoading(false);
+          return;
+        }
+        const data = await res.json();
+        setItems(data.items ?? []);
+      }
     } catch { /* silencieux */ }
     finally { setLoading(false); }
   }, []);

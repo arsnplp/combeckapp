@@ -37,10 +37,10 @@ export default function QuotaCard() {
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center gap-3">
-        <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-bold ${PLAN_STYLES[info.plan] ?? PLAN_STYLES.starter}`}>
-          {info.plan === "pro" && <Star className="h-3 w-3" fill="currentColor" />}
-          {info.plan === "business" && <Zap className="h-3 w-3" fill="currentColor" />}
+      <div className="flex items-center gap-4">
+        <div className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-[14px] font-bold ${PLAN_STYLES[info.plan] ?? PLAN_STYLES.starter}`}>
+          {info.plan === "pro" && <Star className="h-4 w-4" fill="currentColor" />}
+          {info.plan === "business" && <Zap className="h-4 w-4" fill="currentColor" />}
           Plan {info.planLabel}
         </div>
         <p className="text-[13px] text-slate-500">
