@@ -10,8 +10,8 @@ export const PLAN_LIMITS: Record<PlanId, {
   analyticsHistoryDays: number;
 }> = {
   free: {
-    clients: 50,
-    notifs: 1000,
+    clients: 150,
+    notifs: 10000,
     cards: 1,
     targetingAdvanced: false,
     referralEnabled: false,

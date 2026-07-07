@@ -1,0 +1,98 @@
+import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import { supabase } from "@/lib/supabase";
+import { PLAN_PRICING } from "@/lib/plan-billing";
+
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+export async function POST(req: NextRequest) {
+  try {
+    const { email, password, storeName, city, plan, billingCycle } = await req.json();
+
+    if (!email || !EMAIL_RE.test(email)) {
+      return NextResponse.json({ error: "Email invalide." }, { status: 400 });
+    }
+    if (!password || password.length < 8) {
+      return NextResponse.json({ error: "Mot de passe min. 8 caractères." }, { status: 400 });
+    }
+    if (!storeName || !storeName.trim()) {
+      return NextResponse.json({ error: "Nom de commerce requis." }, { status: 400 });
+    }
+    if (!plan || !["starter", "pro", "business"].includes(plan)) {
+      return NextResponse.json({ error: "Plan invalide." }, { status: 400 });
+    }
+    if (!billingCycle || !["monthly", "annual"].includes(billingCycle)) {
+      return NextResponse.json({ error: "Cycle invalide." }, { status: 400 });
+    }
+
+    const normalized = email.toLowerCase().trim();
+    const sb = supabase();
+
+    // Vérifier si email existe
+    const { data: existing } = await sb.from("merchants").select("id").ilike("email", normalized).maybeSingle();
+    if (existing) {
+      return NextResponse.json({ error: "Cet email est déjà utilisé." }, { status: 409 });
+    }
+
+    // Créer le compte (sans plan pour le moment)
+    const userId = `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    await sb.from("merchants").insert({
+      id: userId,
+      email: normalized,
+      password_hash: passwordHash,
+      store_name: storeName.trim(),
+      city: city?.trim() ?? "",
+      plan: "free",
+      plan_expires_at: null,
+      created_at: new Date().toISOString(),
+      email_verified: true,
+      is_admin: false,
+    });
+
+    // Créer customer Stripe
+    const customer = await stripe.customers.create({
+      email: normalized,
+      metadata: { merchantId: userId },
+    });
+
+    // Mettre à jour le merchant avec stripe_customer_id
+    await sb.from("merchants").update({ stripe_customer_id: customer.id }).eq("id", userId);
+
+    // Créer la Stripe Checkout Session
+    const pricing = PLAN_PRICING[plan as keyof typeof PLAN_PRICING];
+    const amount = billingCycle === "monthly" ? pricing.monthly : pricing.annual;
+    const description = `Plan ${plan.charAt(0).toUpperCase() + plan.slice(1)} (${billingCycle === "monthly" ? "Mensuel" : "Annuel"})`;
+
+    const checkoutSession = await stripe.checkout.sessions.create({
+      customer: customer.id,
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items: [
+        {
+          price_data: {
+            currency: "eur",
+            product_data: { name: description },
+            unit_amount: Math.round(amount * 100),
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?billing=success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/tarifs?billing=cancel`,
+      metadata: { merchantId: userId, plan, billingCycle },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      userId,
+      email: normalized,
+      checkoutUrl: checkoutSession.url,
+    });
+  } catch (e) {
+    console.error("[signup-paid]", e);
+    return NextResponse.json({ error: "Erreur serveur." }, { status: 500 });
+  }
+}
