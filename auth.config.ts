@@ -45,6 +45,7 @@ export const authConfig = {
         pathname.startsWith("/api/auth") ||
         pathname.startsWith("/api/register") ||
         pathname.startsWith("/api/wallet") ||
+        pathname.startsWith("/api/cron/") ||
         pathname.startsWith("/api/settings/logo") ||
         pathname.startsWith("/api/client/login") ||
         pathname.startsWith("/api/client/check-email") ||

@@ -1,8 +1,8 @@
 import type { PlanId } from "@/types";
 
 export const PLAN_LIMITS: Record<PlanId, { clients: number; notifs: number }> = {
-  starter:  { clients: 150,      notifs: 1000     },
-  pro:      { clients: Infinity,  notifs: 5000     },
+  starter:  { clients: 150,      notifs: 10000    },
+  pro:      { clients: Infinity,  notifs: 50000    },
   business: { clients: Infinity,  notifs: Infinity },
 };
 

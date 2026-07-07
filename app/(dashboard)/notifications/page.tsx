@@ -5,6 +5,8 @@ import { Send, Loader2, CheckCircle, Plus, Pencil, Trash2, X, Check } from "luci
 import { useStore } from "@/lib/store-context";
 import { computeRank, RANK_EMOJIS } from "@/lib/rank";
 import NotificationHistory from "@/components/notifications/NotificationHistory";
+import RecurringNotifications from "@/components/notifications/RecurringNotifications";
+import QuotaCard from "@/components/notifications/QuotaCard";
 import type { AudienceType, RankType } from "@/types";
 
 // ── Suggestions persistées ────────────────────────────────────────────────────
@@ -133,6 +135,12 @@ export default function NotificationsPage() {
         <h2 className="mt-1 text-[22px] font-bold text-slate-900">Notifications</h2>
         <p className="mt-0.5 text-[13px] text-slate-500">Envoyez des messages ciblés à vos clients Apple Wallet.</p>
       </div>
+
+      {/* ── Plan actuel + compteur mensuel ── */}
+      <QuotaCard />
+
+      {/* ── Notifications automatiques ── */}
+      <RecurringNotifications />
 
       {/* ── Composer ── */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
