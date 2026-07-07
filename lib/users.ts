@@ -10,6 +10,7 @@ export interface DbUser {
   storeName: string;
   city?: string;
   plan: PlanId;
+  planExpiresAt?: string | null;
   createdAt: string;
   emailVerified?: boolean;
   emailVerificationToken?: string | null;
@@ -24,6 +25,7 @@ interface MerchantRow {
   store_name: string;
   city: string;
   plan: string;
+  plan_expires_at?: string | null;
   created_at: string;
   email_verified: boolean;
   email_verification_token: string | null;
@@ -39,6 +41,7 @@ function mapUser(r: MerchantRow): DbUser {
     storeName: r.store_name,
     city: r.city || undefined,
     plan: r.plan as PlanId,
+    planExpiresAt: r.plan_expires_at ?? undefined,
     createdAt: r.created_at,
     emailVerified: r.email_verified,
     emailVerificationToken: r.email_verification_token,
@@ -47,7 +50,7 @@ function mapUser(r: MerchantRow): DbUser {
   };
 }
 
-const COLS = "id, email, password_hash, store_name, city, plan, created_at, email_verified, email_verification_token, google_id, onboarding_needed";
+const COLS = "id, email, password_hash, store_name, city, plan, plan_expires_at, created_at, email_verified, email_verification_token, google_id, onboarding_needed";
 
 export async function getUserByEmail(email: string): Promise<DbUser | null> {
   const { data } = await supabase().from("merchants").select(COLS)
@@ -93,12 +96,15 @@ export async function createUserFromGoogle(email: string, name: string): Promise
   const normalized = email.toLowerCase().trim();
   const existing = await getUserByEmail(normalized);
   if (existing) return existing;
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 90);
   const user: DbUser = {
     id: `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     email: normalized,
     passwordHash: "",
     storeName: name.trim() || "",
     plan: "starter",
+    planExpiresAt: expiresAt.toISOString(),
     createdAt: new Date().toISOString(),
     emailVerified: true,
     googleId: normalized,
@@ -110,6 +116,7 @@ export async function createUserFromGoogle(email: string, name: string): Promise
     password_hash: "",
     store_name: user.storeName,
     plan: user.plan,
+    plan_expires_at: user.planExpiresAt,
     created_at: user.createdAt,
     email_verified: true,
     google_id: normalized,

@@ -10,7 +10,7 @@ export async function GET() {
 
   const user = await getUserById(session.user.id);
   const plan = (user?.plan ?? "starter") as PlanId;
-  const features = getPlanFeatures(plan);
+  const features = getPlanFeatures(plan, user?.planExpiresAt);
 
   return NextResponse.json(features);
 }

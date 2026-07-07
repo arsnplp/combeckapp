@@ -5,6 +5,7 @@ import Topbar from "@/components/layout/Topbar";
 import { StoreProvider } from "@/lib/store-context";
 import { auth } from "@/auth";
 import ImpersonationBanner from "@/components/layout/ImpersonationBanner";
+import PlanExpirationBanner from "@/components/dashboard/PlanExpirationBanner";
 import { getUserById } from "@/lib/users";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
@@ -28,6 +29,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           <div className="flex min-w-0 flex-1 flex-col">
             <Topbar />
             <main className="mx-auto w-full max-w-[1060px] px-6 py-7 lg:px-8 lg:py-8">
+              <PlanExpirationBanner />
               {children}
             </main>
           </div>

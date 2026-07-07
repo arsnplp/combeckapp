@@ -9,6 +9,15 @@ export const PLAN_LIMITS: Record<PlanId, {
   csvExport: boolean;
   analyticsHistoryDays: number;
 }> = {
+  free: {
+    clients: 50,
+    notifs: 1000,
+    cards: 1,
+    targetingAdvanced: false,
+    referralEnabled: false,
+    csvExport: false,
+    analyticsHistoryDays: 7,
+  },
   starter: {
     clients: 150,
     notifs: 10000,
@@ -39,6 +48,7 @@ export const PLAN_LIMITS: Record<PlanId, {
 };
 
 export const PLAN_LABELS: Record<PlanId, string> = {
+  free:     "Essai gratuit",
   starter:  "Starter",
   pro:      "Pro",
   business: "Business",

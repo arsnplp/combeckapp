@@ -1,7 +1,8 @@
 import { PLAN_LIMITS, PLAN_LABELS } from "./plan-limits";
+import { getPlanInfo, type PlanInfo } from "./plan-billing";
 import type { PlanId } from "@/types";
 
-export interface PlanFeatures {
+export interface PlanFeatures extends PlanInfo {
   plan: PlanId;
   label: string;
   maxCards: number;
@@ -11,10 +12,12 @@ export interface PlanFeatures {
   analyticsHistoryDays: number;
 }
 
-export function getPlanFeatures(plan: PlanId): PlanFeatures {
+export function getPlanFeatures(plan: PlanId, expiresAt?: string | null): PlanFeatures {
   const limits = PLAN_LIMITS[plan] ?? PLAN_LIMITS.starter;
+  const planInfo = getPlanInfo(plan, expiresAt ?? null);
   return {
-    plan,
+    ...planInfo,
+    plan: (plan || "starter") as PlanId,
     label: PLAN_LABELS[plan] ?? "Starter",
     maxCards: limits.cards,
     canTarget: limits.targetingAdvanced,

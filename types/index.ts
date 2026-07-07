@@ -95,7 +95,7 @@ export interface LoyaltyCard {
   referral?: { enabled: boolean; referrerBonus: number; bonusType: "stamps" | "points" };
 }
 
-export type PlanId = "starter" | "pro" | "business";
+export type PlanId = "free" | "starter" | "pro" | "business";
 
 export interface CustomerCard {
   id: string;
