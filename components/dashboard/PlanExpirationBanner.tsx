@@ -27,13 +27,13 @@ export default function PlanExpirationBanner() {
   }, []);
 
   if (!status) return null;
-  if (status.plan === "starter" || status.plan === "pro" || status.plan === "business") {
-    if (!status.isExpired && (!status.daysLeft || status.daysLeft > 7)) return null;
-  }
+  // Rien à afficher : pas de date d'expiration connue, ou échéance lointaine (> 7 jours)
+  if (!status.isExpired && (status.daysLeft === null || status.daysLeft > 7)) return null;
 
+  const label = status.plan === "free" ? "essai gratuit" : "abonnement";
   const message = status.isExpired
-    ? "Votre essai gratuit a expiré. Veuillez passer à un plan payant pour continuer."
-    : `Votre essai gratuit expire dans ${status.daysLeft} jour${status.daysLeft === 1 ? "" : "s"}.`;
+    ? `Votre ${label} a expiré. Veuillez passer à un plan payant pour continuer.`
+    : `Votre ${label} expire dans ${status.daysLeft} jour${status.daysLeft === 1 ? "" : "s"}.`;
 
   const bgColor = status.isExpired ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200";
   const textColor = status.isExpired ? "text-red-700" : "text-amber-700";
