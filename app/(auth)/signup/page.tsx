@@ -8,6 +8,7 @@ import { Loader2, Eye, EyeOff, Check, Star, ArrowLeft } from "lucide-react";
 import type { PlanId } from "@/types";
 
 const PLAN_INFO: Record<PlanId, { label: string; price: number; color: string }> = {
+  free:     { label: "Essai gratuit", price: 0, color: "text-emerald-700 bg-emerald-50" },
   starter:  { label: "Starter",  price: 19, color: "text-slate-600 bg-slate-100" },
   pro:      { label: "Pro",      price: 49, color: "text-green-700 bg-green-50" },
   business: { label: "Business", price: 99, color: "text-violet-700 bg-violet-50" },

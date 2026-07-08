@@ -55,6 +55,7 @@ export const PLAN_LABELS: Record<PlanId, string> = {
 };
 
 export const PLAN_PRICES: Record<PlanId, number> = {
+  free:     0,
   starter:  19,
   pro:      49,
   business: 99,

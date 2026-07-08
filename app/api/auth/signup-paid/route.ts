@@ -3,11 +3,20 @@ import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
 import { PLAN_PRICING } from "@/lib/plan-billing";
 
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+function getStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) return null;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require("stripe")(process.env.STRIPE_SECRET_KEY);
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export async function POST(req: NextRequest) {
   try {
+    const stripe = getStripe();
+    if (!stripe) {
+      return NextResponse.json({ error: "Paiement non configuré." }, { status: 503 });
+    }
     const { email, password, storeName, city, plan, billingCycle } = await req.json();
 
     if (!email || !EMAIL_RE.test(email)) {

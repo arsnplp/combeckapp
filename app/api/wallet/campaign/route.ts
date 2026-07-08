@@ -28,17 +28,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const results = customerIds?.length
-      ? await walletNotificationService.sendCampaignToCustomers(message.trim(), customerIds)
-      : await walletNotificationService.sendCampaignToAll(message.trim());
+    // Toujours scopé au tenant — jamais d'envoi aux clients d'autres commerces
+    const result = await walletNotificationService.sendCampaignToTenant(
+      tenantId,
+      message.trim(),
+      customerIds?.length ? customerIds : undefined,
+    );
 
-    const success = results.filter((r) => r.success).length;
-    const failed = results.filter((r) => !r.success).length;
+    if (result.clientsReached > 0 && user) await incrementNotifCount(tenantId, result.clientsReached);
 
-    if (success > 0 && user) await incrementNotifCount(tenantId, success);
-
-    console.log(`[Campaign] Sent to ${success} devices, ${failed} failed`);
-    return NextResponse.json({ ok: true, success, failed, total: results.length });
+    console.log(`[Campaign] tenant=${tenantId} clients=${result.clientsReached}/${result.clientsTotal} devicePushes=${result.devicePushes.length}`);
+    return NextResponse.json({
+      ok: true,
+      success: result.clientsReached,
+      total: result.clientsTotal,
+      failed: result.clientsTotal - result.clientsReached,
+    });
   } catch (e) {
     console.error("[Campaign] Error:", e);
     return NextResponse.json({ error: String(e) }, { status: 500 });

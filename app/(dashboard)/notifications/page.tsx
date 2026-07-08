@@ -77,7 +77,7 @@ export default function NotificationsPage() {
   const platineClients = byRank("platine");
 
   const audienceConfig: Record<AudienceType, { label: string; emoji: string; count: number; accent: string; ids: string[] }> = {
-    all:     { label: "Tous",    emoji: "👥", count: customers.length,        accent: "#3b82f6", ids: customers.map((c) => c.id) },
+    all:     { label: "Tous",    emoji: "👥", count: customers.length,        accent: "#16a34a", ids: customers.map((c) => c.id) },
     silver:  { label: "Silver",  emoji: RANK_EMOJIS.silver,  count: silverClients.length,  accent: "#64748b", ids: silverClients.map((c) => c.id) },
     gold:    { label: "Gold",    emoji: RANK_EMOJIS.gold,    count: goldClients.length,    accent: "#d97706", ids: goldClients.map((c) => c.id) },
     platine: { label: "Platine", emoji: RANK_EMOJIS.platine, count: platineClients.length, accent: "#0ea5e9", ids: platineClients.map((c) => c.id) },

@@ -221,9 +221,14 @@ function buildPassJSON(opts: ClientPassOptions): object {
     base.authenticationToken = opts.authenticationToken;
   }
 
-  // Campaign header field — visible on card front, changeMessage triggers iOS notification
+  // Message de campagne : affiché en header sur le devant (sans changeMessage —
+  // iOS ignore les changeMessage des headerFields), ET en backField AVEC
+  // changeMessage : c'est lui qui déclenche la bannière de notification iOS.
   const campaignHeaderField = opts.campaignMessage
-    ? [{ key: "campaign", label: "OFFRE", value: opts.campaignMessage, changeMessage: "%@" }]
+    ? [{ key: "campaign", label: "OFFRE", value: opts.campaignMessage }]
+    : [];
+  const campaignBackField = opts.campaignMessage
+    ? [{ key: "campaignBack", label: "Offre en cours", value: opts.campaignMessage, changeMessage: "%@" }]
     : [];
 
   const auxiliaryFields: Record<string, string>[] = [];
@@ -236,10 +241,18 @@ function buildPassJSON(opts: ClientPassOptions): object {
       ...base,
       storeCard: {
         headerFields: campaignHeaderField,
-        primaryFields: [{ key: "stamps", label: "", value: " ", changeMessage: "Nouveau tampon !" }],
+        primaryFields: [{ key: "stamps", label: "", value: " " }],
         secondaryFields: [{ key: "client", label: "CLIENT", value: opts.clientName }],
         ...(auxiliaryFields.length > 0 ? { auxiliaryFields } : {}),
         backFields: [
+          // La valeur change à chaque tampon → iOS affiche la notification
+          {
+            key: "solde",
+            label: "Tampons",
+            value: `${opts.stamps} / ${opts.stampsRequired}`,
+            changeMessage: "Tampons : %@",
+          },
+          ...campaignBackField,
           {
             key: "info",
             label: "Programme Fidélité",
@@ -254,10 +267,18 @@ function buildPassJSON(opts: ClientPassOptions): object {
     ...base,
     storeCard: {
       headerFields: campaignHeaderField,
-      primaryFields: [{ key: "points", label: "", value: " ", changeMessage: "Points mis à jour !" }],
+      primaryFields: [{ key: "points", label: "", value: " " }],
       secondaryFields: [{ key: "client", label: "CLIENT", value: opts.clientName }],
       ...(auxiliaryFields.length > 0 ? { auxiliaryFields } : {}),
       backFields: [
+        // La valeur change à chaque mouvement de points → notification iOS
+        {
+          key: "solde",
+          label: "Points",
+          value: `${opts.points.toLocaleString("fr-FR")} points`,
+          changeMessage: "Solde : %@",
+        },
+        ...campaignBackField,
         {
           key: "info",
           label: "Programme Fidélité",

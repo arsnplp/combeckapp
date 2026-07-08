@@ -3,10 +3,18 @@ import { auth } from "@/auth";
 import { supabase } from "@/lib/supabase";
 import { PLAN_PRICING } from "@/lib/plan-billing";
 
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+function getStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) return null;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require("stripe")(process.env.STRIPE_SECRET_KEY);
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const stripe = getStripe();
+    if (!stripe) {
+      return NextResponse.json({ error: "Paiement non configuré." }, { status: 503 });
+    }
     const session = await auth();
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Non authentifié." }, { status: 401 });

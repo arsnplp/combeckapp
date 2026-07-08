@@ -2,14 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { activatePlan } from "@/lib/plan-billing";
 
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+function getStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) return null;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require("stripe")(process.env.STRIPE_SECRET_KEY);
+}
 
 export async function POST(req: NextRequest) {
+  const stripe = getStripe();
+  const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
   const body = await req.text();
   const sig = req.headers.get("stripe-signature");
 
-  if (!sig || !WEBHOOK_SECRET) {
+  if (!stripe || !sig || !WEBHOOK_SECRET) {
     return NextResponse.json({ error: "Missing signature or secret." }, { status: 400 });
   }
 

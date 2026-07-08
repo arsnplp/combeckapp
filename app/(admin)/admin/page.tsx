@@ -37,6 +37,7 @@ interface ClientSummary {
 }
 
 const PLAN_STYLE: Record<PlanId, { label: string; class: string }> = {
+  free:     { label: "Essai",    class: "bg-emerald-500/10 text-emerald-400" },
   starter:  { label: "Starter",  class: "bg-slate-500/10 text-slate-400" },
   pro:      { label: "✦ Pro",    class: "bg-amber-500/10 text-amber-400" },
   business: { label: "◆ Business", class: "bg-violet-500/10 text-violet-400" },

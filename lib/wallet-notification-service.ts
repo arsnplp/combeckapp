@@ -177,6 +177,13 @@ export interface PushResult {
   pushToken: string;
   success: boolean;
   error?: string;
+  passId?: string;
+}
+
+export interface CampaignResult {
+  clientsReached: number;   // passes ayant reçu au moins un push réussi
+  clientsTotal: number;     // passes ciblés (clients du tenant avec une carte wallet)
+  devicePushes: PushResult[];
 }
 
 // ── WalletNotificationService ─────────────────────────────────────────────────
@@ -197,10 +204,10 @@ export class WalletNotificationService {
       try {
         await sendApnsPush(device.pushToken);
         console.log(`[Wallet] ✓ Push sent to ${device.pushToken.slice(0, 10)}...`);
-        results.push({ pushToken: device.pushToken, success: true });
+        results.push({ pushToken: device.pushToken, success: true, passId });
       } catch (err) {
         console.error(`[Wallet] ✗ Push failed:`, String(err));
-        results.push({ pushToken: device.pushToken, success: false, error: String(err) });
+        results.push({ pushToken: device.pushToken, success: false, error: String(err), passId });
       }
     }
 
@@ -280,27 +287,41 @@ export class WalletNotificationService {
   }
 
   /**
-   * Sends a campaign to ALL registered passes.
+   * Envoie une campagne aux clients d'UN tenant uniquement.
+   * customerIds optionnel : restreint aux clients ciblés (toujours filtrés
+   * par le tenant côté serveur — jamais de fuite vers d'autres commerces).
    */
-  async sendCampaignToAll(message: string): Promise<PushResult[]> {
-    const passes = await walletDb_getAllPasses();
-    const results: PushResult[] = [];
-    for (const pass of passes) {
-      const r = await this.sendCampaign(pass.id, message);
-      results.push(...r);
+  async sendCampaignToTenant(tenantId: string, message: string, customerIds?: string[]): Promise<CampaignResult> {
+    const db = await db_getAll(tenantId);
+    let tenantCustomerIds = new Set(db.customers.map((c) => c.id));
+    if (customerIds?.length) {
+      const requested = new Set(customerIds);
+      tenantCustomerIds = new Set([...tenantCustomerIds].filter((id) => requested.has(id)));
     }
-    return results;
-  }
+    // Les customerCardIds du tenant — les pass wallet y sont rattachés
+    const tenantCardIds = new Set(
+      db.customerCards.filter((cc) => tenantCustomerIds.has(cc.customerId)).map((cc) => cc.id),
+    );
 
-  async sendCampaignToCustomers(message: string, customerIds: string[]): Promise<PushResult[]> {
-    const idSet = new Set(customerIds);
-    const passes = (await walletDb_getAllPasses()).filter((p) => idSet.has(p.customerId));
-    const results: PushResult[] = [];
+    const passes = (await walletDb_getAllPasses()).filter((p) => {
+      if (p.customerCardId) return tenantCardIds.has(p.customerCardId);
+      // Anciens pass sans customer_card_id : le serial est "cc-{customerCardId}"
+      const derived = p.serialNumber.startsWith("cc-") ? p.serialNumber.slice(3) : "";
+      return tenantCardIds.has(derived) || tenantCustomerIds.has(p.customerId);
+    });
+
+    const devicePushes: PushResult[] = [];
     for (const pass of passes) {
       const r = await this.sendCampaign(pass.id, message);
-      results.push(...r);
+      devicePushes.push(...r);
     }
-    return results;
+
+    const reachedPassIds = new Set(devicePushes.filter((r) => r.success && r.passId).map((r) => r.passId));
+    return {
+      clientsReached: reachedPassIds.size,
+      clientsTotal: passes.length,
+      devicePushes,
+    };
   }
 }
 

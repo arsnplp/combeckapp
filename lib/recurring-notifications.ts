@@ -155,15 +155,14 @@ export async function runDueRecurringNotifications(): Promise<RecurringRunResult
 
     // Envoi ciblé aux clients de CE commerce uniquement
     const db = await db_getAll(r.merchant_id);
-    const customerIds = db.customers.map((c) => c.id);
-    if (!customerIds.length) {
+    if (!db.customers.length) {
       result.skipped.push({ id: r.id, reason: "aucun client" });
       continue;
     }
 
     try {
-      const pushResults = await walletNotificationService.sendCampaignToCustomers(r.message, customerIds);
-      const success = pushResults.filter((p) => p.success).length;
+      const campaign = await walletNotificationService.sendCampaignToTenant(r.merchant_id, r.message);
+      const success = campaign.clientsReached;
 
       await sb.from("recurring_notifications")
         .update({ last_sent_at: new Date().toISOString() }).eq("id", r.id);
