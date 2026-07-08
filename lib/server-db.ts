@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { walletDb_deletePassesForCards } from "./wallet-db";
 
 // ── Types (identiques à l'ancienne version JSON) ──────────────────────────────
 
@@ -154,19 +155,11 @@ export async function db_addStamp(tenantId: string, customerCardId: string): Pro
 
 export async function db_deleteCustomer(tenantId: string, customerId: string): Promise<void> {
   const sb = supabase();
-  // Supprimer d'abord les pass wallet + enregistrements d'appareils, sinon la FK
-  // les met à NULL et les appareils continuent de recevoir les notifications
+  // Pass wallet + enregistrements d'appareils d'abord (sinon FK → NULL et les
+  // appareils continuent de recevoir les notifications)
   const { data: cards } = await sb.from("customer_cards")
     .select("id").eq("customer_id", customerId).eq("merchant_id", tenantId);
-  for (const card of cards ?? []) {
-    const { data: passes } = await sb.from("wallet_passes")
-      .select("id, serial_number").eq("customer_card_id", card.id);
-    for (const p of passes ?? []) {
-      await sb.from("wallet_registrations").delete().eq("pass_id", p.id);
-      await sb.from("wallet_registrations").delete().eq("serial_number", p.serial_number);
-      await sb.from("wallet_passes").delete().eq("serial_number", p.serial_number);
-    }
-  }
+  await walletDb_deletePassesForCards((cards ?? []).map((c) => c.id));
   // customer_cards + redemptions liés suivent via FK cascade / set null
   await sb.from("customers").delete()
     .eq("id", customerId).eq("merchant_id", tenantId);

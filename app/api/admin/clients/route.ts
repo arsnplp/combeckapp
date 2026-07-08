@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getAllClientAccounts, deleteClientAccount } from "@/lib/client-accounts";
 import { supabase } from "@/lib/supabase";
+import { walletDb_deletePassesForCards } from "@/lib/wallet-db";
+
+// Nettoie les pass wallet des clients ciblés AVANT la suppression (FK → NULL sinon)
+async function purgeWalletForCustomers(customerIds: string[]): Promise<void> {
+  if (!customerIds.length) return;
+  const { data: cards } = await supabase().from("customer_cards")
+    .select("id").in("customer_id", customerIds);
+  await walletDb_deletePassesForCards((cards ?? []).map((c) => c.id));
+}
 
 interface ClientSummary {
   email: string;
@@ -91,10 +100,14 @@ export async function DELETE(req: NextRequest) {
   const sb = supabase();
 
   if (normalizedEmail) {
+    const { data: targets } = await sb.from("customers").select("id").ilike("email", normalizedEmail);
+    await purgeWalletForCustomers((targets ?? []).map((c) => c.id));
     // Cartes + historique suivent via FK cascade
     await sb.from("customers").delete().ilike("email", normalizedEmail);
     await deleteClientAccount(normalizedEmail);
   } else if (normalizedName) {
+    const { data: targets } = await sb.from("customers").select("id").eq("email", "").ilike("name", normalizedName);
+    await purgeWalletForCustomers((targets ?? []).map((c) => c.id));
     // Sans email : suppression par nom exact (fiches sans compte)
     await sb.from("customers").delete().eq("email", "").ilike("name", normalizedName);
   }

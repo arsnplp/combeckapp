@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { supabase } from "@/lib/supabase";
 import { deleteClientAccount } from "@/lib/client-accounts";
 import { resolveClientSession, deleteAllClientSessions } from "@/lib/client-sessions";
+import { walletDb_deletePassesForCards } from "@/lib/wallet-db";
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies();
@@ -27,7 +28,16 @@ export async function POST(req: NextRequest) {
   const normalizedEmail = email.toLowerCase().trim();
   const sb = supabase();
 
-  // 1. Supprimer les fiches client chez tous les commerces
+  // 1. Purger les pass wallet AVANT (sinon FK → NULL et les appareils
+  // continuent de recevoir les notifications)
+  const { data: targets } = await sb.from("customers").select("id").ilike("email", normalizedEmail);
+  if (targets?.length) {
+    const { data: cards } = await sb.from("customer_cards")
+      .select("id").in("customer_id", targets.map((c) => c.id));
+    await walletDb_deletePassesForCards((cards ?? []).map((c) => c.id));
+  }
+
+  // 2. Supprimer les fiches client chez tous les commerces
   // (customer_cards, redemptions et parrainages suivent via FK cascade / set null)
   await sb.from("customers").delete().ilike("email", normalizedEmail);
 

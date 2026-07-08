@@ -131,6 +131,23 @@ export async function walletDb_getAllPasses(): Promise<WalletPass[]> {
   return ((data ?? []) as PassRow[]).map(mapPass);
 }
 
+/**
+ * Supprime les pass wallet + enregistrements d'appareils liés à des cartes
+ * client. À appeler AVANT de supprimer le client, sinon la FK met
+ * customer_card_id à NULL et les appareils continuent de recevoir les pushs.
+ */
+export async function walletDb_deletePassesForCards(customerCardIds: string[]): Promise<void> {
+  if (!customerCardIds.length) return;
+  const sb = supabase();
+  const { data: passes } = await sb.from("wallet_passes")
+    .select("id, serial_number").in("customer_card_id", customerCardIds);
+  for (const p of passes ?? []) {
+    await sb.from("wallet_registrations").delete().eq("pass_id", p.id);
+    await sb.from("wallet_registrations").delete().eq("serial_number", p.serial_number);
+    await sb.from("wallet_passes").delete().eq("serial_number", p.serial_number);
+  }
+}
+
 export async function walletDb_registerDevice(device: WalletDevice): Promise<boolean> {
   const sb = supabase();
   const { data: existing } = await sb.from("wallet_registrations").select("id")
