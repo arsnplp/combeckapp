@@ -51,6 +51,8 @@ export async function GET(req: NextRequest) {
     bg: bgColor,
   });
 
-  // Rediriger vers la génération du pass
-  return NextResponse.redirect(new URL(`/api/wallet/pass?${params}`, req.url));
+  // Rediriger vers la génération du pass — base publique obligatoire :
+  // derrière nginx, req.url pointe sur localhost:3001 (injoignable du téléphone)
+  const base = process.env.AUTH_URL ?? req.url;
+  return NextResponse.redirect(new URL(`/api/wallet/pass?${params}`, base));
 }

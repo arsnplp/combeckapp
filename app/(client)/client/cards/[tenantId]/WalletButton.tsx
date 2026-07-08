@@ -47,7 +47,9 @@ export default function WalletButton({ ccId }: { ccId: string }) {
       const res = await fetch(`/api/wallet/google-pass?ccId=${ccId}`);
       const data = await res.json();
       if (!res.ok || !data.url) { setError(data.error ?? "Erreur Google Wallet."); return; }
-      window.open(data.url, "_blank", "noopener");
+      // Redirection directe : window.open après un await est bloqué par les
+      // bloqueurs de popup mobiles
+      window.location.href = data.url;
     } catch { setError("Erreur réseau."); }
     setLoading(false);
   };

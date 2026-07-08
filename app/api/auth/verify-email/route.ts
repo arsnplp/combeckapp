@@ -3,18 +3,20 @@ import { getUserByVerificationToken, setEmailVerified } from "@/lib/users";
 
 // GET ?token=xxx — direct link click from email
 export async function GET(req: NextRequest) {
+  // Base publique : derrière nginx, req.url pointe sur localhost:3001
+  const base = process.env.AUTH_URL ?? req.url;
   const token = req.nextUrl.searchParams.get("token");
   if (!token) {
-    return NextResponse.redirect(new URL("/verify-email?error=missing", req.url));
+    return NextResponse.redirect(new URL("/verify-email?error=missing", base));
   }
 
   const user = await getUserByVerificationToken(token);
   if (!user) {
-    return NextResponse.redirect(new URL("/verify-email?error=invalid", req.url));
+    return NextResponse.redirect(new URL("/verify-email?error=invalid", base));
   }
 
   await setEmailVerified(user.id);
-  return NextResponse.redirect(new URL("/login?verified=1", req.url));
+  return NextResponse.redirect(new URL("/login?verified=1", base));
 }
 
 // POST { token } — called from client component
