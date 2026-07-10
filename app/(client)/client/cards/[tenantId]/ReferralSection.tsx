@@ -18,12 +18,14 @@ interface Props {
   referral: { enabled: boolean; referrerBonus: number; bonusType: "stamps" | "points" };
   referralCount: number;
   referralPoints: number;
+  pendingReferrals?: number;
 }
 
 export default function ReferralSection({
   cardId, cardName, loyaltyMode, stampsRequired, pointsPerEuro,
   welcomePoints, welcomeMessage, backgroundColor, accentColor,
   customerCardId, referral, referralCount, referralPoints,
+  pendingReferrals = 0,
 }: Props) {
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [copied, setCopied] = useState(false);
@@ -85,7 +87,7 @@ export default function ReferralSection({
 
       {/* Compteurs — toujours visibles (le client garde ses points acquis
           même si le commerçant désactive le programme) */}
-      <div className="flex items-center justify-around py-3 mb-4 rounded-xl bg-slate-50">
+      <div className="flex items-center justify-around py-3 mb-3 rounded-xl bg-slate-50">
         <div className="text-center">
           <p className="text-[26px] font-bold text-slate-900">{referralCount}</p>
           <p className="text-[11px] text-slate-400">ami{referralCount > 1 ? "s" : ""} parrainé{referralCount > 1 ? "s" : ""}</p>
@@ -95,6 +97,24 @@ export default function ReferralSection({
           <p className="text-[26px] font-bold text-slate-900">{referralPoints}</p>
           <p className="text-[11px] text-slate-400">point{referralPoints > 1 ? "s" : ""} disponible{referralPoints > 1 ? "s" : ""}</p>
         </div>
+        {pendingReferrals > 0 && (
+          <>
+            <div className="h-10 w-px bg-slate-200" />
+            <div className="text-center">
+              <p className="text-[26px] font-bold text-amber-500">{pendingReferrals}</p>
+              <p className="text-[11px] text-amber-500/80">en attente</p>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Explication du fonctionnement */}
+      <div className="mb-4 rounded-xl bg-blue-50/60 border border-blue-100 px-3.5 py-2.5">
+        <p className="text-[11.5px] leading-relaxed text-blue-800/80">
+          <strong>Comment ça marche :</strong> quand un ami s'inscrit avec votre QR,
+          il apparaît « en attente ». Votre point de parrainage est crédité dès sa
+          première visite en boutique — pas avant, pour éviter les fausses inscriptions.
+        </p>
       </div>
 
       {/* QR + partage — uniquement si le programme est actif */}

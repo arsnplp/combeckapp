@@ -294,7 +294,13 @@ function CreditTab() {
     try { path = new URL(raw).pathname; } catch { /* raw is already a path or id */ }
     const processMatch = path.match(/^\/process\/(.+)$/);
     if (processMatch) { setDetectedCCId(processMatch[1]); setMode("transaction"); return; }
-    if (!raw.includes("/") && !raw.includes(":")) { setDetectedClientId(raw); setMode("transaction"); return; }
+    if (!raw.includes("/") && !raw.includes(":")) {
+      // ID brut : les cartes client commencent par "cc", les clients par "c"
+      if (raw.startsWith("cc")) setDetectedCCId(raw);
+      else setDetectedClientId(raw);
+      setMode("transaction");
+      return;
+    }
     setMode("idle");
   };
 

@@ -32,6 +32,7 @@ export interface DbCustomerCard {
   points: number;
   referralCount: number;
   referralPoints: number;
+  pendingReferrals?: number; // filleuls inscrits non encore crédités
   joinDate: string;
   lastActivity: string;
 }
@@ -76,14 +77,23 @@ const mapRedemption = (r: RedemptionRow): DbRedemption => ({
 
 export async function db_getAll(tenantId: string): Promise<DbShape> {
   const sb = supabase();
-  const [customers, cards, redemptions] = await Promise.all([
+  const [customers, cards, redemptions, pendingRefs] = await Promise.all([
     sb.from("customers").select("*").eq("merchant_id", tenantId).order("join_date"),
     sb.from("customer_cards").select("*").eq("merchant_id", tenantId).order("join_date"),
     sb.from("redemptions").select("*").eq("merchant_id", tenantId).order("redeemed_at"),
+    sb.from("referrals").select("referrer_card_id").eq("merchant_id", tenantId).eq("credited", false),
   ]);
+  const pendingByCard = new Map<string, number>();
+  for (const p of pendingRefs.data ?? []) {
+    const key = p.referrer_card_id as string;
+    pendingByCard.set(key, (pendingByCard.get(key) ?? 0) + 1);
+  }
   return {
     customers: ((customers.data ?? []) as CustomerRow[]).map(mapCustomer),
-    customerCards: ((cards.data ?? []) as CardRow[]).map(mapCard),
+    customerCards: ((cards.data ?? []) as CardRow[]).map((r) => ({
+      ...mapCard(r),
+      pendingReferrals: pendingByCard.get(r.id) ?? 0,
+    })),
     redemptions: ((redemptions.data ?? []) as RedemptionRow[]).map(mapRedemption),
   };
 }

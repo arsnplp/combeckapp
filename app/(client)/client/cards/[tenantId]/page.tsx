@@ -34,7 +34,10 @@ export default async function TenantCardPage({
   const isStamps = card.loyaltyMode === "stamps";
   const stampsDisplay = Math.min(card.stamps, card.stampsRequired);
 
-  const qrDataUrl = await QRCode.toDataURL(card.customerCardId, {
+  // Même format que le QR des cartes wallet — le scanner du commerçant
+  // reconnaît /process/{customerCardId}
+  const appUrl = process.env.AUTH_URL ?? "https://app.getcomeback.fr";
+  const qrDataUrl = await QRCode.toDataURL(`${appUrl}/process/${card.customerCardId}`, {
     width: 200,
     margin: 1,
     color: { dark: "#000000", light: "#ffffff" },
@@ -168,7 +171,7 @@ export default async function TenantCardPage({
 
       <WalletButton ccId={card.customerCardId} />
 
-      {(card.referral?.enabled || card.referralPoints > 0 || card.referralCount > 0) && (
+      {(card.referral?.enabled || card.referralPoints > 0 || card.referralCount > 0 || card.pendingReferrals > 0) && (
         <ReferralSection
           cardId={card.cardId}
           cardName={card.cardName}
@@ -183,6 +186,7 @@ export default async function TenantCardPage({
           referral={card.referral ?? { enabled: false, referrerBonus: 1, bonusType: "points" }}
           referralCount={card.referralCount}
           referralPoints={card.referralPoints}
+          pendingReferrals={card.pendingReferrals}
         />
       )}
     </div>

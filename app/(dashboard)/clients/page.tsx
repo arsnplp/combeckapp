@@ -166,10 +166,11 @@ function CustomerCardWidget({
             {card.loyaltyMode === "stamps"
               ? `${cc.stamps}/${card.stampsRequired} tampons`
               : `${cc.points.toLocaleString("fr-FR")} points`}
-            {(cc.referralCount ?? 0) > 0 && (
+            {((cc.referralCount ?? 0) > 0 || (cc.pendingReferrals ?? 0) > 0) && (
               <span className="ml-2 text-slate-400">
-                · 🤝 {cc.referralCount} parrainage{(cc.referralCount ?? 0) > 1 ? "s" : ""}
+                {(cc.referralCount ?? 0) > 0 && <>· 🤝 {cc.referralCount} parrainage{(cc.referralCount ?? 0) > 1 ? "s" : ""}</>}
                 {(cc.referralPoints ?? 0) > 0 && ` (${cc.referralPoints} pt${(cc.referralPoints ?? 0) > 1 ? "s" : ""} dispo)`}
+                {(cc.pendingReferrals ?? 0) > 0 && <span className="text-amber-500"> · {cc.pendingReferrals} en attente de 1ère visite</span>}
               </span>
             )}
           </p>
@@ -538,6 +539,7 @@ export default function ClientsPage() {
       rank: computeRank(c, firstCard),
       referrals: ccs.reduce((s, cc) => s + (cc.referralCount ?? 0), 0),
       referralPointsLeft: ccs.reduce((s, cc) => s + (cc.referralPoints ?? 0), 0),
+      referralsPending: ccs.reduce((s, cc) => s + (cc.pendingReferrals ?? 0), 0),
     };
   });
 

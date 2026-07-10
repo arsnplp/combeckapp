@@ -107,6 +107,7 @@ export interface CustomerCard {
   lastActivity: string;
   referralCount?: number;
   referralPoints?: number;
+  pendingReferrals?: number;
 }
 
 export interface StoreSettings {

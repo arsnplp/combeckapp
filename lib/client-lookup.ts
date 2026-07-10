@@ -18,6 +18,7 @@ export interface ClientCard {
   points: number;
   referralCount: number;
   referralPoints: number;
+  pendingReferrals: number; // filleuls inscrits mais pas encore venus (point non crédité)
   accentColor: string;
   backgroundColor: string;
   logoUrl: string;
@@ -49,6 +50,22 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
     .ilike("email", normalizedEmail);
 
   if (!customers?.length) return [];
+
+  // Parrainages en attente (non crédités) par carte parrain — une requête
+  const allCardIds = customers.flatMap((c) =>
+    ((c.customer_cards as unknown as Array<{ id: string }>) ?? []).map((cc) => cc.id),
+  );
+  const pendingByCard = new Map<string, number>();
+  if (allCardIds.length) {
+    const { data: pendings } = await sb.from("referrals")
+      .select("referrer_card_id")
+      .in("referrer_card_id", allCardIds)
+      .eq("credited", false);
+    for (const p of pendings ?? []) {
+      const key = p.referrer_card_id as string;
+      pendingByCard.set(key, (pendingByCard.get(key) ?? 0) + 1);
+    }
+  }
 
   // Récompenses de tous les commerces concernés en une requête
   const merchantIds = [...new Set(customers.map((c) => c.merchant_id as string))];
@@ -113,6 +130,7 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
         points: cc.points,
         referralCount: cc.referral_count ?? 0,
         referralPoints: cc.referral_points ?? 0,
+        pendingReferrals: pendingByCard.get(cc.id) ?? 0,
         accentColor: lc.accent_color ?? "#16a34a",
         backgroundColor: lc.background_color ?? "#1e1b4b",
         logoUrl: merchant?.logo_url ? `/api/settings/logo?tenantId=${cust.merchant_id as string}&t=${merchant.logo_url}` : "",

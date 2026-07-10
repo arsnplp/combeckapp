@@ -173,10 +173,16 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
           const srv = incoming.find((s: CustomerCard) => s.id === c.id);
           if (srv && (
             srv.stamps !== c.stamps || srv.points !== c.points ||
-            (srv.referralPoints ?? 0) !== (c.referralPoints ?? 0)
+            (srv.referralPoints ?? 0) !== (c.referralPoints ?? 0) ||
+            (srv.referralCount ?? 0) !== (c.referralCount ?? 0) ||
+            (srv.pendingReferrals ?? 0) !== (c.pendingReferrals ?? 0)
           )) {
             changed = true;
-            return { ...c, stamps: srv.stamps, points: srv.points, referralCount: srv.referralCount ?? 0, referralPoints: srv.referralPoints ?? 0 };
+            return {
+              ...c, stamps: srv.stamps, points: srv.points,
+              referralCount: srv.referralCount ?? 0, referralPoints: srv.referralPoints ?? 0,
+              pendingReferrals: srv.pendingReferrals ?? 0,
+            };
           }
           return c;
         });
