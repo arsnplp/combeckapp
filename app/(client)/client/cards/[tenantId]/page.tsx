@@ -168,7 +168,7 @@ export default async function TenantCardPage({
 
       <WalletButton ccId={card.customerCardId} />
 
-      {card.referral?.enabled && (
+      {(card.referral?.enabled || card.referralPoints > 0 || card.referralCount > 0) && (
         <ReferralSection
           cardId={card.cardId}
           cardName={card.cardName}
@@ -180,7 +180,7 @@ export default async function TenantCardPage({
           backgroundColor={card.backgroundColor}
           accentColor={card.accentColor}
           customerCardId={card.customerCardId}
-          referral={card.referral}
+          referral={card.referral ?? { enabled: false, referrerBonus: 1, bonusType: "points" }}
           referralCount={card.referralCount}
           referralPoints={card.referralPoints}
         />

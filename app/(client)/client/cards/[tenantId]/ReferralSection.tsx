@@ -83,7 +83,8 @@ export default function ReferralSection({
         </div>
       </div>
 
-      {/* Compteurs */}
+      {/* Compteurs — toujours visibles (le client garde ses points acquis
+          même si le commerçant désactive le programme) */}
       <div className="flex items-center justify-around py-3 mb-4 rounded-xl bg-slate-50">
         <div className="text-center">
           <p className="text-[26px] font-bold text-slate-900">{referralCount}</p>
@@ -96,26 +97,33 @@ export default function ReferralSection({
         </div>
       </div>
 
-      <div className="flex flex-col items-center gap-3">
-        {qrDataUrl ? (
-          <div className="rounded-2xl bg-white p-3 shadow-md ring-1 ring-black/[0.06]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={qrDataUrl} alt="QR parrainage" className="h-36 w-36" />
-          </div>
-        ) : (
-          <div className="h-44 w-44 animate-pulse rounded-2xl bg-slate-100" />
-        )}
-        <p className="text-center text-[12px] text-slate-400 leading-relaxed max-w-[220px]">
-          Faites scanner ce QR à un ami. Il obtient sa carte et vous gagnez 1 point de parrainage.
+      {/* QR + partage — uniquement si le programme est actif */}
+      {referral.enabled ? (
+        <div className="flex flex-col items-center gap-3">
+          {qrDataUrl ? (
+            <div className="rounded-2xl bg-white p-3 shadow-md ring-1 ring-black/[0.06]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qrDataUrl} alt="QR parrainage" className="h-36 w-36" />
+            </div>
+          ) : (
+            <div className="h-44 w-44 animate-pulse rounded-2xl bg-slate-100" />
+          )}
+          <p className="text-center text-[12px] text-slate-400 leading-relaxed max-w-[220px]">
+            Faites scanner ce QR à un ami. Il obtient sa carte et vous gagnez 1 point de parrainage.
+          </p>
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
+          >
+            <Share2 className="h-4 w-4" />
+            {copied ? "Lien copié !" : "Partager le lien"}
+          </button>
+        </div>
+      ) : (
+        <p className="text-center text-[12px] text-slate-400">
+          Le programme de parrainage est actuellement désactivé — vos points restent utilisables.
         </p>
-        <button
-          onClick={handleShare}
-          className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
-        >
-          <Share2 className="h-4 w-4" />
-          {copied ? "Lien copié !" : "Partager le lien"}
-        </button>
-      </div>
+      )}
     </div>
   );
 }
