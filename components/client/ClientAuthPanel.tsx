@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mail, Lock, User, Phone, ArrowRight, Loader2, ChevronLeft, UserPlus, LogIn } from "lucide-react";
+import { Mail, Lock, User, Phone, ArrowRight, Loader2, ChevronLeft, UserPlus, LogIn, CheckCircle } from "lucide-react";
 
 export interface JoinSuccess {
   customerId: string;
@@ -38,6 +38,10 @@ export default function ClientAuthPanel({ cardId, refParam, accent = "#16a34a", 
   const isJoin = !!cardId;
   const [mode, setMode] = useState<Mode>(isJoin ? "choose" : "existing");
 
+  // Session existante (client déjà connecté sur ce téléphone)
+  const [session, setSession] = useState<{ email: string; name: string | null } | null>(null);
+  const [sessionChecked, setSessionChecked] = useState(!isJoin);
+
   // Champs communs
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,6 +53,40 @@ export default function ClientAuthPanel({ cardId, refParam, accent = "#16a34a", 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+
+  useEffect(() => {
+    if (!isJoin) return;
+    fetch("/api/client/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.email) setSession({ email: d.email, name: d.name }); })
+      .catch(() => {})
+      .finally(() => setSessionChecked(true));
+  }, [isJoin]);
+
+  const addCardWithSession = async () => {
+    if (loading) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "session", cardId, ref: refParam ?? undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 401) { setSession(null); setError(""); }
+        else if (data?.alreadyExists) { router.push("/client/cards"); return; }
+        else setError(data?.error ?? `Erreur serveur (${res.status})`);
+        setLoading(false);
+        return;
+      }
+      onJoined?.({ customerId: data.customerId, customerCardId: data.customerCardId, clientName: data.clientName ?? "" });
+    } catch {
+      setError("Erreur réseau.");
+      setLoading(false);
+    }
+  };
 
   const googleHref = isJoin
     ? `/api/client/auth/google?cardId=${cardId}${refParam ? `&ref=${encodeURIComponent(refParam)}` : ""}`
@@ -131,6 +169,61 @@ export default function ClientAuthPanel({ cardId, refParam, accent = "#16a34a", 
       </a>
     </>
   );
+
+  // ── Attente de la vérification de session (contexte join) ──
+  if (isJoin && !sessionChecked) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        <Loader2 className="h-6 w-6 animate-spin text-gray-300" />
+      </div>
+    );
+  }
+
+  // ── Client déjà connecté : ajout de la carte en un clic ──
+  if (isJoin && session) {
+    const displayName = session.name || session.email;
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3.5">
+          <div
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-[15px] font-bold text-white"
+            style={{ background: accent }}
+          >
+            {displayName.charAt(0).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-[14px] font-semibold text-gray-900">
+              <CheckCircle className="h-4 w-4 flex-shrink-0" style={{ color: accent }} />
+              Connecté en tant que {displayName.split(" ")[0]}
+            </p>
+            <p className="truncate text-[12px] text-gray-400">{session.email}</p>
+          </div>
+        </div>
+
+        <button
+          onClick={addCardWithSession}
+          disabled={loading}
+          className="w-full h-13 flex items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-semibold text-white active:scale-[0.98] transition-all disabled:opacity-60"
+          style={{ background: accent }}
+        >
+          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+            <>Ajouter cette carte à mon compte <ArrowRight className="h-4 w-4" /></>
+          )}
+        </button>
+
+        {error && (
+          <p className="text-[13px] text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
+        )}
+
+        <button
+          onClick={() => { setSession(null); setError(""); }}
+          className="text-[12px] text-gray-400 underline hover:text-gray-600"
+        >
+          Ce n'est pas vous ? Utiliser un autre compte
+        </button>
+      </div>
+    );
+  }
 
   // ── Choix du mode (uniquement en contexte join) ──
   if (mode === "choose") {

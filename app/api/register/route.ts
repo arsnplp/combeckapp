@@ -12,7 +12,8 @@ import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { createClientAccount, getClientAccount, verifyClientPassword } from "@/lib/client-accounts";
 import { sendWelcomeClient } from "@/lib/mailer";
 import { checkRateLimit, getIp, tooManyRequests } from "@/lib/rate-limit";
-import { createClientSession } from "@/lib/client-sessions";
+import { createClientSession, resolveClientSession } from "@/lib/client-sessions";
+import { findClientCards } from "@/lib/client-lookup";
 import { z } from "zod";
 import { getTenantSettings } from "@/lib/settings-db";
 
@@ -31,6 +32,12 @@ const RegisterSchema = z.discriminatedUnion("mode", [
     cardId: z.string().min(1),
     email: z.string().email(),
     password: z.string().min(1).max(128),
+    ref: z.string().optional(),
+  }),
+  // Client déjà connecté (cookie de session) : ajout de la carte en un clic
+  z.object({
+    mode: z.literal("session"),
+    cardId: z.string().min(1),
     ref: z.string().optional(),
   }),
 ]);
@@ -92,7 +99,24 @@ export async function POST(req: NextRequest) {
     let clientEmail: string;
     let clientPhone: string;
 
-    if (mode === "existing") {
+    if (mode === "session") {
+      // ── Client déjà connecté : le cookie de session fait foi ─────────────
+      const token = req.cookies.get("comeback_client")?.value;
+      const email = token ? await resolveClientSession(token) : null;
+      if (!email) {
+        return NextResponse.json({ error: "Session expirée. Connectez-vous." }, { status: 401 });
+      }
+      const account = await getClientAccount(email);
+      let name = account?.name ?? "";
+      if (!name) {
+        // Compte sans fiche : reprendre le nom d'une carte existante
+        const cards = await findClientCards(email);
+        name = cards[0]?.customerName ?? email.split("@")[0];
+      }
+      clientName = name;
+      clientEmail = email;
+      clientPhone = "";
+    } else if (mode === "existing") {
       // ── Compte existant : vérifier email + mot de passe ──────────────────
       const email = (body.email as string)?.toLowerCase().trim();
       if (!email || !password) {
@@ -167,7 +191,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Email de bienvenue (fire-and-forget, uniquement pour nouveaux comptes)
-    if (mode !== "existing" && clientEmail) {
+    if (mode === "new" && clientEmail) {
       const tenantUser = await getUserById(tenantId);
       const storeName = tenantUser?.storeName ?? "ce commerce";
       sendWelcomeClient(clientEmail, clientName, storeName).catch(console.error);

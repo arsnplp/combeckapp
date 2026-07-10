@@ -49,6 +49,7 @@ export const authConfig = {
         pathname.startsWith("/api/billing/webhook") ||
         pathname.startsWith("/api/settings/logo") ||
         pathname.startsWith("/api/client/login") ||
+        pathname.startsWith("/api/client/me") ||
         pathname.startsWith("/api/client/check-email") ||
         pathname.startsWith("/api/client/logout") ||
         pathname.startsWith("/api/client/set-password") ||
