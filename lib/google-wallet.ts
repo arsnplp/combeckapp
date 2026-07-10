@@ -169,6 +169,29 @@ export async function buildGoogleWalletUrl(input: GoogleWalletPassInput): Promis
   return `https://pay.google.com/gp/v/save/${jwt}`;
 }
 
+// ── Détection d'ajout ─────────────────────────────────────────────────────────
+
+/**
+ * La carte a-t-elle été ajoutée à Google Wallet ?
+ * Avec le "fat JWT", l'objet n'est créé chez Google qu'au moment où le client
+ * enregistre la carte — son existence vaut donc confirmation d'ajout.
+ */
+export async function googleWalletObjectExists(customerCardId: string): Promise<boolean> {
+  if (!isConfigured()) return false;
+  const issuerId = process.env.GOOGLE_WALLET_ISSUER_ID!;
+  const objectId = `${issuerId}.${sanitizeId(customerCardId)}`;
+  try {
+    const accessToken = await getAccessToken();
+    const res = await fetch(
+      `https://walletobjects.googleapis.com/walletobjects/v1/loyaltyObject/${encodeURIComponent(objectId)}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // ── Live object update via REST API ──────────────────────────────────────────
 
 export interface GoogleWalletUpdateInput {

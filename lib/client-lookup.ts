@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { googleWalletObjectExists } from "./google-wallet";
 
 export interface ClientCard {
   tenantId: string;
@@ -19,6 +20,7 @@ export interface ClientCard {
   referralCount: number;
   referralPoints: number;
   pendingReferrals: number; // filleuls inscrits mais pas encore venus (point non crédité)
+  walletAdded: boolean;     // carte ajoutée à Apple Wallet OU Google Wallet
   accentColor: string;
   backgroundColor: string;
   logoUrl: string;
@@ -56,6 +58,7 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
     ((c.customer_cards as unknown as Array<{ id: string }>) ?? []).map((cc) => cc.id),
   );
   const pendingByCard = new Map<string, number>();
+  const walletAddedCards = new Set<string>();
   if (allCardIds.length) {
     const { data: pendings } = await sb.from("referrals")
       .select("referrer_card_id")
@@ -64,6 +67,31 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
     for (const p of pendings ?? []) {
       const key = p.referrer_card_id as string;
       pendingByCard.set(key, (pendingByCard.get(key) ?? 0) + 1);
+    }
+
+    // Apple Wallet : le pass existe ET au moins un appareil s'est enregistré
+    // pour recevoir ses mises à jour
+    const { data: passes } = await sb.from("wallet_passes")
+      .select("id, customer_card_id")
+      .in("customer_card_id", allCardIds);
+    const passIds = (passes ?? []).map((p) => p.id as string);
+    if (passIds.length) {
+      const { data: regs } = await sb.from("wallet_registrations")
+        .select("pass_id").in("pass_id", passIds);
+      const registeredPassIds = new Set((regs ?? []).map((r) => r.pass_id as string));
+      for (const p of passes ?? []) {
+        if (registeredPassIds.has(p.id as string)) walletAddedCards.add(p.customer_card_id as string);
+      }
+    }
+
+    // Google Wallet : l'objet n'existe chez Google que si le client a enregistré
+    // la carte (fat JWT) — vérification en parallèle pour les cartes restantes
+    const remaining = allCardIds.filter((id) => !walletAddedCards.has(id));
+    if (remaining.length) {
+      const checks = await Promise.all(
+        remaining.map(async (id) => ({ id, exists: await googleWalletObjectExists(id) })),
+      );
+      for (const c of checks) if (c.exists) walletAddedCards.add(c.id);
     }
   }
 
@@ -131,6 +159,7 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
         referralCount: cc.referral_count ?? 0,
         referralPoints: cc.referral_points ?? 0,
         pendingReferrals: pendingByCard.get(cc.id) ?? 0,
+        walletAdded: walletAddedCards.has(cc.id),
         accentColor: lc.accent_color ?? "#16a34a",
         backgroundColor: lc.background_color ?? "#1e1b4b",
         logoUrl: merchant?.logo_url ? `/api/settings/logo?tenantId=${cust.merchant_id as string}&t=${merchant.logo_url}` : "",

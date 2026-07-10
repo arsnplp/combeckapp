@@ -66,6 +66,15 @@ export default async function CardsPage() {
                       Récompense dispo
                     </span>
                   )}
+                  {card.walletAdded ? (
+                    <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-0.5">
+                      ✓ Wallet
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5">
+                      📲 À ajouter au Wallet
+                    </span>
+                  )}
                   <ChevronRight className="h-4 w-4 text-gray-300" />
                 </div>
               </div>

@@ -78,7 +78,11 @@ export async function sendWelcomeClient(to: string, clientName: string, storeNam
          Votre carte de fidélité chez <strong>${storeName}</strong> est activée.<br>
          Retrouvez toutes vos cartes et suivez vos tampons en temps réel.
        </p>
-       <a href="${url}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:10px;font-size:14px;font-weight:600">Voir mes cartes</a>
+       <a href="${url}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:10px;font-size:14px;font-weight:600">📲 Ajouter ma carte au Wallet</a>
+       <p style="margin:16px 0 0;font-size:13px;color:#64748b;line-height:1.6">
+         Avec la carte dans <strong>Apple Wallet</strong> ou <strong>Google Wallet</strong>, votre solde
+         se met à jour tout seul et vous recevez les offres du commerçant directement sur votre téléphone.
+       </p>
        <p style="margin:16px 0 0;font-size:12px;color:#94a3b8">Ou copiez ce lien : <span style="color:#6366f1">${url}</span></p>`
     ),
   });

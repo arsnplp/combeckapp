@@ -169,7 +169,7 @@ export default async function TenantCardPage({
 
       <RedeemSection card={card} customerCardId={card.customerCardId} />
 
-      <WalletButton ccId={card.customerCardId} />
+      <WalletButton ccId={card.customerCardId} walletAdded={card.walletAdded} />
 
       {(card.referral?.enabled || card.referralPoints > 0 || card.referralCount > 0 || card.pendingReferrals > 0) && (
         <ReferralSection
