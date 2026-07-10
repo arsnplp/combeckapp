@@ -80,7 +80,7 @@ function buildPassUrl(origin: string, card: LoyaltyCard): string {
 void buildPassUrl;
 
 export default function CartePage() {
-  const { loyaltyCards, addLoyaltyCard, updateLoyaltyCard, deleteLoyaltyCard } = useStore();
+  const { loyaltyCards, addLoyaltyCard, updateLoyaltyCard, deleteLoyaltyCard, customerCards } = useStore();
   const networkOrigin = useNetworkOrigin();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -91,6 +91,7 @@ export default function CartePage() {
   const [saved, setSaved]           = useState(false);
   const [limitError, setLimitError] = useState("");
   const [maxCards, setMaxCards]     = useState(Infinity);
+  const [deleteTarget, setDeleteTarget] = useState<LoyaltyCard | null>(null);
 
   const selected = loyaltyCards.find((c) => c.id === selectedId) ?? loyaltyCards[0] ?? null;
   const patch = (p: Partial<CardForm>) => setForm((prev) => ({ ...prev, ...p }));
@@ -166,10 +167,18 @@ export default function CartePage() {
     setEditingId(null);
   };
 
-  const handleDelete = (id: string) => {
+  // Suppression confirmée via la modale de prévention uniquement
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
     deleteLoyaltyCard(id);
     if (selectedId === id) setSelectedId(loyaltyCards.find((c) => c.id !== id)?.id ?? null);
+    setDeleteTarget(null);
   };
+
+  const deleteTargetClients = deleteTarget
+    ? customerCards.filter((cc) => cc.cardId === deleteTarget.id).length
+    : 0;
 
   const modeBlocked = (mode: LoyaltyMode) => {
     if (editingId) return false;
@@ -233,7 +242,7 @@ export default function CartePage() {
                       className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDelete(card.id); }}
+                    <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(card); }}
                       className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -505,6 +514,51 @@ export default function CartePage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Modale de prévention : suppression de carte ── */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDeleteTarget(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-red-50">
+                <Trash2 className="h-5 w-5 text-red-500" />
+              </div>
+              <p className="text-[16px] font-bold text-slate-900">
+                Supprimer la carte « {deleteTarget.name} » ?
+              </p>
+            </div>
+
+            {deleteTargetClients > 0 ? (
+              <div className="mt-4 rounded-xl border border-red-100 bg-red-50/70 px-4 py-3">
+                <p className="text-[13.5px] font-semibold text-red-800">
+                  ⚠️ {deleteTargetClients} client{deleteTargetClients > 1 ? "s" : ""} utilise{deleteTargetClients > 1 ? "nt" : ""} cette carte
+                </p>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-red-700/80">
+                  Leurs tampons, points et points de parrainage seront <strong>définitivement
+                  perdus</strong>, et leur carte Apple/Google Wallet cessera de fonctionner.
+                  Cette action est irréversible.
+                </p>
+              </div>
+            ) : (
+              <p className="mt-4 text-[13px] text-slate-500">
+                Aucun client n'utilise cette carte. La suppression est sans conséquence.
+              </p>
+            )}
+
+            <div className="mt-5 flex gap-2">
+              <Button variant="secondary" className="flex-1" onClick={() => setDeleteTarget(null)}>
+                Annuler
+              </Button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 rounded-xl bg-red-600 px-4 py-2 text-[13.5px] font-semibold text-white hover:bg-red-700 transition-colors"
+              >
+                {deleteTargetClients > 0 ? `Supprimer (${deleteTargetClients} client${deleteTargetClients > 1 ? "s" : ""} impacté${deleteTargetClients > 1 ? "s" : ""})` : "Supprimer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

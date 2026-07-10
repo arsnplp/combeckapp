@@ -250,7 +250,10 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
       fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settings, walletConfig, loyaltyCards, products, rewards }),
+        body: JSON.stringify({
+          settings, walletConfig, loyaltyCards, products, rewards,
+          confirmedCardDeletions: confirmedCardDeletions.current,
+        }),
       }).catch(() => {});
     }, 1000);
     return () => clearTimeout(t);
@@ -281,7 +284,12 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
     setLoyaltyCards((prev) => prev.map((c) => c.id === id ? { ...c, ...patch } : c));
   }, []);
 
+  // Suppressions de cartes confirmées par le commerçant (modale de prévention) —
+  // transmises au serveur pour passer le garde-fou anti-suppression accidentelle
+  const confirmedCardDeletions = useRef<string[]>([]);
+
   const deleteLoyaltyCard = useCallback((id: string) => {
+    confirmedCardDeletions.current.push(id);
     setLoyaltyCards((prev) => prev.filter((c) => c.id !== id));
     setCustomerCards((prev) => prev.filter((cc) => cc.cardId !== id));
   }, []);
