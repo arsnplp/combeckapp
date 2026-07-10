@@ -62,6 +62,7 @@ export const authConfig = {
         pathname.startsWith("/api/client/auth/google") ||
         pathname.startsWith("/onboarding") ||
         pathname.startsWith("/api/onboarding") ||
+        pathname === "/manifest.webmanifest" ||
         pathname === "/";
 
       if (isPublic) return true;
