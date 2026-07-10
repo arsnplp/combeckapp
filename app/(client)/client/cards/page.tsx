@@ -7,6 +7,7 @@ import { ChevronRight, Stamp, Star } from "lucide-react";
 import LogoutButton from "./LogoutButton";
 import RefreshButton from "./RefreshButton";
 import GdprSection from "./GdprSection";
+import AddToHomeScreen from "./AddToHomeScreen";
 
 export default async function CardsPage() {
   const cookieStore = await cookies();
@@ -21,6 +22,7 @@ export default async function CardsPage() {
 
   return (
     <div>
+      <AddToHomeScreen />
       <div className="mb-6">
         <p className="text-[13px] text-gray-400 font-medium">Bonjour 👋</p>
         <h1 className="text-[22px] font-bold text-gray-900 mt-0.5">{clientName}</h1>

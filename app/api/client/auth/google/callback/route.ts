@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 30,
+      maxAge: 60 * 60 * 24 * 180,
       path: "/",
     });
     res.cookies.set("google_oauth_state", "", { maxAge: 0, path: "/" });

@@ -2,7 +2,7 @@ import { randomBytes } from "crypto";
 import { supabase } from "./supabase";
 
 /** Crée une session pour un email, retourne le token opaque. */
-export async function createClientSession(email: string, ttlDays = 30): Promise<string> {
+export async function createClientSession(email: string, ttlDays = 180): Promise<string> {
   const token = randomBytes(32).toString("hex");
   const now = new Date();
   const expiresAt = new Date(now.getTime() + ttlDays * 24 * 60 * 60 * 1000);

@@ -1,6 +1,18 @@
 import type { ReactNode } from "react";
+import type { Metadata } from "next";
 
-export const metadata = { title: "Mes cartes — Comeback" };
+export const metadata: Metadata = {
+  title: "Mes cartes — Comeback",
+  // PWA : installable sur l'écran d'accueil (icône permanente)
+  appleWebApp: {
+    capable: true,
+    title: "ComeBack",
+    statusBarStyle: "default",
+  },
+  icons: {
+    apple: "/apple-touch-icon.png",
+  },
+};
 
 export default function ClientLayout({ children }: { children: ReactNode }) {
   return (

@@ -142,6 +142,16 @@ export async function buildGoogleWalletUrl(input: GoogleWalletPassInput): Promis
       label: input.loyaltyMode === "stamps" ? "Tampons" : "Points",
     },
     textModulesData: buildTextModules(input),
+    // Lien permanent vers l'espace client, affiché sur la carte
+    linksModuleData: {
+      uris: [
+        {
+          uri: `${appUrl}/client/cards`,
+          description: "Mon compte ComeBack — cartes et récompenses",
+          id: "account",
+        },
+      ],
+    },
     // Même format que la carte Apple : le commerçant scanne le QR avec sa caméra
     // et arrive directement sur la page de traitement de la visite.
     barcode: {

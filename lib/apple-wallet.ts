@@ -236,6 +236,13 @@ function buildPassJSON(opts: ClientPassOptions): object {
     auxiliaryFields.push({ key: "reward", label: "PROCHAIN CADEAU", value: opts.nextReward });
   }
 
+  // Lien permanent vers l'espace client — Wallet rend les URLs cliquables au dos
+  const accountBackField = {
+    key: "account",
+    label: "Mon compte ComeBack",
+    value: "Cartes, récompenses et parrainage :\nhttps://app.getcomeback.fr/client/cards",
+  };
+
   if (opts.type === "stamps") {
     return {
       ...base,
@@ -253,6 +260,7 @@ function buildPassJSON(opts: ClientPassOptions): object {
             changeMessage: "Tampons : %@",
           },
           ...campaignBackField,
+          accountBackField,
           {
             key: "info",
             label: "Programme Fidélité",
@@ -279,6 +287,7 @@ function buildPassJSON(opts: ClientPassOptions): object {
           changeMessage: "Solde : %@",
         },
         ...campaignBackField,
+        accountBackField,
         {
           key: "info",
           label: "Programme Fidélité",
