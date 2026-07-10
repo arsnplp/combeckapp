@@ -179,6 +179,105 @@ export async function buildGoogleWalletUrl(input: GoogleWalletPassInput): Promis
   return `https://pay.google.com/gp/v/save/${jwt}`;
 }
 
+// ── Messages (campagnes / notifications) ─────────────────────────────────────
+
+/**
+ * Ajoute un message sur la carte Google Wallet (équivalent de la notification
+ * de campagne Apple). Retourne true si la carte existe (donc client atteint).
+ */
+export async function addGoogleWalletMessage(
+  customerCardId: string,
+  header: string,
+  body: string,
+): Promise<boolean> {
+  if (!isConfigured()) return false;
+  const issuerId = process.env.GOOGLE_WALLET_ISSUER_ID!;
+  const objectId = `${issuerId}.${sanitizeId(customerCardId)}`;
+  try {
+    const accessToken = await getAccessToken();
+    const res = await fetch(
+      `https://walletobjects.googleapis.com/walletobjects/v1/loyaltyObject/${encodeURIComponent(objectId)}/addMessage`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: {
+            header,
+            body,
+            id: `msg_${Date.now()}`,
+            messageType: "TEXT_AND_NOTIFY", // déclenche une notification push Android
+          },
+        }),
+      },
+    );
+    if (res.ok) console.log(`[GoogleWallet] ✓ Message envoyé à ${objectId}`);
+    return res.ok; // 404 = carte pas ajoutée — normal
+  } catch (err) {
+    console.error("[GoogleWallet] addMessage failed:", err);
+    return false;
+  }
+}
+
+// ── Expiration (suppression client) ──────────────────────────────────────────
+
+/** Marque la carte Google Wallet comme expirée (client supprimé). */
+export async function expireGoogleWalletObject(customerCardId: string): Promise<void> {
+  if (!isConfigured()) return;
+  const issuerId = process.env.GOOGLE_WALLET_ISSUER_ID!;
+  const objectId = `${issuerId}.${sanitizeId(customerCardId)}`;
+  try {
+    const accessToken = await getAccessToken();
+    const res = await fetch(
+      `https://walletobjects.googleapis.com/walletobjects/v1/loyaltyObject/${encodeURIComponent(objectId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ state: "EXPIRED" }),
+      },
+    );
+    if (res.ok) console.log(`[GoogleWallet] ✓ Carte expirée ${objectId}`);
+  } catch (err) {
+    console.error("[GoogleWallet] expire failed:", err);
+  }
+}
+
+// ── Mise à jour de la classe (design / nom de la carte) ──────────────────────
+
+/**
+ * Répercute les changements de design du commerçant (couleurs, nom) sur
+ * toutes les cartes Google Wallet déjà enregistrées de cette carte fidélité.
+ */
+export async function updateGoogleWalletClass(
+  tenantId: string,
+  cardId: string,
+  opts: { storeName: string; cardName: string; bgColor: string },
+): Promise<void> {
+  if (!isConfigured()) return;
+  const issuerId = process.env.GOOGLE_WALLET_ISSUER_ID!;
+  const classId = `${issuerId}.comeback_${sanitizeId(tenantId)}_${sanitizeId(cardId)}`;
+  try {
+    const accessToken = await getAccessToken();
+    const res = await fetch(
+      `https://walletobjects.googleapis.com/walletobjects/v1/loyaltyClass/${encodeURIComponent(classId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          issuerName: opts.storeName,
+          programName: opts.cardName,
+          hexBackgroundColor: opts.bgColor,
+        }),
+      },
+    );
+    if (!res.ok && res.status !== 404) {
+      // 404 = aucune carte de ce type encore enregistrée — normal
+      console.error(`[GoogleWallet] PATCH class ${classId} → ${res.status}`);
+    }
+  } catch (err) {
+    console.error("[GoogleWallet] update class failed:", err);
+  }
+}
+
 // ── Détection d'ajout ─────────────────────────────────────────────────────────
 
 /**

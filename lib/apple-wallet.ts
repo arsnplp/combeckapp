@@ -180,6 +180,8 @@ export interface ClientPassOptions {
   authenticationToken?: string;
   webServiceURL?: string;    // must be HTTPS in production
   campaignMessage?: string;  // shown in backFields + triggers changeMessage notification
+  referralCount?: number;
+  referralPoints?: number;
 }
 
 function toRgbStr(hex: string): string {
@@ -243,6 +245,18 @@ function buildPassJSON(opts: ClientPassOptions): object {
     value: "Cartes, récompenses et parrainage :\nhttps://app.getcomeback.fr/client/cards",
   };
 
+  // Parrainage : visible au dos + notification quand le parrain est crédité
+  const refCount = opts.referralCount ?? 0;
+  const refPoints = opts.referralPoints ?? 0;
+  const referralBackField = refCount > 0 || refPoints > 0
+    ? [{
+        key: "referral",
+        label: "Parrainage",
+        value: `${refCount} ami${refCount > 1 ? "s" : ""} parrainé${refCount > 1 ? "s" : ""} · ${refPoints} point${refPoints > 1 ? "s" : ""} à dépenser`,
+        changeMessage: "Parrainage : %@",
+      }]
+    : [];
+
   if (opts.type === "stamps") {
     return {
       ...base,
@@ -260,6 +274,7 @@ function buildPassJSON(opts: ClientPassOptions): object {
             changeMessage: "Tampons : %@",
           },
           ...campaignBackField,
+          ...referralBackField,
           accountBackField,
           {
             key: "info",
@@ -287,6 +302,7 @@ function buildPassJSON(opts: ClientPassOptions): object {
           changeMessage: "Solde : %@",
         },
         ...campaignBackField,
+        ...referralBackField,
         accountBackField,
         {
           key: "info",

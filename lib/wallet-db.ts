@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { expireGoogleWalletObject } from "./google-wallet";
 
 export interface WalletPass {
   id: string;
@@ -135,6 +136,7 @@ export async function walletDb_getAllPasses(): Promise<WalletPass[]> {
  * Supprime les pass wallet + enregistrements d'appareils liés à des cartes
  * client. À appeler AVANT de supprimer le client, sinon la FK met
  * customer_card_id à NULL et les appareils continuent de recevoir les pushs.
+ * Expire aussi les cartes Google Wallet correspondantes.
  */
 export async function walletDb_deletePassesForCards(customerCardIds: string[]): Promise<void> {
   if (!customerCardIds.length) return;
@@ -146,6 +148,8 @@ export async function walletDb_deletePassesForCards(customerCardIds: string[]): 
     await sb.from("wallet_registrations").delete().eq("serial_number", p.serial_number);
     await sb.from("wallet_passes").delete().eq("serial_number", p.serial_number);
   }
+  // Cartes Google : marquer expirées (fire-and-forget, la suppression ne doit pas bloquer)
+  Promise.all(customerCardIds.map((id) => expireGoogleWalletObject(id))).catch(console.error);
 }
 
 export async function walletDb_registerDevice(device: WalletDevice): Promise<boolean> {

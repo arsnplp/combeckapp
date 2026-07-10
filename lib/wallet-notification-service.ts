@@ -12,7 +12,7 @@ import {
 } from "./wallet-db";
 import { db_getAll, findTenantByCustomerCardId } from "./server-db";
 import { generateClientPass } from "./apple-wallet";
-import { updateGoogleWalletObject } from "./google-wallet";
+import { updateGoogleWalletObject, addGoogleWalletMessage, updateGoogleWalletClass } from "./google-wallet";
 import { getTenantSettings } from "./settings-db";
 
 // ── Certificate cache ─────────────────────────────────────────────────────────
@@ -168,6 +168,8 @@ export async function regeneratePass(passId: string): Promise<Buffer | null> {
     authenticationToken: walletPass.authenticationToken,
     webServiceURL: process.env.WALLET_WEB_SERVICE_URL,
     campaignMessage: walletPass.campaignMessage,
+    referralCount: (cc as { referralCount?: number } | undefined)?.referralCount ?? 0,
+    referralPoints: (cc as { referralPoints?: number } | undefined)?.referralPoints ?? 0,
   });
 }
 
@@ -287,7 +289,7 @@ export class WalletNotificationService {
   }
 
   /**
-   * Envoie une campagne aux clients d'UN tenant uniquement.
+   * Envoie une campagne aux clients d'UN tenant uniquement — Apple ET Google.
    * customerIds optionnel : restreint aux clients ciblés (toujours filtrés
    * par le tenant côté serveur — jamais de fuite vers d'autres commerces).
    */
@@ -298,30 +300,84 @@ export class WalletNotificationService {
       const requested = new Set(customerIds);
       tenantCustomerIds = new Set([...tenantCustomerIds].filter((id) => requested.has(id)));
     }
-    // Les customerCardIds du tenant — les pass wallet y sont rattachés
-    const tenantCardIds = new Set(
-      db.customerCards.filter((cc) => tenantCustomerIds.has(cc.customerId)).map((cc) => cc.id),
-    );
+    const targetCards = db.customerCards.filter((cc) => tenantCustomerIds.has(cc.customerId));
+    const tenantCardIds = new Set(targetCards.map((cc) => cc.id));
 
+    let storeName = "ComeBack";
+    try {
+      const settings = await getTenantSettings(tenantId);
+      storeName = (settings.settings.storeName as string) || storeName;
+    } catch { /* défaut */ }
+
+    // Apple : pousser les pass enregistrés
     const passes = (await walletDb_getAllPasses()).filter((p) => {
       if (p.customerCardId) return tenantCardIds.has(p.customerCardId);
       // Anciens pass sans customer_card_id : le serial est "cc-{customerCardId}"
       const derived = p.serialNumber.startsWith("cc-") ? p.serialNumber.slice(3) : "";
-      return tenantCardIds.has(derived) || tenantCustomerIds.has(p.customerId);
+      return tenantCardIds.has(derived);
     });
 
     const devicePushes: PushResult[] = [];
+    const reachedCardIds = new Set<string>();
     for (const pass of passes) {
       const r = await this.sendCampaign(pass.id, message);
       devicePushes.push(...r);
+      if (r.some((x) => x.success)) {
+        reachedCardIds.add(pass.customerCardId || pass.serialNumber.replace(/^cc-/, ""));
+      }
     }
 
-    const reachedPassIds = new Set(devicePushes.filter((r) => r.success && r.passId).map((r) => r.passId));
+    // Google : message + notification push sur les cartes enregistrées
+    // (200 = la carte existe chez Google = client atteint)
+    const googleResults = await Promise.all(
+      targetCards.map(async (cc) => ({
+        id: cc.id,
+        ok: await addGoogleWalletMessage(cc.id, storeName, message),
+      })),
+    );
+    for (const g of googleResults) if (g.ok) reachedCardIds.add(g.id);
+
     return {
-      clientsReached: reachedPassIds.size,
-      clientsTotal: passes.length,
+      clientsReached: reachedCardIds.size,
+      clientsTotal: targetCards.length,
       devicePushes,
     };
+  }
+
+  /**
+   * Rafraîchit toutes les cartes wallet d'un tenant (Apple + Google) après un
+   * changement de design/config : couleurs, nom, tampons requis, récompenses…
+   */
+  async refreshTenantPasses(tenantId: string): Promise<void> {
+    const db = await db_getAll(tenantId);
+    const tenantCardIds = new Set(db.customerCards.map((cc) => cc.id));
+
+    // Google : classes (design partagé par carte fidélité) + objets (soldes)
+    try {
+      const settings = await getTenantSettings(tenantId);
+      const storeName = (settings.settings.storeName as string) || "ComeBack";
+      await Promise.all(settings.loyaltyCards.map((lc) =>
+        updateGoogleWalletClass(tenantId, lc.id, {
+          storeName,
+          cardName: lc.name,
+          bgColor: lc.backgroundColor ?? "#1e293b",
+        }),
+      ));
+    } catch (err) {
+      console.error("[Wallet] refreshTenantPasses classes:", err);
+    }
+
+    // Apple : push sur chaque pass du tenant (le pass est régénéré avec les
+    // réglages à jour au moment où l'appareil le récupère) + objets Google
+    const passes = (await walletDb_getAllPasses()).filter((p) =>
+      p.customerCardId ? tenantCardIds.has(p.customerCardId) : false,
+    );
+    for (const pass of passes) {
+      await this.sendPassUpdate(pass.id).catch(console.error);
+    }
+    for (const cc of db.customerCards) {
+      await this._updateGoogle(cc.id).catch(console.error);
+    }
   }
 }
 
