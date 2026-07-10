@@ -50,7 +50,9 @@ export default function ClientAuthPanel({ cardId, refParam, accent = "#16a34a", 
   const [error, setError] = useState("");
   const router = useRouter();
 
-  const googleHref = isJoin ? `/api/client/auth/google?cardId=${cardId}` : "/api/client/auth/google";
+  const googleHref = isJoin
+    ? `/api/client/auth/google?cardId=${cardId}${refParam ? `&ref=${encodeURIComponent(refParam)}` : ""}`
+    : "/api/client/auth/google";
 
   const submitExisting = async (e: React.FormEvent) => {
     e.preventDefault();

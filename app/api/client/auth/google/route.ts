@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
 
   const cardId = req.nextUrl.searchParams.get("cardId") ?? "";
   const welcomePoints = req.nextUrl.searchParams.get("welcomePoints") ?? "0";
+  const ref = req.nextUrl.searchParams.get("ref") ?? "";
 
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
   const res = NextResponse.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 
   // Store state + optional join context in cookie
-  const cookiePayload = JSON.stringify({ state, cardId, welcomePoints });
+  const cookiePayload = JSON.stringify({ state, cardId, welcomePoints, ref });
   res.cookies.set("google_oauth_state", cookiePayload, {
     httpOnly: true,
     sameSite: "lax",

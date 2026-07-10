@@ -7,7 +7,11 @@ import { formatDateShort } from "@/lib/utils";
 import { RANK_COLORS, RANK_EMOJIS } from "@/lib/rank";
 import type { Customer, RankType } from "@/types";
 
-export type EnrichedCustomer = Customer & { rank: RankType };
+export type EnrichedCustomer = Customer & {
+  rank: RankType;
+  referrals?: number;        // nombre total d'amis parrainés
+  referralPointsLeft?: number; // points de parrainage encore disponibles
+};
 
 interface CustomerTableProps {
   customers: EnrichedCustomer[];
@@ -111,6 +115,7 @@ export default function CustomerTable({ customers, onSelect, selectedIds, onSele
               <th className="py-2 pr-4 text-left text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-400">Rang</th>
               <th className="py-2 pr-4 text-left text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-400">Visites</th>
               <th className="py-2 pr-4 text-left text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-400">Pts / Tampons</th>
+              <th className="py-2 pr-4 text-left text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-400">Parrainages</th>
               <th className="py-2 pr-4 text-left text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-400">Dernière visite</th>
               <th className="w-8" />
             </tr>
@@ -152,6 +157,16 @@ export default function CustomerTable({ customers, onSelect, selectedIds, onSele
                     <span className="text-[13px] font-medium text-green-600">{customer.points}</span>
                     <span className="text-[12px] text-slate-300 mx-1">/</span>
                     <span className="text-[13px] text-slate-500">{customer.stamps}</span>
+                  </td>
+                  <td className="py-3 pr-4">
+                    {(customer.referrals ?? 0) > 0 ? (
+                      <span className="inline-flex items-center gap-1 text-[13px] text-slate-600">
+                        🤝 {customer.referrals}
+                        {(customer.referralPointsLeft ?? 0) > 0 && (
+                          <span className="text-[11.5px] text-slate-400">· {customer.referralPointsLeft} pt{(customer.referralPointsLeft ?? 0) > 1 ? "s" : ""} dispo</span>
+                        )}
+                      </span>
+                    ) : <span className="text-[12px] text-slate-300">—</span>}
                   </td>
                   <td className="py-3 pr-4 text-[13px] text-slate-500">{formatDateShort(customer.lastVisit)}</td>
                   <td className="py-3">

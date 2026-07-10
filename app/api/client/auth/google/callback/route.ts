@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClientAccountFromGoogle } from "@/lib/client-accounts";
-import { findTenantByCardId, db_getAll, db_addCustomer } from "@/lib/server-db";
+import { findTenantByCardId, db_getAll, db_addCustomer, db_recordPendingReferral } from "@/lib/server-db";
 import { getUserById } from "@/lib/users";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { createClientSession } from "@/lib/client-sessions";
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   if (!rawCookie) {
     return NextResponse.redirect(`${appUrl}/client/login?error=invalid_state`);
   }
-  let cookiePayload: { state: string; cardId?: string; welcomePoints?: string };
+  let cookiePayload: { state: string; cardId?: string; welcomePoints?: string; ref?: string };
   try {
     cookiePayload = JSON.parse(rawCookie);
   } catch {
@@ -109,6 +109,12 @@ export async function GET(req: NextRequest) {
             { id: customerId, name, email: email.toLowerCase(), phone: "", joinDate: now, totalVisits: 0, lastVisitAt: null },
             { id: customerCardId, customerId, cardId, stamps: 0, points: welcomePoints, referralCount: 0, referralPoints: 0, joinDate: now, lastActivity: now },
           );
+          // Parrainage : enregistré en attente, crédité à la première visite
+          if (cookiePayload.ref) {
+            try {
+              await db_recordPendingReferral(tenantId, cookiePayload.ref, customerId, email.toLowerCase());
+            } catch { /* ignore referral errors */ }
+          }
         }
         // Redirect to cards regardless (already registered = just log in)
         res.headers.set("location", `${appUrl}/client/cards`);

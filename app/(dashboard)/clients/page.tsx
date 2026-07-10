@@ -167,7 +167,10 @@ function CustomerCardWidget({
               ? `${cc.stamps}/${card.stampsRequired} tampons`
               : `${cc.points.toLocaleString("fr-FR")} points`}
             {(cc.referralCount ?? 0) > 0 && (
-              <span className="ml-2 text-slate-300">· {cc.referralCount} parrainage{(cc.referralCount ?? 0) > 1 ? "s" : ""}</span>
+              <span className="ml-2 text-slate-400">
+                · 🤝 {cc.referralCount} parrainage{(cc.referralCount ?? 0) > 1 ? "s" : ""}
+                {(cc.referralPoints ?? 0) > 0 && ` (${cc.referralPoints} pt${(cc.referralPoints ?? 0) > 1 ? "s" : ""} dispo)`}
+              </span>
             )}
           </p>
         </div>
@@ -533,6 +536,8 @@ export default function ClientsPage() {
       points: ccs.reduce((s, cc) => s + cc.points, 0),
       stamps: ccs.reduce((s, cc) => s + cc.stamps, 0),
       rank: computeRank(c, firstCard),
+      referrals: ccs.reduce((s, cc) => s + (cc.referralCount ?? 0), 0),
+      referralPointsLeft: ccs.reduce((s, cc) => s + (cc.referralPoints ?? 0), 0),
     };
   });
 
