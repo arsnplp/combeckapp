@@ -16,7 +16,22 @@ export default async function CardsPage() {
   if (!email) redirect("/client/login");
 
   const cards = await findClientCards(email);
-  if (cards.length === 0) redirect("/client/login");
+
+  // Aucune carte (ex : a quitté son dernier commerce) — état vide, PAS de
+  // redirect vers /client/login (qui renvoie ici quand la session est active)
+  if (cards.length === 0) {
+    return (
+      <div className="pt-8 text-center">
+        <p className="text-[15px] font-semibold text-gray-900">Aucune carte pour l'instant</p>
+        <p className="mt-2 text-[13px] leading-relaxed text-gray-500">
+          Scannez le QR code d'un commerce partenaire pour activer votre première carte de fidélité.
+        </p>
+        <div className="mt-8">
+          <LogoutButton />
+        </div>
+      </div>
+    );
+  }
 
   const clientName = cards[0].customerName;
 

@@ -9,6 +9,7 @@ import RedeemSection from "./RedeemSection";
 import WalletButton from "./WalletButton";
 import AutoRefresh from "./AutoRefresh";
 import ReferralSection from "./ReferralSection";
+import LeaveStoreButton from "./LeaveStoreButton";
 
 export default async function TenantCardPage({
   params,
@@ -189,6 +190,8 @@ export default async function TenantCardPage({
           pendingReferrals={card.pendingReferrals}
         />
       )}
+
+      <LeaveStoreButton tenantId={tenantId} storeName={card.storeName} />
     </div>
   );
 }
