@@ -28,12 +28,13 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Honour If-Modified-Since
+  // Honour If-Modified-Since — comparaison à la seconde près : l'en-tête HTTP
+  // n'a pas les millisecondes, sans troncature on renvoyait toujours le pass
   const ifModifiedSince = req.headers.get("if-modified-since");
   if (ifModifiedSince) {
-    const since = new Date(ifModifiedSince);
-    const updatedAt = new Date(walletPass.updatedAt);
-    if (updatedAt <= since) {
+    const sinceSec = Math.floor(new Date(ifModifiedSince).getTime() / 1000);
+    const updatedSec = Math.floor(new Date(walletPass.updatedAt).getTime() / 1000);
+    if (!isNaN(sinceSec) && updatedSec <= sinceSec) {
       return new NextResponse(null, { status: 304 });
     }
   }
