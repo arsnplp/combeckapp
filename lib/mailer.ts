@@ -103,3 +103,107 @@ export async function sendPasswordResetRestaurant(to: string, token: string): Pr
     ),
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Emails du programme d'affiliation
+// ═══════════════════════════════════════════════════════════════════
+
+export async function sendAffiliateWelcome(to: string, name: string, refLink: string): Promise<void> {
+  await getResend().emails.send({
+    from: FROM, to,
+    subject: "Bienvenue dans le programme partenaires ComeBack 🤝",
+    html: html("Bienvenue",
+      `<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827">Bienvenue ${name} !</h1>
+       <p style="margin:0 0 20px;font-size:14px;color:#64748b;line-height:1.6">
+         Votre compte partenaire est actif. Partagez votre lien : chaque commerce qui
+         s'abonne via ce lien vous rapporte une commission sur ses paiements.
+       </p>
+       <p style="margin:0 0 20px;padding:12px 16px;background:#f0fdf4;border-radius:10px;font-size:13px;color:#166534;word-break:break-all">${refLink}</p>
+       <a href="${APP_URL}/affilies/dashboard" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:10px;font-size:14px;font-weight:600">Accéder à mon tableau de bord</a>`),
+  });
+}
+
+export async function sendAffiliateCommissionEmail(to: string, p: { clientName: string; amount: number; unlockDate: string }): Promise<void> {
+  await getResend().emails.send({
+    from: FROM, to,
+    subject: `🎉 +${p.amount.toFixed(2)} € de commission !`,
+    html: html("Commission gagnée",
+      `<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827">+${p.amount.toFixed(2)} € 🎉</h1>
+       <p style="margin:0 0 20px;font-size:14px;color:#64748b;line-height:1.6">
+         <strong>${p.clientName}</strong> vient de payer son abonnement ComeBack grâce à vous.
+         Votre commission sera débloquée le <strong>${p.unlockDate}</strong> (période de garantie).
+       </p>
+       <a href="${APP_URL}/affilies/dashboard" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:10px;font-size:14px;font-weight:600">Voir ma cagnotte</a>`),
+  });
+}
+
+export async function sendAffiliateUnlockedEmail(to: string, amount: number): Promise<void> {
+  await getResend().emails.send({
+    from: FROM, to,
+    subject: `✅ ${amount.toFixed(2)} € disponibles au retrait`,
+    html: html("Commission débloquée",
+      `<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827">${amount.toFixed(2)} € débloqués ✅</h1>
+       <p style="margin:0 0 20px;font-size:14px;color:#64748b;line-height:1.6">
+         Votre commission est maintenant disponible dans votre cagnotte. Vous pouvez demander un retrait à tout moment.
+       </p>
+       <a href="${APP_URL}/affilies/dashboard" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:10px;font-size:14px;font-weight:600">Demander un retrait</a>`),
+  });
+}
+
+export async function sendAffiliateRefundEmail(to: string, p: { amount: number }): Promise<void> {
+  await getResend().emails.send({
+    from: FROM, to,
+    subject: "⚠️ Commission annulée",
+    html: html("Commission annulée",
+      `<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827">Commission annulée</h1>
+       <p style="margin:0;font-size:14px;color:#64748b;line-height:1.6">
+         Un client a été remboursé : la commission de <strong>${p.amount.toFixed(2)} €</strong> associée a été retirée de votre cagnotte.
+       </p>`),
+  });
+}
+
+export async function sendAffiliateWithdrawalEmail(to: string, status: "approved" | "paid" | "rejected", amount: number, notes?: string): Promise<void> {
+  const subjects = {
+    approved: `Retrait de ${amount.toFixed(2)} € approuvé — paiement sous 2-3 jours`,
+    paid: `💸 ${amount.toFixed(2)} € envoyés !`,
+    rejected: `Retrait de ${amount.toFixed(2)} € refusé`,
+  };
+  const bodies = {
+    approved: "Votre demande de retrait a été approuvée. Le paiement sera effectué sous 2 à 3 jours ouvrés.",
+    paid: "Votre retrait a été payé. Merci pour votre partenariat !",
+    rejected: `Votre demande de retrait a été refusée${notes ? ` : ${notes}` : ""}. Le montant a été recrédité sur votre cagnotte.`,
+  };
+  await getResend().emails.send({
+    from: FROM, to,
+    subject: subjects[status],
+    html: html("Retrait",
+      `<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827">${subjects[status]}</h1>
+       <p style="margin:0;font-size:14px;color:#64748b;line-height:1.6">${bodies[status]}</p>`),
+  });
+}
+
+export async function sendAffiliateTierEmail(to: string, tier: string): Promise<void> {
+  const labels: Record<string, string> = { silver: "Silver 🥈", gold: "Gold 🥇", platinum: "Platinum 💎" };
+  await getResend().emails.send({
+    from: FROM, to,
+    subject: `🎉 Vous êtes passé ${labels[tier] ?? tier} !`,
+    html: html("Nouveau palier",
+      `<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827">Félicitations, palier ${labels[tier] ?? tier} !</h1>
+       <p style="margin:0 0 20px;font-size:14px;color:#64748b;line-height:1.6">
+         Vos nouveaux avantages vous attendent sur votre tableau de bord partenaire.
+       </p>
+       <a href="${APP_URL}/affilies/dashboard" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:10px;font-size:14px;font-weight:600">Voir mes avantages</a>`),
+  });
+}
+
+export async function notifyAdminEmail(subject: string, fields: Record<string, string>): Promise<void> {
+  const admin = process.env.ADMIN_EMAIL;
+  if (!admin) return;
+  const rows = Object.entries(fields)
+    .map(([k, v]) => `<p style="margin:0 0 6px;font-size:14px;color:#334155"><strong>${k} :</strong> ${v}</p>`).join("");
+  await getResend().emails.send({
+    from: FROM, to: admin, subject: `[Admin] ${subject}`,
+    html: html("Notification admin",
+      `<h1 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#111827">${subject}</h1>${rows}`),
+  });
+}

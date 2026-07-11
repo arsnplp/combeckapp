@@ -34,6 +34,9 @@ export async function POST(req: NextRequest) {
     const passwordHash = await bcrypt.hash(password, 12);
     const verificationToken = randomBytes(32).toString("hex");
 
+    // Attribution affilié : cookie posé par /ref/{code}
+    const affiliateCode = req.cookies.get("comeback_ref")?.value ?? null;
+
     await sb.from("merchants").insert({
       id,
       email: normalized,
@@ -45,6 +48,7 @@ export async function POST(req: NextRequest) {
       created_at: new Date().toISOString(),
       email_verified: true, // essai gratuit = vérifié auto
       is_admin: false,
+      affiliate_code: affiliateCode,
     });
 
     // Créer une session JWT manuelle (backend auth)

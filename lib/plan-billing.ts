@@ -68,6 +68,13 @@ export async function checkAndDowngradeExpiredPlans(): Promise<number> {
   for (const merchant of data ?? []) {
     await downgradePlan(merchant.id);
     count++;
+    // Affiliation : le client parrainé n'est plus payant → churn + recalcul tier
+    try {
+      const { markMerchantChurned } = await import("./affiliates");
+      await markMerchantChurned(merchant.id);
+    } catch (e) {
+      console.error("[plan-billing] churn affilié:", e);
+    }
   }
   return count;
 }

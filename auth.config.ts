@@ -63,6 +63,9 @@ export const authConfig = {
         pathname.startsWith("/api/client/auth/google") ||
         pathname.startsWith("/onboarding") ||
         pathname.startsWith("/api/onboarding") ||
+        pathname.startsWith("/affilies") ||
+        pathname.startsWith("/api/affiliates") ||
+        pathname.startsWith("/ref/") ||
         pathname === "/manifest.webmanifest" ||
         pathname === "/";
 

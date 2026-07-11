@@ -48,6 +48,9 @@ export async function POST(req: NextRequest) {
     const userId = `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const passwordHash = await bcrypt.hash(password, 12);
 
+    // Attribution affilié : cookie posé par /ref/{code}
+    const affiliateCode = req.cookies.get("comeback_ref")?.value ?? null;
+
     await sb.from("merchants").insert({
       id: userId,
       email: normalized,
@@ -59,6 +62,7 @@ export async function POST(req: NextRequest) {
       created_at: new Date().toISOString(),
       email_verified: true,
       is_admin: false,
+      affiliate_code: affiliateCode,
     });
 
     // Créer customer Stripe

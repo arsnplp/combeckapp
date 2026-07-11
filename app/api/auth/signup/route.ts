@@ -34,6 +34,13 @@ export async function POST(req: NextRequest) {
 
     const user = await createUser(email, password, storeName, plan, city || undefined);
 
+    // Attribution affilié : cookie posé par /ref/{code}
+    const affiliateCode = req.cookies.get("comeback_ref")?.value;
+    if (affiliateCode) {
+      const { supabase } = await import("@/lib/supabase");
+      await supabase().from("merchants").update({ affiliate_code: affiliateCode }).eq("id", user.id);
+    }
+
     // Send verification email (silent fail — signup still succeeds)
     if (user.emailVerificationToken) {
       sendEmailVerification(user.email, user.emailVerificationToken).catch(() => {});
