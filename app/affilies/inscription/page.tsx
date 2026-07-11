@@ -44,7 +44,7 @@ export default function AffiliateSignupPage() {
       <h1 className="text-[24px] font-bold tracking-tight text-gray-900">Devenir partenaire</h1>
       <p className="mt-1.5 text-[14px] text-gray-500">
         Gratuit. Vous recevez un lien unique : chaque commerce qui s'abonne via ce lien
-        vous rapporte <strong>20 % de commission</strong> sur ses paiements.
+        vous rapporte <strong>20 à 50 % de commission</strong> sur ses paiements.
       </p>
 
       <form onSubmit={submit} className="mt-8 space-y-3">

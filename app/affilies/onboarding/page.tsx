@@ -11,10 +11,9 @@ const GOALS = [
 ];
 
 const TIERS_DISPLAY = [
-  { emoji: "🥉", name: "Bronze", range: "0 – 10 clients", commission: "20 %", rewards: ["Commission 20 % sur chaque paiement"] },
-  { emoji: "🥈", name: "Silver", range: "11 – 25 clients", commission: "20 %", rewards: ["SMS gratuit +500 (1 mois)", "Badge Silver sur profil", "Mention mensuelle (top 10)"] },
-  { emoji: "🥇", name: "Gold", range: "26 – 50 clients", commission: "20 %", rewards: ["Intégration caisse GRATUITE", "Badge doré + surbrillance", "Appel conseil 30 min", "Mention newsletter"] },
-  { emoji: "💎", name: "Platinum", range: "51+ clients", commission: "25 %", rewards: ["Tous les avantages Gold", "Bonus +5 % de commission", "Webinaire privé affiliés", "Support prioritaire"] },
+  { emoji: "🥉", name: "Bronze", range: "0 – 100 € / mois générés", commission: "20 %", cls: "border-orange-200 bg-orange-50/50" },
+  { emoji: "🥇", name: "Gold", range: "100 – 500 € / mois générés", commission: "35 %", cls: "border-amber-300 bg-amber-50/60" },
+  { emoji: "💎", name: "Platinum", range: "500 € et + / mois générés", commission: "50 %", cls: "border-violet-300 bg-violet-50/60" },
 ];
 
 export default function AffiliateOnboarding() {
@@ -58,7 +57,7 @@ export default function AffiliateOnboarding() {
             {[
               { icon: Link2, title: "1. Partagez votre lien unique", desc: "Chaque partenaire a un lien personnel (et un QR code). Envoyez-le aux commerçants de votre réseau : restaurants, salons, boutiques…" },
               { icon: CreditCard, title: "2. Le commerce s'abonne", desc: "Il découvre ComeBack, prend son essai gratuit puis paie son abonnement (19 à 99 €/mois). Il est automatiquement rattaché à vous." },
-              { icon: Clock, title: "3. Vous touchez 20 % à chaque paiement", desc: "La commission arrive dans votre cagnotte « en attente » pendant 18 jours (période de garantie anti-remboursement), puis devient disponible." },
+              { icon: Clock, title: "3. Vous touchez 20 à 50 % à chaque paiement", desc: "La commission arrive dans votre cagnotte « en attente » pendant 18 jours (période de garantie anti-remboursement), puis devient disponible." },
               { icon: Banknote, title: "4. Vous retirez quand vous voulez", desc: "Dès 20 € de disponible : virement, Wise ou PayPal. Demande en un clic, paiement sous 2-3 jours." },
             ].map((s) => (
               <div key={s.title} className="flex gap-4 rounded-2xl border border-gray-100 bg-white p-4">
@@ -117,29 +116,27 @@ export default function AffiliateOnboarding() {
       {/* ── Étape 3 : Les paliers ── */}
       {step === 2 && (
         <div>
-          <h1 className="text-[24px] font-bold tracking-tight text-gray-900">Vos récompenses grandissent avec vous 📈</h1>
+          <h1 className="text-[24px] font-bold tracking-tight text-gray-900">Plus vos clients paient, plus vous gagnez 📈</h1>
           <p className="mt-1.5 text-[14px] text-gray-500">
-            Plus vous apportez de commerces actifs, plus votre palier monte — et débloque des avantages.
+            Votre palier dépend de ce que vos clients actifs paient chaque mois. Simple.
           </p>
 
           <div className="mt-8 space-y-3">
             {TIERS_DISPLAY.map((t) => (
-              <div key={t.name} className="rounded-2xl border border-gray-100 bg-white p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-[15px] font-bold text-gray-900">{t.emoji} {t.name}</p>
-                  <div className="text-right">
-                    <p className="text-[12px] text-gray-400">{t.range}</p>
-                    <p className="text-[12.5px] font-semibold text-green-700">Commission {t.commission}</p>
-                  </div>
+              <div key={t.name} className={`flex items-center justify-between rounded-2xl border-2 p-5 ${t.cls}`}>
+                <div>
+                  <p className="text-[17px] font-bold text-gray-900">{t.emoji} {t.name}</p>
+                  <p className="mt-0.5 text-[12.5px] text-gray-500">{t.range}</p>
                 </div>
-                <ul className="mt-2 space-y-0.5">
-                  {t.rewards.map((r) => (
-                    <li key={r} className="text-[12px] text-gray-500">✓ {r}</li>
-                  ))}
-                </ul>
+                <p className="text-[26px] font-bold text-gray-900">{t.commission}</p>
               </div>
             ))}
           </div>
+
+          <p className="mt-4 rounded-xl bg-gray-100 px-4 py-3 text-[12.5px] leading-relaxed text-gray-500">
+            Exemple : vos clients paient 250 € / mois au total → vous êtes <strong>Gold</strong> et touchez
+            <strong> 35 %</strong> de chaque paiement, soit 87,50 € / mois.
+          </p>
 
           <button onClick={finish} disabled={saving}
             className="mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-600 text-[14px] font-semibold text-white hover:bg-green-700 active:scale-[0.98] disabled:opacity-60 transition-all">

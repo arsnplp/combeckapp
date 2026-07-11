@@ -32,7 +32,7 @@ interface AdminData {
   };
 }
 
-const TIER_EMOJI: Record<string, string> = { bronze: "🥉", silver: "🥈", gold: "🥇", platinum: "💎" };
+const TIER_EMOJI: Record<string, string> = { bronze: "🥉", gold: "🥇", platinum: "💎" };
 const eur = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €";
 
 export default function AdminAffiliatesPage() {

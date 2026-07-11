@@ -6,29 +6,36 @@ import { supabase } from "./supabase";
 // SYSTÈME D'AFFILIATION — comptes séparés du SaaS (espace /affilies)
 // ═══════════════════════════════════════════════════════════════════
 
-export const COMMISSION_BASE_RATE = 0.20;      // 20 % du paiement
-export const PLATINUM_BONUS = 0.05;            // +5 pts pour les Platinum
 export const UNLOCK_DELAY_DAYS = 18;           // pending → disponible
 export const DAILY_REFERRAL_LIMIT = 100;       // anti-triche
 
-export type AffiliateTier = "bronze" | "silver" | "gold" | "platinum";
+// ── Paliers : basés sur le CA MENSUEL généré par les clients actifs ──
+// Bronze  : 0 – 100 €/mois  → 20 % de commission
+// Gold    : 100 – 500 €/mois → 35 %
+// Platinum: 500 €+ /mois     → 50 %
+export type AffiliateTier = "bronze" | "gold" | "platinum";
 
-export const TIERS: Array<{ tier: AffiliateTier; minClients: number; maxClients?: number; rewards: string[] }> = [
-  { tier: "bronze",   minClients: 0,  maxClients: 10, rewards: [] },
-  { tier: "silver",   minClients: 11, maxClients: 25, rewards: ["SMS gratuit +500 (1 mois)", "Badge Silver sur profil", "Mention mensuelle (top 10)"] },
-  { tier: "gold",     minClients: 26, maxClients: 50, rewards: ["Intégration caisse GRATUITE", "Badge doré + surbrillance", "Appel conseil 30 min (1x)", "Mention newsletter"] },
-  { tier: "platinum", minClients: 51,                 rewards: ["Tous les rewards Gold", "Bonus +5 % commission", "Webinaire privé affiliés", "Mention spéciale newsletter", "Support prioritaire"] },
+export const TIERS: Array<{ tier: AffiliateTier; minRevenue: number; maxRevenue?: number; rate: number }> = [
+  { tier: "bronze",   minRevenue: 0,   maxRevenue: 100, rate: 0.20 },
+  { tier: "gold",     minRevenue: 100, maxRevenue: 500, rate: 0.35 },
+  { tier: "platinum", minRevenue: 500,                  rate: 0.50 },
 ];
 
-export function calculateTier(activeClients: number): AffiliateTier {
-  if (activeClients >= 51) return "platinum";
-  if (activeClients >= 26) return "gold";
-  if (activeClients >= 11) return "silver";
+export function calculateTier(monthlyRevenue: number): AffiliateTier {
+  if (monthlyRevenue >= 500) return "platinum";
+  if (monthlyRevenue >= 100) return "gold";
   return "bronze";
 }
 
 export function commissionRateForTier(tier: AffiliateTier): number {
-  return tier === "platinum" ? COMMISSION_BASE_RATE + PLATINUM_BONUS : COMMISSION_BASE_RATE;
+  return TIERS.find((t) => t.tier === tier)?.rate ?? 0.20;
+}
+
+/** CA mensuel généré = somme des prix mensuels des clients actifs. */
+export async function getMonthlyRevenue(affiliateId: string): Promise<number> {
+  const { data } = await supabase().from("affiliate_referrals")
+    .select("monthly_price").eq("affiliate_id", affiliateId).eq("status", "active");
+  return (data ?? []).reduce((s, r) => s + Number(r.monthly_price), 0);
 }
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -256,9 +263,14 @@ export async function creditCommission(affiliateCode: string, input: CommissionI
     });
   }
 
-  // Commission = taux (selon tier) × montant réellement payé
-  const rate = commissionRateForTier(affiliate.tier);
+  // Recalculer le palier AVEC ce nouveau client actif (CA mensuel), puis
+  // appliquer le taux du palier au montant réellement payé
+  const { tier } = await recalcTier(affiliate.id);
+  const rate = commissionRateForTier(tier);
   const commission = Math.round(input.amountPaid * rate * 100) / 100;
+  // Trace du taux réellement appliqué sur la fiche client
+  await sb.from("affiliate_referrals").update({ commission_rate: rate })
+    .eq("affiliate_id", affiliate.id).eq("merchant_id", input.merchantId);
 
   // Cagnotte : pending
   const wallet = await getWallet(affiliate.id);
@@ -284,9 +296,6 @@ export async function creditCommission(affiliateCode: string, input: CommissionI
     execute_at: new Date(Date.now() + UNLOCK_DELAY_DAYS * 86400_000).toISOString(),
     status: "pending", created_at: now,
   });
-
-  // Recalcul du tier (peut monter)
-  await recalcTier(affiliate.id);
 
   return { ok: true, commission, affiliate };
 }
@@ -357,17 +366,14 @@ export async function markMerchantChurned(merchantId: string): Promise<string[]>
 
 // ── Tier ──────────────────────────────────────────────────────────────
 
-export async function recalcTier(affiliateId: string): Promise<{ changed: boolean; tier: AffiliateTier; activeClients: number }> {
+export async function recalcTier(affiliateId: string): Promise<{ changed: boolean; tier: AffiliateTier; monthlyRevenue: number }> {
   const sb = supabase();
-  const { count } = await sb.from("affiliate_referrals")
-    .select("id", { count: "exact", head: true })
-    .eq("affiliate_id", affiliateId).eq("status", "active");
-  const activeClients = count ?? 0;
-  const tier = calculateTier(activeClients);
+  const monthlyRevenue = await getMonthlyRevenue(affiliateId);
+  const tier = calculateTier(monthlyRevenue);
   const { data: aff } = await sb.from("affiliates").select("tier").eq("id", affiliateId).maybeSingle();
   const changed = aff?.tier !== tier;
   if (changed) await sb.from("affiliates").update({ tier }).eq("id", affiliateId);
-  return { changed, tier, activeClients };
+  return { changed, tier, monthlyRevenue };
 }
 
 // ── Déblocage 18 jours (cron horaire) ─────────────────────────────────

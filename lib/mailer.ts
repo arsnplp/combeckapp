@@ -183,7 +183,7 @@ export async function sendAffiliateWithdrawalEmail(to: string, status: "approved
 }
 
 export async function sendAffiliateTierEmail(to: string, tier: string): Promise<void> {
-  const labels: Record<string, string> = { silver: "Silver 🥈", gold: "Gold 🥇", platinum: "Platinum 💎" };
+  const labels: Record<string, string> = { gold: "Gold 🥇", platinum: "Platinum 💎" };
   await getResend().emails.send({
     from: FROM, to,
     subject: `🎉 Vous êtes passé ${labels[tier] ?? tier} !`,

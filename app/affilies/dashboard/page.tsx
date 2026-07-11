@@ -20,8 +20,8 @@ interface DashboardData {
   refLink: string;
   referralCode: string;
   tier: {
-    current: string; rewards: string[]; commissionRate: number; activeClients: number;
-    nextTier: { tier: string; clientsNeeded: number } | null;
+    current: string; commissionRate: number; monthlyRevenue: number; activeClients: number;
+    nextTier: { tier: string; rate: number; revenueNeeded: number } | null;
   };
   wallet: { availableBalance: number; pendingBalance: number; totalEarned: number; totalWithdrawn: number };
   stats: { activeClients: number; churnedClients: number; totalReferred: number };
@@ -32,7 +32,6 @@ interface DashboardData {
 
 const TIER_STYLE: Record<string, { label: string; emoji: string; cls: string }> = {
   bronze:   { label: "Bronze",   emoji: "🥉", cls: "bg-orange-50 text-orange-700 border-orange-200" },
-  silver:   { label: "Silver",   emoji: "🥈", cls: "bg-slate-100 text-slate-700 border-slate-200" },
   gold:     { label: "Gold",     emoji: "🥇", cls: "bg-amber-50 text-amber-700 border-amber-200" },
   platinum: { label: "Platinum", emoji: "💎", cls: "bg-violet-50 text-violet-700 border-violet-200" },
 };
@@ -166,7 +165,7 @@ export default function AffiliateDashboard() {
         </div>
       )}
 
-      {/* Tier */}
+      {/* Tier — basé sur le CA mensuel généré */}
       <div className="rounded-2xl border border-gray-100 bg-white p-5">
         <div className="flex items-center justify-between">
           <span className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[14px] font-bold ${tierStyle.cls}`}>
@@ -177,18 +176,12 @@ export default function AffiliateDashboard() {
           </span>
         </div>
         <p className="mt-2 text-[13px] text-gray-500">
-          {data.tier.activeClients} client{data.tier.activeClients > 1 ? "s" : ""} actif{data.tier.activeClients > 1 ? "s" : ""}
+          Vos clients actifs paient <strong className="text-gray-800">{eur(data.tier.monthlyRevenue)}</strong> / mois
           {data.tier.nextTier && (
-            <> — encore <strong className="text-gray-800">{data.tier.nextTier.clientsNeeded}</strong> pour passer {TIER_STYLE[data.tier.nextTier.tier]?.label ?? data.tier.nextTier.tier} 🔥</>
+            <> — encore <strong className="text-gray-800">{eur(data.tier.nextTier.revenueNeeded)}</strong> pour
+            passer {TIER_STYLE[data.tier.nextTier.tier]?.label ?? data.tier.nextTier.tier} ({Math.round(data.tier.nextTier.rate * 100)} %) 🔥</>
           )}
         </p>
-        {data.tier.rewards.length > 0 && (
-          <ul className="mt-2 space-y-0.5">
-            {data.tier.rewards.map((r) => (
-              <li key={r} className="text-[12px] text-gray-400">✓ {r}</li>
-            ))}
-          </ul>
-        )}
       </div>
 
       {/* Cagnotte */}
