@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS affiliates (
   suspension_reason TEXT,
   bank_method TEXT,
   bank_details JSONB,
+  goal TEXT,                      -- objectif déclaré à l'onboarding
+  onboarded BOOLEAN NOT NULL DEFAULT false,
   last_login TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -101,6 +103,10 @@ CREATE TABLE IF NOT EXISTS affiliate_sessions (
 
 -- Attribution : code affilié stocké sur le marchand à l'inscription
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS affiliate_code TEXT;
+
+-- Idempotent si la table affiliates existait déjà sans ces colonnes
+ALTER TABLE affiliates ADD COLUMN IF NOT EXISTS goal TEXT;
+ALTER TABLE affiliates ADD COLUMN IF NOT EXISTS onboarded BOOLEAN NOT NULL DEFAULT false;
 
 -- RLS activé partout (accès uniquement via service_role, comme le reste)
 ALTER TABLE affiliates ENABLE ROW LEVEL SECURITY;

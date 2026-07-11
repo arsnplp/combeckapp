@@ -8,12 +8,22 @@ async function requireAffiliate(req: NextRequest) {
   return id ? { id, token } : null;
 }
 
-// PATCH — mise à jour des infos de paiement (méthode + coordonnées)
+// PATCH — infos de paiement OU objectif d'onboarding
 export async function PATCH(req: NextRequest) {
   const auth = await requireAffiliate(req);
   if (!auth) return NextResponse.json({ error: "Non connecté." }, { status: 401 });
 
-  const { bankMethod, iban, bic, paypalEmail } = await req.json().catch(() => ({}));
+  const { bankMethod, iban, bic, paypalEmail, goal, onboarded } = await req.json().catch(() => ({}));
+
+  // Onboarding : enregistrer l'objectif et/ou marquer comme terminé
+  if (goal !== undefined || onboarded !== undefined) {
+    await supabase().from("affiliates").update({
+      ...(goal !== undefined ? { goal: String(goal).slice(0, 300) } : {}),
+      ...(onboarded !== undefined ? { onboarded: !!onboarded } : {}),
+    }).eq("id", auth.id);
+    return NextResponse.json({ ok: true });
+  }
+
   if (!["virement", "wise", "paypal"].includes(bankMethod)) {
     return NextResponse.json({ error: "Méthode de paiement invalide." }, { status: 400 });
   }

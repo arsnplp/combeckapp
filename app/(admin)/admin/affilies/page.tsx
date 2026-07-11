@@ -11,6 +11,7 @@ interface AdminAffiliate {
   id: string; email: string; name: string; commerce: string; phone: string;
   referralCode: string; tier: string; status: string; suspensionReason: string | null;
   bankMethod: string | null; bankDetails: { iban?: string; bic?: string; paypalEmail?: string } | null;
+  goal: string | null;
   createdAt: string; activeClients: number; churnedClients: number;
   available: number; pending: number; totalEarned: number; totalWithdrawn: number;
 }
@@ -183,6 +184,8 @@ export default function AdminAffiliatesPage() {
                   <td className="py-3 pr-4">
                     <p className="text-[13px] font-medium text-white">{a.name}</p>
                     <p className="text-[11px] text-slate-500">{a.commerce} · {a.email}</p>
+                    <p className="text-[11px] text-slate-400">📞 {a.phone || "—"}</p>
+                    {a.goal && <p className="text-[10.5px] text-slate-500">🎯 {a.goal}</p>}
                     {a.status === "suspended" && (
                       <p className="text-[10.5px] text-red-400">Suspendu : {a.suspensionReason}</p>
                     )}

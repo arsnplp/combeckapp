@@ -32,7 +32,7 @@ export default function AffiliateSignupPage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data?.error ?? "Erreur."); setLoading(false); return; }
-      router.push("/affilies/dashboard");
+      router.push("/affilies/onboarding");
     } catch {
       setError("Erreur réseau.");
       setLoading(false);

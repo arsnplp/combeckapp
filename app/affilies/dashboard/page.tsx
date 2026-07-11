@@ -14,6 +14,8 @@ interface DashboardData {
     suspensionReason?: string | null;
     bankMethod?: string | null;
     bankDetails?: { iban?: string; bic?: string; paypalEmail?: string } | null;
+    onboarded?: boolean;
+    goal?: string | null;
   };
   refLink: string;
   referralCode: string;
@@ -74,6 +76,8 @@ export default function AffiliateDashboard() {
       const res = await fetch("/api/affiliates/dashboard");
       if (res.status === 401) { router.push("/affilies"); return; }
       const d = await res.json();
+      // Onboarding pas encore fait → parcours d'accueil d'abord
+      if (d?.profile && d.profile.onboarded === false) { router.push("/affilies/onboarding"); return; }
       setData(d);
       if (d.profile?.bankMethod) setBankMethod(d.profile.bankMethod);
       if (d.profile?.bankDetails?.iban) setIban(d.profile.bankDetails.iban);

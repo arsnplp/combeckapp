@@ -9,7 +9,7 @@ export async function GET() {
 
   const sb = supabase();
   const [affRes, walletRes, refRes, wdRes, txRes] = await Promise.all([
-    sb.from("affiliates").select("id, email, name, commerce, phone, referral_code, tier, status, suspension_reason, bank_method, bank_details, created_at, last_login").order("created_at", { ascending: false }),
+    sb.from("affiliates").select("id, email, name, commerce, phone, referral_code, tier, status, suspension_reason, bank_method, bank_details, goal, created_at, last_login").order("created_at", { ascending: false }),
     sb.from("affiliate_wallets").select("*"),
     sb.from("affiliate_referrals").select("affiliate_id, status"),
     sb.from("affiliate_withdrawals").select("*").order("requested_at", { ascending: false }),
@@ -32,7 +32,7 @@ export async function GET() {
       referralCode: a.referral_code, tier: a.tier, status: a.status,
       suspensionReason: a.suspension_reason,
       bankMethod: a.bank_method, bankDetails: a.bank_details,
-      createdAt: a.created_at, lastLogin: a.last_login,
+      goal: a.goal, createdAt: a.created_at, lastLogin: a.last_login,
       activeClients: rc.active, churnedClients: rc.churned,
       available: Number(w?.available_balance ?? 0),
       pending: Number(w?.pending_balance ?? 0),

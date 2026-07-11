@@ -455,7 +455,7 @@ export default function AdminPage() {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b border-white/[0.05]">
-                  {["Nom", "Email", "Cartes", "MDP", "Inscrit le", "Actions"].map((h) => (
+                  {["Nom", "Email", "Téléphone", "Cartes", "MDP", "Inscrit le", "Actions"].map((h) => (
                     <th key={h} className="px-5 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.12em] text-slate-500">{h}</th>
                   ))}
                 </tr>
@@ -465,6 +465,7 @@ export default function AdminPage() {
                   <tr key={c.email || c.name} className="group transition-colors hover:bg-white/[0.03]">
                     <td className="px-5 py-3.5 text-[13px] font-medium text-white">{c.name}</td>
                     <td className="px-5 py-3.5 text-[13px] text-slate-400">{c.email}</td>
+                    <td className="px-5 py-3.5 text-[13px] text-slate-400 whitespace-nowrap">{c.phone || "—"}</td>
                     <td className="px-5 py-3.5 text-[12px] text-slate-400 max-w-[200px]">
                       {c.cards.length === 0 ? "—" : c.cards.map((card) => (
                         <span key={`${card.tenantId}-${card.cardName}`} className="inline-block mr-2 mb-1">

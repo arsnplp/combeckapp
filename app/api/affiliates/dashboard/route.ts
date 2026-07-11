@@ -39,6 +39,8 @@ export async function GET(req: NextRequest) {
       suspensionReason: affiliate.suspensionReason,
       bankMethod: affiliate.bankMethod,
       bankDetails: affiliate.bankDetails,
+      onboarded: affiliate.onboarded ?? false,
+      goal: affiliate.goal ?? null,
     },
     refLink: `${appUrl}/ref/${affiliate.referralCode}`,
     referralCode: affiliate.referralCode,

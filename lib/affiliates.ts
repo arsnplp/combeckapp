@@ -46,6 +46,8 @@ export interface Affiliate {
   suspensionReason?: string | null;
   bankMethod?: string | null;
   bankDetails?: { iban?: string; bic?: string; paypalEmail?: string } | null;
+  goal?: string | null;
+  onboarded?: boolean;
   createdAt: string;
 }
 
@@ -62,10 +64,11 @@ interface AffiliateRow {
   id: string; email: string; password_hash: string; name: string; commerce: string;
   phone: string; referral_code: string; tier: string; status: string;
   suspension_reason: string | null; bank_method: string | null;
-  bank_details: Affiliate["bankDetails"]; created_at: string;
+  bank_details: Affiliate["bankDetails"]; goal: string | null;
+  onboarded: boolean; created_at: string;
 }
 
-const AFF_COLS = "id, email, password_hash, name, commerce, phone, referral_code, tier, status, suspension_reason, bank_method, bank_details, created_at";
+const AFF_COLS = "id, email, password_hash, name, commerce, phone, referral_code, tier, status, suspension_reason, bank_method, bank_details, goal, onboarded, created_at";
 
 function mapAffiliate(r: AffiliateRow): Affiliate {
   return {
@@ -73,7 +76,8 @@ function mapAffiliate(r: AffiliateRow): Affiliate {
     commerce: r.commerce, phone: r.phone, referralCode: r.referral_code,
     tier: r.tier as AffiliateTier, status: r.status as Affiliate["status"],
     suspensionReason: r.suspension_reason, bankMethod: r.bank_method,
-    bankDetails: r.bank_details, createdAt: r.created_at,
+    bankDetails: r.bank_details, goal: r.goal, onboarded: r.onboarded,
+    createdAt: r.created_at,
   };
 }
 
