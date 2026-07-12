@@ -110,6 +110,20 @@ export default function AdminPage() {
   const [resetSuccess, setResetSuccess] = useState<string | null>(null);
   const [deletingClient, setDeletingClient] = useState<string | null>(null);
   const [certInfo, setCertInfo] = useState<CertInfo | null>(null);
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
+
+  const QUICK_LINKS = [
+    { emoji: "🌐", label: "Site vitrine", url: "https://getcomeback.fr", desc: "Landing publique" },
+    { emoji: "🏪", label: "Inscription commerce", url: "https://app.getcomeback.fr/tarifs", desc: "Choix du plan → création de compte" },
+    { emoji: "👤", label: "Espace client", url: "https://app.getcomeback.fr/client/login", desc: "Connexion client (compte créé via le QR d'un commerce)" },
+    { emoji: "🤝", label: "Inscription affilié", url: "https://app.getcomeback.fr/affilies/inscription", desc: "Devenir partenaire" },
+  ];
+
+  const copyQuickLink = async (url: string) => {
+    await navigator.clipboard.writeText(url);
+    setCopiedLink(url);
+    setTimeout(() => setCopiedLink(null), 1500);
+  };
 
   const handleAccess = async (userId: string) => {
     setImpersonating(userId);
@@ -254,6 +268,35 @@ export default function AdminPage() {
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
             Actualiser
           </button>
+        </div>
+      </div>
+
+      {/* Liens rapides */}
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.04] p-5">
+        <p className="mb-3 text-[13px] font-semibold text-white">🔗 Liens rapides</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {QUICK_LINKS.map((l) => (
+            <div key={l.url} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3.5 py-2.5">
+              <span className="text-[18px]">{l.emoji}</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[12.5px] font-semibold text-white">{l.label}</p>
+                <p className="truncate text-[10.5px] text-slate-500">{l.desc}</p>
+                <p className="truncate text-[10.5px] text-green-400/70">{l.url}</p>
+              </div>
+              <button
+                onClick={() => copyQuickLink(l.url)}
+                className="flex-shrink-0 rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:bg-green-600/20 hover:text-green-300"
+              >
+                {copiedLink === l.url ? "✓ Copié" : "Copier"}
+              </button>
+              <a
+                href={l.url} target="_blank" rel="noopener noreferrer"
+                className="flex-shrink-0 rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:bg-white/[0.1] hover:text-white"
+              >
+                Ouvrir ↗
+              </a>
+            </div>
+          ))}
         </div>
       </div>
 
