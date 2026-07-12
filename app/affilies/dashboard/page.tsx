@@ -68,6 +68,9 @@ export default function AffiliateDashboard() {
   const [paypalEmail, setPaypalEmail] = useState("");
   const [bankSaved, setBankSaved] = useState(false);
   const [showTx, setShowTx] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const router = useRouter();
 
   const load = useCallback(async () => {
@@ -137,6 +140,25 @@ export default function AffiliateDashboard() {
   const logout = async () => {
     await fetch("/api/affiliates/logout", { method: "POST" });
     router.push("/affilies");
+  };
+
+  const deleteAccount = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const res = await fetch("/api/affiliates/me", { method: "DELETE" });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setDeleteError(d?.error ?? "Erreur.");
+        setDeleting(false);
+        return;
+      }
+      router.push("/affilies");
+    } catch {
+      setDeleteError("Erreur réseau.");
+      setDeleting(false);
+    }
   };
 
   if (loading || !data) {
@@ -367,9 +389,56 @@ export default function AffiliateDashboard() {
         )}
       </div>
 
-      <p className="pb-6 text-center text-[11px] text-gray-300">
+      <p className="text-center text-[11px] text-gray-300">
         Commission de {Math.round(data.tier.commissionRate * 100)} % sur chaque paiement, débloquée après 18 jours de garantie.
       </p>
+
+      {/* ── Suppression du compte (RGPD) ── */}
+      <div className="pb-6">
+        {!confirmDelete ? (
+          <div className="text-center">
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="text-[11.5px] text-gray-300 underline transition-colors hover:text-red-500"
+            >
+              Supprimer mon compte partenaire
+            </button>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-red-100 bg-red-50/60 p-4">
+            <p className="text-[13.5px] font-semibold text-red-800">
+              Supprimer définitivement votre compte partenaire ?
+            </p>
+            <ul className="mt-2 space-y-1 text-[12px] leading-relaxed text-red-700/80">
+              <li>• Votre cagnotte sera <strong>définitivement perdue</strong>
+                {(data.wallet.availableBalance > 0 || data.wallet.pendingBalance > 0) &&
+                  <> ({eur(data.wallet.availableBalance + data.wallet.pendingBalance)} actuellement)</>}
+                {" "}— faites d&apos;abord un retrait si besoin</li>
+              <li>• Les demandes de retrait en cours seront annulées</li>
+              <li>• Votre lien partenaire cessera de fonctionner, plus aucune commission future</li>
+              <li>• Votre historique est anonymisé (obligation comptable) — action irréversible</li>
+            </ul>
+            {deleteError && <p className="mt-2 text-[12px] font-medium text-red-600">{deleteError}</p>}
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={deleteAccount}
+                disabled={deleting}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+              >
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Supprimer définitivement
+              </button>
+              <button
+                onClick={() => { setConfirmDelete(false); setDeleteError(""); }}
+                disabled={deleting}
+                className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[13px] font-medium text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
