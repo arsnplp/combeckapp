@@ -1,8 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { activatePlan, PLAN_PRICING } from "@/lib/plan-billing";
+import { activatePlan, setPlanUntil, PLAN_PRICING } from "@/lib/plan-billing";
 import { creditCommission, refundCommission, getAffiliateById, UNLOCK_DELAY_DAYS } from "@/lib/affiliates";
 import { sendAffiliateCommissionEmail, sendAffiliateRefundEmail, notifyAdminEmail } from "@/lib/mailer";
+import type { PlanId } from "@/types";
+
+// Commission affilié pour un paiement donné (première fois comme renouvellement)
+async function creditAffiliateForPayment(
+  merchantId: string, plan: string, amountPaid: number, dedupKey: string,
+): Promise<void> {
+  const { data: merchant } = await supabase().from("merchants")
+    .select("store_name, affiliate_code").eq("id", merchantId).maybeSingle();
+  if (!merchant?.affiliate_code) return;
+
+  const monthlyPrice = PLAN_PRICING[plan as keyof typeof PLAN_PRICING]?.monthly ?? 0;
+  const result = await creditCommission(merchant.affiliate_code, {
+    merchantId,
+    merchantName: merchant.store_name ?? "Commerce",
+    plan,
+    amountPaid,
+    monthlyPrice,
+    stripeSessionId: dedupKey,
+  });
+  if (result.ok) {
+    console.log(`[webhook] Commission ${result.commission}€ → affilié ${result.affiliate.name}`);
+    const unlockDate = new Date(Date.now() + UNLOCK_DELAY_DAYS * 86400_000);
+    sendAffiliateCommissionEmail(result.affiliate.email, {
+      clientName: merchant.store_name ?? "Un commerce",
+      amount: result.commission,
+      unlockDate: unlockDate.toLocaleDateString("fr-FR"),
+    }).catch(console.error);
+  } else {
+    console.log(`[webhook] Commission ignorée : ${result.reason}`);
+  }
+}
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) return null;
@@ -29,51 +60,66 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // ── Paiement réussi : activer le plan + commission affilié ──────────
+    // ── Checkout terminé (paiement one-shot legacy uniquement) ──────────
+    // En mode abonnement, c'est invoice.paid qui fait foi (1er paiement ET
+    // renouvellements) — on évite ici le double traitement.
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       const { merchantId, plan, billingCycle } = session.metadata ?? {};
 
-      if (!merchantId || !plan || !billingCycle) {
-        console.warn("[webhook] Missing metadata", session.metadata);
-        return NextResponse.json({ ok: true });
-      }
-
-      await activatePlan(merchantId, plan as never, billingCycle as never);
-      console.log(`[webhook] Plan activated for ${merchantId}: ${plan} (${billingCycle})`);
-
-      // Commission affilié (toutes les gardes sont dans creditCommission :
-      // doublon, montant nul, affilié suspendu, rate limiting)
-      try {
-        const { data: merchant } = await supabase().from("merchants")
-          .select("store_name, affiliate_code").eq("id", merchantId).maybeSingle();
-        if (merchant?.affiliate_code) {
-          const amountPaid = (session.amount_total ?? 0) / 100;
-          const monthlyPrice = PLAN_PRICING[plan as keyof typeof PLAN_PRICING]?.monthly ?? 0;
-          const result = await creditCommission(merchant.affiliate_code, {
-            merchantId,
-            merchantName: merchant.store_name ?? "Commerce",
-            plan,
-            amountPaid,
-            monthlyPrice,
-            stripeSessionId: (session.payment_intent as string) ?? session.id,
-          });
-          if (result.ok) {
-            console.log(`[webhook] Commission ${result.commission}€ → affilié ${result.affiliate.name}`);
-            const unlockDate = new Date(Date.now() + UNLOCK_DELAY_DAYS * 86400_000);
-            sendAffiliateCommissionEmail(result.affiliate.email, {
-              clientName: merchant.store_name ?? "Un commerce",
-              amount: result.commission,
-              unlockDate: unlockDate.toLocaleDateString("fr-FR"),
-            }).catch(console.error);
-          } else {
-            console.log(`[webhook] Commission ignorée : ${result.reason}`);
-          }
+      if (session.mode === "subscription") {
+        console.log(`[webhook] Abonnement souscrit pour ${merchantId ?? "?"} (${plan ?? "?"})`);
+      } else if (merchantId && plan && billingCycle) {
+        await activatePlan(merchantId, plan as never, billingCycle as never);
+        console.log(`[webhook] Plan activated (one-shot) for ${merchantId}: ${plan} (${billingCycle})`);
+        try {
+          await creditAffiliateForPayment(
+            merchantId, plan, (session.amount_total ?? 0) / 100,
+            (session.payment_intent as string) ?? session.id,
+          );
+        } catch (e) {
+          console.error("[webhook] affiliate commission error", e);
         }
-      } catch (e) {
-        // L'affiliation ne doit JAMAIS bloquer l'activation du plan
-        console.error("[webhook] affiliate commission error", e);
       }
+    }
+
+    // ── Facture payée : 1er paiement + tous les renouvellements ─────────
+    if (event.type === "invoice.paid") {
+      const invoice = event.data.object;
+
+      // Métadonnées portées par l'abonnement
+      let meta = invoice.subscription_details?.metadata ?? {};
+      if (!meta.merchantId && invoice.subscription) {
+        const sub = await stripe.subscriptions.retrieve(invoice.subscription as string);
+        meta = sub.metadata ?? {};
+      }
+      const { merchantId, plan, billingCycle } = meta;
+
+      if (merchantId && plan) {
+        // Plan actif jusqu'à la fin de la période facturée + 3 jours de grâce
+        const periodEnd = invoice.lines?.data?.[0]?.period?.end as number | undefined;
+        const expiresAt = periodEnd
+          ? new Date(periodEnd * 1000 + 3 * 86400_000)
+          : new Date(Date.now() + (billingCycle === "annual" ? 365 : 30) * 86400_000);
+        await setPlanUntil(merchantId, plan as PlanId, expiresAt);
+        console.log(`[webhook] invoice.paid → ${merchantId} plan ${plan} jusqu'au ${expiresAt.toISOString().slice(0, 10)}`);
+
+        try {
+          await creditAffiliateForPayment(
+            merchantId, plan, (invoice.amount_paid ?? 0) / 100,
+            (invoice.payment_intent as string) ?? invoice.id,
+          );
+        } catch (e) {
+          console.error("[webhook] affiliate commission error", e);
+        }
+      }
+    }
+
+    // ── Abonnement annulé : le plan reste actif jusqu'à plan_expires_at,
+    //    le cron quotidien fera le downgrade + churn affilié ──────────────
+    if (event.type === "customer.subscription.deleted") {
+      const sub = event.data.object;
+      console.log(`[webhook] Abonnement annulé : ${sub.metadata?.merchantId ?? sub.id} (fin de période)`);
     }
 
     // ── Remboursement : reprendre la commission ─────────────────────────

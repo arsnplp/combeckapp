@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { useStore } from "@/lib/store-context";
 import { useDarkMode } from "@/lib/use-dark-mode";
 import { signOut } from "next-auth/react";
+import SubscriptionSection from "@/components/settings/SubscriptionSection";
 
 export default function ParametresPage() {
   const { settings, updateSettings } = useStore();
@@ -101,6 +102,9 @@ export default function ParametresPage() {
 
   return (
     <div className="space-y-10 max-w-4xl">
+      {/* Abonnement */}
+      <SubscriptionSection />
+
       {/* Logo */}
       <Card>
         <CardHeader>

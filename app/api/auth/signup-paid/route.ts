@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
-import { PLAN_PRICING } from "@/lib/plan-billing";
+import { stripePriceId } from "@/lib/plan-billing";
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) return null;
@@ -74,33 +74,23 @@ export async function POST(req: NextRequest) {
     // Mettre à jour le merchant avec stripe_customer_id
     await sb.from("merchants").update({ stripe_customer_id: customer.id }).eq("id", userId);
 
-    // Créer la Stripe Checkout Session
-    const pricing = PLAN_PRICING[plan as keyof typeof PLAN_PRICING];
-    const amount = billingCycle === "monthly" ? pricing.monthly : pricing.annual;
-    const description = `Plan ${plan.charAt(0).toUpperCase() + plan.slice(1)} (${billingCycle === "monthly" ? "Mensuel" : "Annuel"})`;
-
+    // Créer la Stripe Checkout Session (abonnement récurrent)
+    const priceId = stripePriceId(plan, billingCycle);
+    if (!priceId) {
+      return NextResponse.json({ error: "Tarif non configuré." }, { status: 503 });
+    }
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.getcomeback.fr";
+    const metadata = { merchantId: userId, plan, billingCycle };
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: customer.id,
-      payment_method_types: ["card"],
-      mode: "payment",
+      mode: "subscription",
       locale: "fr",
-      line_items: [
-        {
-          price_data: {
-            currency: "eur",
-            product_data: {
-              name: description,
-              description: "Fidélité digitale — cartes Apple Wallet & Google Wallet",
-            },
-            unit_amount: Math.round(amount * 100),
-          },
-          quantity: 1,
-        },
-      ],
+      line_items: [{ price: priceId, quantity: 1 }],
+      allow_promotion_codes: true,
+      subscription_data: { metadata },
+      metadata,
       success_url: `${appUrl}/dashboard?billing=success`,
       cancel_url: `${appUrl}/tarifs?billing=cancel`,
-      metadata: { merchantId: userId, plan, billingCycle },
     });
 
     return NextResponse.json({

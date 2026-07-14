@@ -52,6 +52,20 @@ export async function activatePlan(
   }).eq("id", merchantId);
 }
 
+/** Active un plan jusqu'à une date précise (fin de période d'abonnement Stripe). */
+export async function setPlanUntil(merchantId: string, plan: PlanId, expiresAt: Date): Promise<void> {
+  await supabase().from("merchants").update({
+    plan,
+    plan_expires_at: expiresAt.toISOString(),
+  }).eq("id", merchantId);
+}
+
+/** ID du prix Stripe récurrent (configuré en env) pour un plan + cycle. */
+export function stripePriceId(plan: string, billingCycle: "monthly" | "annual"): string | null {
+  const key = `STRIPE_PRICE_${plan.toUpperCase()}_${billingCycle === "monthly" ? "MONTHLY" : "ANNUAL"}`;
+  return process.env[key] ?? null;
+}
+
 export async function downgradePlan(merchantId: string): Promise<void> {
   await supabase().from("merchants").update({
     plan: "free",
