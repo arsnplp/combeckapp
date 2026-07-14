@@ -14,23 +14,28 @@ export async function GET() {
   const stripe = getStripe();
   if (!stripe) return NextResponse.json({ error: "Stripe non configuré." }, { status: 503 });
 
-  const codes = await stripe.promotionCodes.list({ limit: 50 });
+  // expand nécessaire : les versions récentes de l'API ne renvoient plus le
+  // coupon complet dans la liste
+  const codes = await stripe.promotionCodes.list({ limit: 50, expand: ["data.coupon"] });
   return NextResponse.json({
     promos: codes.data.map((p: {
       id: string; code: string; active: boolean; times_redeemed: number;
       max_redemptions: number | null; expires_at: number | null;
-      coupon: { percent_off: number | null; amount_off: number | null; duration: string; valid: boolean };
-    }) => ({
-      id: p.id,
-      code: p.code,
-      active: p.active && p.coupon.valid,
-      percentOff: p.coupon.percent_off,
-      amountOff: p.coupon.amount_off ? p.coupon.amount_off / 100 : null,
-      duration: p.coupon.duration, // once | forever | repeating
-      timesRedeemed: p.times_redeemed,
-      maxRedemptions: p.max_redemptions,
-      expiresAt: p.expires_at ? new Date(p.expires_at * 1000).toISOString() : null,
-    })),
+      coupon?: { percent_off: number | null; amount_off: number | null; duration: string; valid: boolean } | string;
+    }) => {
+      const coupon = typeof p.coupon === "object" && p.coupon ? p.coupon : null;
+      return {
+        id: p.id,
+        code: p.code,
+        active: p.active && (coupon?.valid ?? true),
+        percentOff: coupon?.percent_off ?? null,
+        amountOff: coupon?.amount_off ? coupon.amount_off / 100 : null,
+        duration: coupon?.duration ?? "once", // once | forever | repeating
+        timesRedeemed: p.times_redeemed,
+        maxRedemptions: p.max_redemptions,
+        expiresAt: p.expires_at ? new Date(p.expires_at * 1000).toISOString() : null,
+      };
+    }),
   });
 }
 
