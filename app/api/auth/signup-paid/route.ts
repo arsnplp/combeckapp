@@ -92,7 +92,6 @@ export async function POST(req: NextRequest) {
             product_data: {
               name: description,
               description: "Fidélité digitale — cartes Apple Wallet & Google Wallet",
-              images: [`${appUrl}/icon-512.png`],
             },
             unit_amount: Math.round(amount * 100),
           },
