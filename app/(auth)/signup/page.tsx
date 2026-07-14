@@ -20,7 +20,9 @@ function SignupForm() {
   const planParam = params.get("plan") as PlanId | null;
   const plan: PlanId = planParam && planParam in PLAN_INFO ? planParam : "starter";
   const planInfo = PLAN_INFO[plan];
-  const billingCycle = params.get("billing") === "annual" ? "annual" : "monthly";
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">(
+    params.get("billing") === "annual" ? "annual" : "monthly",
+  );
 
   const [storeName, setStoreName] = useState("");
   const [city, setCity]           = useState("");
@@ -136,13 +138,44 @@ function SignupForm() {
         <div className="w-full max-w-[400px]">
           <div className={`mb-5 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold ${planInfo.color}`}>
             {plan === "pro" && <Star className="h-3 w-3" fill="currentColor" />}
-            Plan {planInfo.label} — {planInfo.price}€/mois
+            {plan === "free"
+              ? "Essai gratuit — 3 mois offerts"
+              : `Plan ${planInfo.label} — ${billingCycle === "annual" ? `${Math.round(planInfo.price * 0.8 * 100) / 100}€/mois facturé annuellement` : `${planInfo.price}€/mois`}`}
           </div>
 
           <div className="mb-6">
             <h1 className="text-[22px] font-bold text-slate-900">Créer votre compte</h1>
             <p className="mt-1 text-[14px] text-slate-500">Quelques secondes suffisent</p>
           </div>
+
+          {/* Choix du cycle de facturation (plans payants) */}
+          {plan !== "free" && (
+            <div className="mb-6 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setBillingCycle("monthly")}
+                className={`rounded-xl border-2 px-4 py-3 text-left transition-all ${
+                  billingCycle === "monthly" ? "border-green-500 bg-green-50/60" : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
+              >
+                <p className="text-[13px] font-bold text-slate-900">Mensuel</p>
+                <p className="text-[12px] text-slate-500">{planInfo.price}€ / mois</p>
+                <p className="text-[10.5px] text-slate-400">Sans engagement</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingCycle("annual")}
+                className={`relative rounded-xl border-2 px-4 py-3 text-left transition-all ${
+                  billingCycle === "annual" ? "border-green-500 bg-green-50/60" : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
+              >
+                <span className="absolute -top-2 right-2 rounded-full bg-green-600 px-2 py-0.5 text-[10px] font-bold text-white">-20 %</span>
+                <p className="text-[13px] font-bold text-slate-900">Annuel</p>
+                <p className="text-[12px] text-slate-500">{Math.round(planInfo.price * 0.8 * 100) / 100}€ / mois</p>
+                <p className="text-[10.5px] text-green-600 font-medium">{Math.round(planInfo.price * 12 * 0.8 * 100) / 100}€ facturé 1× / an</p>
+              </button>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
