@@ -65,6 +65,7 @@ export default function TarifsPage() {
   // Connecté ? (401 = non) — permet de payer directement sans repasser par signup
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
   const [paying, setPaying] = useState<string | null>(null);
   const [payError, setPayError] = useState("");
 
@@ -72,7 +73,7 @@ export default function TarifsPage() {
     fetch("/api/plan-features")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (d?.plan) { setLoggedIn(true); setCurrentPlan(d.plan); }
+        if (d?.plan) { setLoggedIn(true); setCurrentPlan(d.plan); setTrialDaysLeft(d.daysLeft ?? null); }
       })
       .catch(() => {});
   }, []);
@@ -122,15 +123,35 @@ export default function TarifsPage() {
           Fidélisez vos clients avec des cartes Apple Wallet et Google Wallet. Sans engagement, résiliable à tout moment.
         </p>
 
-        {/* Essai gratuit */}
+        {/* Essai gratuit — toujours visible pour les nouveaux */}
         {!loggedIn && (
-          <Link
-            href="/signup?plan=free"
-            className="mt-6 inline-flex items-center gap-2 rounded-full border border-green-200 bg-green-50 px-5 py-2.5 text-[13.5px] font-semibold text-green-700 transition-colors hover:bg-green-100"
-          >
-            <Gift className="h-4 w-4" />
-            Ou commencez avec 3 mois d&apos;essai gratuit — sans carte bancaire
-          </Link>
+          <div className="mx-auto mt-7 max-w-lg rounded-2xl border-2 border-dashed border-green-300 bg-green-50/70 p-5">
+            <div className="flex items-center justify-center gap-2">
+              <Gift className="h-5 w-5 text-green-600" />
+              <p className="text-[15px] font-bold text-green-900">Nouveau sur ComeBack ?</p>
+            </div>
+            <p className="mt-1 text-[13px] text-green-800/70">
+              Testez tout pendant <strong>3 mois gratuitement</strong> — sans carte bancaire, sans engagement.
+            </p>
+            <Link
+              href="/signup?plan=free"
+              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-green-600 px-6 py-3 text-[14px] font-bold text-white shadow-lg shadow-green-600/20 transition-all hover:bg-green-700 active:scale-[0.98]"
+            >
+              Commencer l&apos;essai gratuit
+            </Link>
+          </div>
+        )}
+
+        {/* Compte en essai gratuit : rappel des jours restants */}
+        {loggedIn && currentPlan === "free" && (
+          <div className="mx-auto mt-7 max-w-lg rounded-2xl border border-green-200 bg-green-50 px-5 py-3.5">
+            <p className="text-[13.5px] text-green-800">
+              <Gift className="mr-1.5 inline h-4 w-4 align-[-2px]" />
+              {trialDaysLeft !== null
+                ? <>Vous êtes en essai gratuit — <strong>{trialDaysLeft} jour{trialDaysLeft > 1 ? "s" : ""} restant{trialDaysLeft > 1 ? "s" : ""}</strong>. Choisissez un plan pour continuer ensuite.</>
+                : <>Vous êtes en essai gratuit. Choisissez un plan pour continuer ensuite.</>}
+            </p>
+          </div>
         )}
 
         {/* Toggle mensuel / annuel */}
