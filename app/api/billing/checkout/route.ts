@@ -58,22 +58,28 @@ export async function POST(req: NextRequest) {
     }
 
     // Créer checkout session
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.getcomeback.fr";
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ["card"],
       mode: "payment",
+      locale: "fr",
       line_items: [
         {
           price_data: {
             currency: "eur",
-            product_data: { name: description },
+            product_data: {
+              name: description,
+              description: "Fidélité digitale — cartes Apple Wallet & Google Wallet",
+              images: [`${appUrl}/icon-512.png`],
+            },
             unit_amount: Math.round(amount * 100), // cents
           },
           quantity: 1,
         },
       ],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?billing=success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/tarifs?billing=cancel`,
+      success_url: `${appUrl}/dashboard?billing=success`,
+      cancel_url: `${appUrl}/tarifs?billing=cancel`,
       metadata: { merchantId: merchant.id, plan, billingCycle },
     });
 
