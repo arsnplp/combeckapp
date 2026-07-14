@@ -207,3 +207,44 @@ export async function notifyAdminEmail(subject: string, fields: Record<string, s
       `<h1 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#111827">${subject}</h1>${rows}`),
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Rappels de fin d'essai gratuit (J-10, J-3, J-1 avec promo)
+// ═══════════════════════════════════════════════════════════════════
+
+export async function sendTrialReminder(
+  to: string,
+  storeName: string,
+  daysLeft: number,
+  promoCode?: string,
+): Promise<void> {
+  const url = `${APP_URL}/tarifs`;
+  const subject = promoCode
+    ? `⏰ Dernier jour d'essai — -10 % avec le code ${promoCode}`
+    : `⏰ Votre essai gratuit ComeBack se termine dans ${daysLeft} jours`;
+
+  const promoBlock = promoCode
+    ? `<div style="margin:0 0 24px;padding:16px 20px;background:#f0fdf4;border:2px dashed #86efac;border-radius:12px;text-align:center">
+         <p style="margin:0 0 4px;font-size:13px;color:#166534">Offre de dernière chance : <strong>-10 % sur votre première facture</strong></p>
+         <p style="margin:0;font-size:22px;font-weight:800;letter-spacing:2px;color:#15803d">${promoCode}</p>
+         <p style="margin:4px 0 0;font-size:11px;color:#16a34a">À saisir sur la page de paiement</p>
+       </div>`
+    : "";
+
+  await getResend().emails.send({
+    from: FROM, to,
+    subject,
+    html: html("Fin d'essai",
+      `<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827">
+         ${promoCode ? "Dernier jour ! ⏰" : `Plus que ${daysLeft} jours d'essai ⏰`}
+       </h1>
+       <p style="margin:0 0 20px;font-size:14px;color:#64748b;line-height:1.6">
+         L'essai gratuit de <strong>${storeName}</strong> se termine ${promoCode ? "demain" : `dans ${daysLeft} jours`}.
+         Après cette date, vos clients ne pourront plus cumuler de tampons ni recevoir vos offres.
+         Choisissez un plan pour continuer sans interruption — vos données et vos cartes restent en place.
+       </p>
+       ${promoBlock}
+       <a href="${url}" style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:10px;font-size:14px;font-weight:600">Choisir mon plan</a>
+       <p style="margin:16px 0 0;font-size:12px;color:#94a3b8">À partir de 19 €/mois, sans engagement, résiliable à tout moment.</p>`),
+  });
+}

@@ -6,6 +6,8 @@ import { signIn } from "next-auth/react";
 import type { PlanId } from "@/types";
 
 interface TenantUser {
+  daysLeft: number | null;
+  planExpiresAt: string | null;
   id: string;
   email: string;
   storeName: string;
@@ -263,6 +265,10 @@ export default function AdminPage() {
             className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[12px] text-slate-400 hover:text-white transition-colors">
             🤝 Affiliation
           </a>
+          <a href="/admin/promos"
+            className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[12px] text-slate-400 hover:text-white transition-colors">
+            🎟️ Codes promo
+          </a>
           <button onClick={() => { load(true); if (tab === "clients") loadClients(); }} disabled={refreshing}
             className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[12px] text-slate-400 hover:text-white transition-colors disabled:opacity-50">
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
@@ -344,7 +350,7 @@ export default function AdminPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard icon={Euro}       label="MRR"              value={`${mrr} €`}      sub="Revenu mensuel récurrent" color="#34d399" />
-        <StatCard icon={Store}      label="Abonnés"          value={users.length}     sub={`${users.filter(u=>u.plan==="pro").length} Pro · ${users.filter(u=>u.plan==="business").length} Business`} color="#60a5fa" />
+        <StatCard icon={Store}      label="Abonnés"          value={users.length}     sub={`${users.filter(u=>u.plan==="pro").length} Pro · ${users.filter(u=>u.plan==="business").length} Business · ${users.filter(u=>u.plan==="free" && (u.daysLeft ?? 1) > 0).length} en essai`} color="#60a5fa" />
         <StatCard icon={Users}      label="Clients total"    value={totalClients}     sub="Toutes enseignes" color="#f59e0b" />
         <StatCard icon={CreditCard} label="Cartes créées"    value={totalCards}       sub="Programmes de fidélité" color="#a78bfa" />
       </div>
@@ -416,6 +422,20 @@ export default function AdminPage() {
                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${planStyle.class}`}>
                           {planStyle.label}
                         </span>
+                        {u.plan === "free" && u.daysLeft !== null && (
+                          <span className={`ml-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${
+                            u.daysLeft <= 0 ? "bg-red-500/10 text-red-400"
+                            : u.daysLeft <= 10 ? "bg-amber-500/10 text-amber-400"
+                            : "bg-emerald-500/10 text-emerald-400"
+                          }`}>
+                            {u.daysLeft <= 0 ? "Essai expiré" : `J-${u.daysLeft}`}
+                          </span>
+                        )}
+                        {u.plan !== "free" && u.daysLeft !== null && u.daysLeft <= 7 && (
+                          <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-amber-400">
+                            expire J-{Math.max(u.daysLeft, 0)}
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-3.5">
                         <span className="text-[13px] font-bold text-green-400">{u.monthlyRevenue} €</span>

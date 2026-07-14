@@ -27,16 +27,23 @@ export async function GET() {
   const cardCounts = countBy(cards.data);
   const loyaltyCounts = countBy(loyaltyCards.data);
 
-  return NextResponse.json(users.map((u) => ({
-    id: u.id,
-    email: u.email,
-    storeName: u.storeName,
-    city: u.city ?? "",
-    plan: u.plan,
-    monthlyRevenue: PLAN_PRICES[u.plan] ?? 0,
-    createdAt: u.createdAt,
-    clients: customerCounts.get(u.id) ?? 0,
-    cards: cardCounts.get(u.id) ?? 0,
-    loyaltyCards: loyaltyCounts.get(u.id) ?? 0,
-  })));
+  return NextResponse.json(users.map((u) => {
+    // Jours d'essai / d'abonnement restants
+    const expiresAt = u.planExpiresAt ? new Date(u.planExpiresAt) : null;
+    const daysLeft = expiresAt ? Math.ceil((expiresAt.getTime() - Date.now()) / 86400_000) : null;
+    return {
+      id: u.id,
+      email: u.email,
+      storeName: u.storeName,
+      city: u.city ?? "",
+      plan: u.plan,
+      monthlyRevenue: PLAN_PRICES[u.plan] ?? 0,
+      createdAt: u.createdAt,
+      planExpiresAt: u.planExpiresAt ?? null,
+      daysLeft,
+      clients: customerCounts.get(u.id) ?? 0,
+      cards: cardCounts.get(u.id) ?? 0,
+      loyaltyCards: loyaltyCounts.get(u.id) ?? 0,
+    };
+  }));
 }
