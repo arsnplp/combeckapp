@@ -20,6 +20,7 @@ function SignupForm() {
   const planParam = params.get("plan") as PlanId | null;
   const plan: PlanId = planParam && planParam in PLAN_INFO ? planParam : "starter";
   const planInfo = PLAN_INFO[plan];
+  const billingCycle = params.get("billing") === "annual" ? "annual" : "monthly";
 
   const [storeName, setStoreName] = useState("");
   const [city, setCity]           = useState("");
@@ -50,7 +51,9 @@ function SignupForm() {
     if (password.length < 8) { setError("Le mot de passe doit faire au moins 8 caractères."); return; }
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/signup", {
+      // Essai gratuit → route dédiée (90 jours d'expiration) ; payant → signup classique
+      const endpoint = plan === "free" ? "/api/auth/free-trial" : "/api/auth/signup";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmedEmail, password, storeName: trimmedStore, city: city.trim(), plan }),
@@ -59,6 +62,25 @@ function SignupForm() {
       if (!res.ok) { setError(data.error || "Erreur lors de la création du compte."); setLoading(false); return; }
       const signInRes = await signIn("credentials", { email: trimmedEmail, password, redirect: false });
       if (signInRes?.error) { setError("Compte créé mais erreur de connexion."); setLoading(false); return; }
+
+      if (plan === "free") {
+        router.push("/dashboard");
+        router.refresh();
+        return;
+      }
+
+      // Plan payant → Stripe Checkout directement
+      const co = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan, billingCycle }),
+      });
+      const coData = await co.json();
+      if (co.ok && coData.url) {
+        window.location.href = coData.url;
+        return;
+      }
+      // Paiement indisponible : le compte existe, on continue vers le dashboard
       router.push("/dashboard");
       router.refresh();
     } catch {
@@ -82,7 +104,13 @@ function SignupForm() {
             <h2 className="text-[28px] font-bold leading-snug text-white">
               Plan <span className="text-green-400">{planInfo.label}</span><br />sélectionné
             </h2>
-            <p className="mt-3 text-[14px] leading-relaxed text-slate-400">{planInfo.price}€ / mois · Sans engagement</p>
+            <p className="mt-3 text-[14px] leading-relaxed text-slate-400">
+              {plan === "free"
+                ? "Gratuit pendant 3 mois · Sans carte bancaire"
+                : billingCycle === "annual"
+                  ? `${Math.round(planInfo.price * 12 * 0.8 * 100) / 100}€ / an (soit ${Math.round(planInfo.price * 0.8 * 100) / 100}€/mois, -20 %)`
+                  : `${planInfo.price}€ / mois · Sans engagement`}
+            </p>
           </div>
           <div className="space-y-2.5">
             {["Carte Apple Wallet personnalisée","Notifications push","Analytics en temps réel","Tableau de bord complet"].map((f) => (

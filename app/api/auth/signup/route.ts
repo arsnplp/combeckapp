@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createUser } from "@/lib/users";
-import { sendEmailVerification } from "@/lib/mailer";
+import { createUser, setEmailVerified } from "@/lib/users";
 import type { PlanId } from "@/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -34,16 +33,15 @@ export async function POST(req: NextRequest) {
 
     const user = await createUser(email, password, storeName, plan, city || undefined);
 
+    // Vérification email désactivée pour l'instant : sans ça, la connexion
+    // automatique post-inscription (et donc le paiement) serait bloquée
+    await setEmailVerified(user.id);
+
     // Attribution affilié : cookie posé par /ref/{code}
     const affiliateCode = req.cookies.get("comeback_ref")?.value;
     if (affiliateCode) {
       const { supabase } = await import("@/lib/supabase");
       await supabase().from("merchants").update({ affiliate_code: affiliateCode }).eq("id", user.id);
-    }
-
-    // Send verification email (silent fail — signup still succeeds)
-    if (user.emailVerificationToken) {
-      sendEmailVerification(user.email, user.emailVerificationToken).catch(() => {});
     }
 
     return NextResponse.json({ id: user.id, email: user.email, storeName: user.storeName, plan: user.plan });
