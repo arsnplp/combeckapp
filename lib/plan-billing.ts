@@ -8,10 +8,11 @@ export interface PlanInfo {
   daysLeft: number | null;
 }
 
+// Annuel : ~-20 %, arrondi à l'euro (le prix affiché = le prix facturé)
 export const PLAN_PRICING = {
-  starter: { monthly: 19, annual: 182.4 },
-  pro: { monthly: 49, annual: 470.4 },
-  business: { monthly: 99, annual: 950.4 },
+  starter: { monthly: 19, annual: 182 },
+  pro: { monthly: 49, annual: 470 },
+  business: { monthly: 99, annual: 950 },
 } as const;
 
 export function getPlanInfo(plan: string | null, expiresAt: string | null): PlanInfo {

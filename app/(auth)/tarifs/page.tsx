@@ -56,8 +56,9 @@ const PLANS = [
   },
 ] as const;
 
-const annualMonthly = (p: number) => Math.round(p * 0.8 * 100) / 100;
-const annualTotal = (p: number) => Math.round(p * 12 * 0.8 * 100) / 100;
+// Affichage sans décimales — aligné sur PLAN_PRICING (annuel arrondi à l'euro)
+const annualTotal = (p: number) => Math.round(p * 12 * 0.8);
+const annualMonthly = (p: number) => Math.round(annualTotal(p) / 12);
 
 export default function TarifsPage() {
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");

@@ -110,7 +110,7 @@ function SignupForm() {
               {plan === "free"
                 ? "Gratuit pendant 3 mois · Sans carte bancaire"
                 : billingCycle === "annual"
-                  ? `${Math.round(planInfo.price * 12 * 0.8 * 100) / 100}€ / an (soit ${Math.round(planInfo.price * 0.8 * 100) / 100}€/mois, -20 %)`
+                  ? `${Math.round(planInfo.price * 12 * 0.8)}€ / an (soit ${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12)}€/mois, -20 %)`
                   : `${planInfo.price}€ / mois · Sans engagement`}
             </p>
           </div>
@@ -140,7 +140,7 @@ function SignupForm() {
             {plan === "pro" && <Star className="h-3 w-3" fill="currentColor" />}
             {plan === "free"
               ? "Essai gratuit — 3 mois offerts"
-              : `Plan ${planInfo.label} — ${billingCycle === "annual" ? `${Math.round(planInfo.price * 0.8 * 100) / 100}€/mois facturé annuellement` : `${planInfo.price}€/mois`}`}
+              : `Plan ${planInfo.label} — ${billingCycle === "annual" ? `${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12)}€/mois facturé annuellement` : `${planInfo.price}€/mois`}`}
           </div>
 
           <div className="mb-6">
@@ -171,8 +171,8 @@ function SignupForm() {
               >
                 <span className="absolute -top-2 right-2 rounded-full bg-green-600 px-2 py-0.5 text-[10px] font-bold text-white">-20 %</span>
                 <p className="text-[13px] font-bold text-slate-900">Annuel</p>
-                <p className="text-[12px] text-slate-500">{Math.round(planInfo.price * 0.8 * 100) / 100}€ / mois</p>
-                <p className="text-[10.5px] text-green-600 font-medium">{Math.round(planInfo.price * 12 * 0.8 * 100) / 100}€ facturé 1× / an</p>
+                <p className="text-[12px] text-slate-500">{Math.round(Math.round(planInfo.price * 12 * 0.8) / 12)}€ / mois</p>
+                <p className="text-[10.5px] text-green-600 font-medium">{Math.round(planInfo.price * 12 * 0.8)}€ facturé 1× / an</p>
               </button>
             </div>
           )}
