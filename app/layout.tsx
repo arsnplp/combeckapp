@@ -7,6 +7,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Comeback — Programme fidélité digital",
   description: "La plateforme de fidélité numérique pour les commerçants modernes",
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
