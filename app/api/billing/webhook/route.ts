@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { activatePlan, setPlanUntil, PLAN_PRICING } from "@/lib/plan-billing";
+import { activatePlan, setPlanUntil, planFromPriceId, PLAN_PRICING } from "@/lib/plan-billing";
 import { creditCommission, refundCommission, getAffiliateById, UNLOCK_DELAY_DAYS } from "@/lib/affiliates";
 import { sendAffiliateCommissionEmail, sendAffiliateRefundEmail, notifyAdminEmail } from "@/lib/mailer";
 import type { PlanId } from "@/types";
@@ -93,7 +93,13 @@ export async function POST(req: NextRequest) {
         const sub = await stripe.subscriptions.retrieve(invoice.subscription as string);
         meta = sub.metadata ?? {};
       }
-      const { merchantId, plan, billingCycle } = meta;
+      const merchantId = meta.merchantId;
+      // Plan : le PRICE facturé fait foi (les métadonnées deviennent périmées
+      // si le commerçant change de plan via le portail Stripe)
+      const linePriceId = invoice.lines?.data?.[0]?.price?.id as string | undefined;
+      const fromPrice = linePriceId ? planFromPriceId(linePriceId) : null;
+      const plan = fromPrice?.plan ?? meta.plan;
+      const billingCycle = fromPrice?.billingCycle ?? meta.billingCycle;
 
       if (merchantId && plan) {
         // Plan actif jusqu'à la fin de la période facturée + 3 jours de grâce

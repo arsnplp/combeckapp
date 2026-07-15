@@ -60,6 +60,17 @@ export async function setPlanUntil(merchantId: string, plan: PlanId, expiresAt: 
   }).eq("id", merchantId);
 }
 
+/** Plan + cycle depuis un ID de prix Stripe (source de vérité de la facture). */
+export function planFromPriceId(priceId: string): { plan: PlanId; billingCycle: "monthly" | "annual" } | null {
+  for (const plan of ["starter", "pro", "business"] as PlanId[]) {
+    for (const cycle of ["monthly", "annual"] as const) {
+      const key = `STRIPE_PRICE_${plan.toUpperCase()}_${cycle === "monthly" ? "MONTHLY" : "ANNUAL"}`;
+      if (process.env[key] === priceId) return { plan, billingCycle: cycle };
+    }
+  }
+  return null;
+}
+
 /** ID du prix Stripe récurrent (configuré en env) pour un plan + cycle. */
 export function stripePriceId(plan: string, billingCycle: "monthly" | "annual"): string | null {
   const key = `STRIPE_PRICE_${plan.toUpperCase()}_${billingCycle === "monthly" ? "MONTHLY" : "ANNUAL"}`;

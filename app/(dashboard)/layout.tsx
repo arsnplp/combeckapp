@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import ImpersonationBanner from "@/components/layout/ImpersonationBanner";
 import PlanExpirationBanner from "@/components/dashboard/PlanExpirationBanner";
 import { getUserById } from "@/lib/users";
+import { getPlanInfo } from "@/lib/plan-billing";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const session = await auth();
@@ -15,6 +16,13 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // Marchands Google sans nom de commerce → onboarding obligatoire
   const dbUser = await getUserById(session.user.id);
   if (dbUser?.onboardingNeeded) redirect("/onboarding");
+
+  // Essai gratuit expiré → page de blocage (le compte est conservé, seule
+  // la page 'Choisir un plan' reste accessible)
+  if (dbUser && dbUser.plan === "free") {
+    const planInfo = getPlanInfo(dbUser.plan, dbUser.planExpiresAt ?? null);
+    if (planInfo.isExpired) redirect("/bloque");
+  }
 
   return (
     <StoreProvider tenantId={session.user.id}>

@@ -27,8 +27,10 @@ export default function PlanExpirationBanner() {
   }, []);
 
   if (!status) return null;
-  // Rien à afficher : pas de date d'expiration connue, ou échéance lointaine (> 7 jours)
-  if (!status.isExpired && (status.daysLeft === null || status.daysLeft > 7)) return null;
+  // Uniquement pour l'essai gratuit : les abonnements payants se renouvellent
+  // automatiquement (l'expiration en base n'est qu'une échéance technique)
+  if (status.plan !== "free") return null;
+  if (!status.isExpired && (status.daysLeft === null || status.daysLeft > 10)) return null;
 
   const label = status.plan === "free" ? "essai gratuit" : "abonnement";
   const message = status.isExpired

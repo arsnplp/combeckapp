@@ -15,6 +15,10 @@ export async function POST(req: NextRequest) {
 
     const tenantId = session.user.id;
     const user = await getUserById(tenantId);
+    // Essai gratuit expiré : compte gelé jusqu'au choix d'un plan
+    if (user?.plan === "free" && user.planExpiresAt && new Date(user.planExpiresAt) < new Date()) {
+      return NextResponse.json({ error: "Essai terminé — choisissez un plan pour continuer." }, { status: 403 });
+    }
     if (user) {
       const limit = (PLAN_LIMITS[user.plan] ?? PLAN_LIMITS["starter"]).notifs;
       if (limit !== Infinity) {
