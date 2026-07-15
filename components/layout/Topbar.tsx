@@ -7,6 +7,8 @@ import { useStore } from "@/lib/store-context";
 
 const pageMeta: Record<string, { title: string; subtitle: string }> = {
   "/dashboard": { title: "Vue d'ensemble", subtitle: "" },
+  "/dashboard/scan": { title: "Scanner", subtitle: "Créditez vos clients en un scan" },
+  "/abonnement": { title: "Choisir un plan", subtitle: "Gérez votre abonnement" },
   "/produits": { title: "Produits & Récompenses", subtitle: "Gérez votre catalogue et récompenses" },
   "/clients": { title: "Clients", subtitle: "Gérez votre base de clients" },
   "/carte": { title: "Carte Wallet", subtitle: "Personnalisez votre carte de fidélité" },
@@ -24,7 +26,8 @@ function StoreLogo() {
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={`/api/settings/logo?t=${settings.logoUrl}`}
-        alt="Logo"
+        alt=""
+        onError={(e) => { e.currentTarget.style.display = "none"; }}
         style={{ width: 30, height: 30, borderRadius: 8, objectFit: "cover", display: "block" }}
       />
     );
@@ -42,7 +45,7 @@ export default function Topbar() {
   const meta = pageMeta[pathname] ?? { title: "Comeback", subtitle: "" };
 
   return (
-    <header className="sticky top-0 z-30 flex h-[57px] flex-shrink-0 items-center border-b border-slate-200 bg-white px-6 lg:px-8">
+    <header className="sticky top-0 z-30 flex h-[57px] flex-shrink-0 items-center border-b border-slate-200 bg-white px-4 sm:px-6 lg:px-8">
       <div className="flex flex-1 items-center justify-between">
         <div className="min-w-0">
           <h1 className="text-[14px] font-semibold leading-none text-slate-900">{meta.title}</h1>

@@ -132,3 +132,13 @@ html.dark [data-radix-dialog-overlay] {
   background: rgba(0,0,0,0.7);
 }
 
+
+/* ── Confort tactile mobile ── */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  touch-action: manipulation; /* supprime le délai de double-tap sur mobile */
+}

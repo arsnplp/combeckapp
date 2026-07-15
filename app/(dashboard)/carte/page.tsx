@@ -211,9 +211,9 @@ export default function CartePage() {
   };
 
   return (
-    <div className="flex gap-6 h-full">
+    <div className="flex flex-col gap-6 lg:h-full lg:flex-row">
       {/* Left: card list */}
-      <div className="flex w-72 flex-shrink-0 flex-col gap-3">
+      <div className="flex w-full flex-col gap-3 lg:w-72 lg:flex-shrink-0">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[12px] font-semibold text-green-600">Cartes</p>
@@ -306,7 +306,7 @@ export default function CartePage() {
       </div>
 
       {/* Right: preview */}
-      <div className="flex flex-1 flex-col items-center gap-6 pt-10">
+      <div className="flex flex-1 flex-col items-center gap-6 pt-2 lg:pt-10">
         {selected ? (
           <>
             <p className="text-[12px] text-slate-400">Aperçu de la carte</p>

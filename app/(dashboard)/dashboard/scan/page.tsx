@@ -3,8 +3,13 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   ScanLine, Loader2, CheckCircle2, AlertCircle, Camera, X,
-  Plus, Stamp, Star, Search, ChevronRight, CheckCircle,
+  Plus, Stamp, Star, Search, ChevronRight, CheckCircle, Zap, ZapOff,
 } from "lucide-react";
+
+// Retour haptique (silencieusement ignoré si non supporté, ex. iOS Safari)
+function vibrate(pattern: number | number[]) {
+  try { navigator.vibrate?.(pattern); } catch { /* non supporté */ }
+}
 import { useStore } from "@/lib/store-context";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -20,7 +25,7 @@ interface SearchResult { customers: Cust[]; customerCards: CustCard[]; loyaltyCa
 
 // ── TransactionModal (donner pts/tampons après scan wallet) ──────────────────
 
-function TransactionModal({ customerCardId, onClose }: { customerCardId: string; onClose: () => void }) {
+function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCardId: string; onClose: () => void; onScanNext?: () => void }) {
   const { customers, customerCards, loyaltyCards, addStampToCard, addPointsToCard, syncFromServer } = useStore();
   const [syncing, setSyncing] = useState(false);
   const [syncFailed, setSyncFailed] = useState(false);
@@ -58,8 +63,8 @@ function TransactionModal({ customerCardId, onClose }: { customerCardId: string;
   const accent = card.accentColor;
   const bg = card.backgroundColor;
 
-  const doStamp = () => { addStampToCard(cc.id); setDone("stamp"); };
-  const doPoints = () => { if (previewPts <= 0) return; addPointsToCard(cc.id, previewPts); setDone("points"); };
+  const doStamp = () => { addStampToCard(cc.id); vibrate([30, 40, 30]); setDone("stamp"); };
+  const doPoints = () => { if (previewPts <= 0) return; addPointsToCard(cc.id, previewPts); vibrate([30, 40, 30]); setDone("points"); };
 
   return (
     <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
@@ -90,6 +95,12 @@ function TransactionModal({ customerCardId, onClose }: { customerCardId: string;
             <p className="font-semibold text-slate-800">
               {done === "stamp" ? "+1 tampon ajouté !" : `+${previewPts} points ajoutés !`}
             </p>
+            {onScanNext && (
+              <button onClick={onScanNext}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 py-3.5 text-sm font-bold text-white shadow-md shadow-green-600/20 active:scale-[0.99]">
+                <Camera className="h-4 w-4" /> Scanner le client suivant
+              </button>
+            )}
             <button onClick={onClose} className="rounded-xl border border-slate-200 px-5 py-2 text-sm text-slate-600 hover:bg-slate-50">
               Fermer
             </button>
@@ -109,7 +120,7 @@ function TransactionModal({ customerCardId, onClose }: { customerCardId: string;
             <p className="text-sm text-slate-500 mb-3">Montant de l'achat pour <strong>{customer.name.split(" ")[0]}</strong></p>
             <div className="relative mb-3">
               <input
-                type="number" min="0" step="0.01" value={amount}
+                type="number" min="0" step="0.01" inputMode="decimal" value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00" autoFocus
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3.5 text-2xl font-bold text-slate-900 outline-none focus:border-green-400 pr-10"
@@ -132,7 +143,7 @@ function TransactionModal({ customerCardId, onClose }: { customerCardId: string;
   );
 }
 
-function ClientIdTransactionModal({ clientId, onClose }: { clientId: string; onClose: () => void }) {
+function ClientIdTransactionModal({ clientId, onClose, onScanNext }: { clientId: string; onClose: () => void; onScanNext?: () => void }) {
   const { customers, customerCards, loyaltyCards } = useStore();
   const customer = customers.find((c) => c.id === clientId);
   const cards = customerCards.filter((cc) => cc.customerId === clientId);
@@ -146,7 +157,7 @@ function ClientIdTransactionModal({ clientId, onClose }: { clientId: string; onC
     </div>
   );
 
-  if (selectedCCId) return <TransactionModal customerCardId={selectedCCId} onClose={onClose} />;
+  if (selectedCCId) return <TransactionModal customerCardId={selectedCCId} onClose={onClose} onScanNext={onScanNext} />;
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
@@ -192,6 +203,17 @@ function WalletCamera({ onDetected, onClose }: { onDetected: (raw: string) => vo
   const detectedRef = useRef(false);
   const [status, setStatus] = useState<"starting" | "scanning" | "error">("starting");
   const [errorMsg, setErrorMsg] = useState("");
+  const [torchAvailable, setTorchAvailable] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+
+  const toggleTorch = useCallback(async () => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: !torchOn } as MediaTrackConstraintSet] });
+      setTorchOn((v) => !v);
+    } catch { /* torche non disponible */ }
+  }, [torchOn]);
 
   const stopCamera = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
@@ -203,6 +225,7 @@ function WalletCamera({ onDetected, onClose }: { onDetected: (raw: string) => vo
   const handleDetected = useCallback((raw: string) => {
     if (detectedRef.current) return;
     detectedRef.current = true;
+    vibrate(60);
     stopCamera();
     onDetected(raw);
   }, [stopCamera, onDetected]);
@@ -242,6 +265,11 @@ function WalletCamera({ onDetected, onClose }: { onDetected: (raw: string) => vo
           setStatus("scanning");
           rafRef.current = requestAnimationFrame(scanFrame);
         }
+        // Lampe torche si la caméra la propose (utile en boutique sombre)
+        try {
+          const caps = stream.getVideoTracks()[0]?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
+          if (caps?.torch) setTorchAvailable(true);
+        } catch { /* pas de torche */ }
       })
       .catch((e) => { setStatus("error"); setErrorMsg(e.message ?? "Caméra inaccessible"); });
     return () => stopCamera();
@@ -262,9 +290,17 @@ function WalletCamera({ onDetected, onClose }: { onDetected: (raw: string) => vo
           </div>
         </div>
         <button onClick={() => { stopCamera(); onClose(); }}
-          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70">
+          className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70">
           <X className="h-4 w-4" />
         </button>
+        {torchAvailable && (
+          <button onClick={toggleTorch}
+            className={`absolute bottom-3 left-3 flex h-11 w-11 items-center justify-center rounded-full transition-colors ${
+              torchOn ? "bg-amber-400 text-slate-900" : "bg-black/50 text-white hover:bg-black/70"
+            }`}>
+            {torchOn ? <ZapOff className="h-5 w-5" /> : <Zap className="h-5 w-5" />}
+          </button>
+        )}
       </div>
       <div className="px-4 py-3 text-center">
         {status === "starting" && <p className="text-white/60 text-xs">Démarrage de la caméra…</p>}
@@ -305,6 +341,8 @@ function CreditTab() {
   };
 
   const reset = () => { setMode("idle"); setDetectedCCId(null); setDetectedClientId(null); };
+  // Après un crédit : on enchaîne directement sur le scan du client suivant
+  const scanNext = () => { setDetectedCCId(null); setDetectedClientId(null); setMode("camera"); };
 
   const search = async (q: string) => {
     setQuery(q); setSelected(null); setActionResult(null);
@@ -328,6 +366,7 @@ function CreditTab() {
         body: JSON.stringify({ action, customerCardId: selected.cc.id, points: pts }),
       });
       if (res.ok) {
+        vibrate([30, 40, 30]);
         setActionResult({ ok: true, msg: action === "stamp" ? "+1 tampon ajouté !" : `+${pts} points ajoutés !` });
         await search(query);
       } else {
@@ -352,14 +391,14 @@ function CreditTab() {
           />
         ) : mode === "transaction" ? (
           <div>
-            {detectedCCId && <TransactionModal customerCardId={detectedCCId} onClose={reset} />}
-            {detectedClientId && <ClientIdTransactionModal clientId={detectedClientId} onClose={reset} />}
+            {detectedCCId && <TransactionModal customerCardId={detectedCCId} onClose={reset} onScanNext={scanNext} />}
+            {detectedClientId && <ClientIdTransactionModal clientId={detectedClientId} onClose={reset} onScanNext={scanNext} />}
           </div>
         ) : (
           <button onClick={() => setMode("camera")}
-            className="w-full h-12 flex items-center justify-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-[13px] font-medium text-slate-600 hover:bg-slate-100 transition-colors">
-            <Camera className="h-4 w-4 text-slate-400" />
-            Scanner la carte wallet du client
+            className="w-full h-14 flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 text-[15px] font-bold text-white shadow-lg shadow-green-600/25 hover:from-green-700 hover:to-emerald-700 active:scale-[0.99] transition-all">
+            <Camera className="h-5 w-5" />
+            Scanner la carte du client
           </button>
         )}
       </div>
@@ -377,6 +416,7 @@ function CreditTab() {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
             type="text" value={query} onChange={(e) => search(e.target.value)}
+            enterKeyHint="search"
             placeholder="Nom, email ou téléphone…"
             className="w-full h-11 rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-400"
           />
@@ -444,7 +484,7 @@ function CreditTab() {
             ) : (
               <div className="flex gap-2">
                 <input
-                  type="number" min="1" value={customPoints} onChange={(e) => setCustomPoints(e.target.value)}
+                  type="number" min="1" inputMode="numeric" value={customPoints} onChange={(e) => setCustomPoints(e.target.value)}
                   className="w-20 h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-[13px] text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400"
                 />
                 <button onClick={() => doAction("points", parseInt(customPoints) || 10)}
@@ -532,7 +572,7 @@ function RewardTab() {
     setTimeout(loop, 500);
   };
 
-  const handleScan = async (t: string) => { setToken(t); await validate(t); };
+  const handleScan = async (t: string) => { vibrate(60); setToken(t); await validate(t); };
 
   const validate = async (t: string) => {
     const tok = t.trim(); if (!tok) return;
@@ -546,6 +586,8 @@ function RewardTab() {
   };
 
   const reset = () => { setToken(""); setResult(null); stopCamera(); setTimeout(() => inputRef.current?.focus(), 50); };
+  // Relance directement la caméra (sans ouvrir le clavier) pour le scan suivant
+  const scanAgain = () => { setToken(""); setResult(null); startCamera(); };
 
   return (
     <div className="space-y-4">
@@ -561,8 +603,8 @@ function RewardTab() {
       </div>
       {!cameraActive && (
         <button onClick={startCamera}
-          className="w-full h-12 flex items-center justify-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-[13px] font-medium text-slate-600 hover:bg-slate-100 transition-colors">
-          <Camera className="h-4 w-4 text-slate-400" /> Scanner le QR de récompense
+          className="w-full h-14 flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 text-[15px] font-bold text-white shadow-lg shadow-green-600/25 hover:from-green-700 hover:to-emerald-700 active:scale-[0.99] transition-all">
+          <Camera className="h-5 w-5" /> Scanner le QR de récompense
         </button>
       )}
       {cameraError && <p className="text-[12px] text-red-500">{cameraError}</p>}
@@ -573,6 +615,7 @@ function RewardTab() {
           <input ref={inputRef} type="text" value={token}
             onChange={(e) => { setToken(e.target.value); setResult(null); }}
             onKeyDown={(e) => e.key === "Enter" && validate(token)}
+            enterKeyHint="go"
             placeholder="Code UUID du QR…"
             className="flex-1 h-11 rounded-xl border border-slate-200 bg-white px-3 text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-400 font-mono"
           />
@@ -596,7 +639,10 @@ function RewardTab() {
                 <p className="text-slate-600">Récompense : {result.rewardEmoji} <strong className="text-slate-900">{result.rewardName}</strong></p>
                 <p className="text-slate-600">Déduit : <strong className="text-slate-900">-{result.cost} {result.costType === "stamps" ? "tampon(s)" : "points"}</strong></p>
               </div>
-              <button onClick={reset} className="ml-7 text-[12px] text-emerald-700 hover:text-emerald-900 transition-colors font-medium">Scanner un autre →</button>
+              <button onClick={scanAgain}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-[13px] font-bold text-white shadow-sm active:scale-[0.99]">
+                <Camera className="h-4 w-4" /> Scanner un autre
+              </button>
             </div>
           ) : (
             <div className="flex items-start gap-2">
@@ -629,7 +675,7 @@ export default function ScanPage() {
       <div className="flex rounded-xl bg-slate-100 p-1 gap-1">
         {([["credit", "Créditer un client"], ["reward", "Valider récompense"]] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
-            className={`flex-1 h-9 rounded-lg text-[12.5px] font-semibold transition-all ${
+            className={`flex-1 h-11 rounded-lg text-[13px] font-semibold transition-all ${
               tab === key
                 ? "bg-white text-slate-900 shadow-sm"
                 : "text-slate-500 hover:text-slate-700"

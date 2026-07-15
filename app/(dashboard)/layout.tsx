@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import AppSidebar from "@/components/layout/AppSidebar";
+import MobileNav from "@/components/layout/MobileNav";
 import Topbar from "@/components/layout/Topbar";
 import { StoreProvider } from "@/lib/store-context";
 import { auth } from "@/auth";
@@ -36,12 +37,13 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           </div>
           <div className="flex min-w-0 flex-1 flex-col">
             <Topbar />
-            <main className="mx-auto w-full max-w-[1060px] px-6 py-7 lg:px-8 lg:py-8">
+            <main className="mx-auto w-full max-w-[1060px] px-4 py-5 pb-[calc(92px+env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:py-8 lg:pb-8">
               <PlanExpirationBanner />
               {children}
             </main>
           </div>
         </div>
+        <MobileNav />
       </div>
     </StoreProvider>
   );

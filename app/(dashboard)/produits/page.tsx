@@ -353,7 +353,7 @@ export default function ProduitsPage() {
   return (
     <div className="max-w-5xl space-y-5">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "produits" | "recompenses")}>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <TabsList>
             <TabsTrigger value="produits" className="gap-2">
               <Package className="h-3.5 w-3.5" />
