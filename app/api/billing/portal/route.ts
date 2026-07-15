@@ -14,10 +14,10 @@ export async function POST() {
   if (!stripe) return NextResponse.json({ error: "Paiement non configuré." }, { status: 503 });
 
   const session = await auth();
-  if (!session?.user?.email) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
+  if (!session?.user?.id) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
 
   const { data: merchant } = await supabase().from("merchants")
-    .select("stripe_customer_id").ilike("email", session.user.email).maybeSingle();
+    .select("stripe_customer_id").eq("id", session.user.id).maybeSingle();
 
   if (!merchant?.stripe_customer_id) {
     return NextResponse.json({ error: "Aucun abonnement : souscrivez d'abord un plan." }, { status: 404 });

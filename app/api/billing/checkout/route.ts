@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Paiement non configuré." }, { status: 503 });
     }
     const session = await auth();
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
     }
 
@@ -36,10 +36,12 @@ export async function POST(req: NextRequest) {
 
     // Récupérer le merchant
     const sb = supabase();
+    // Lookup par id de session (l'email de session peut différer de celui en
+    // base — cas du compte admin notamment)
     const { data: merchant } = await sb
       .from("merchants")
-      .select("id, stripe_customer_id")
-      .ilike("email", session.user.email)
+      .select("id, email, stripe_customer_id")
+      .eq("id", session.user.id)
       .maybeSingle();
 
     if (!merchant) {
@@ -52,7 +54,7 @@ export async function POST(req: NextRequest) {
     let customerId = merchant.stripe_customer_id;
     if (!customerId) {
       const customer = await stripe.customers.create({
-        email: session.user.email,
+        email: merchant.email ?? session.user.email ?? undefined,
         metadata: { merchantId: merchant.id },
       });
       customerId = customer.id;
