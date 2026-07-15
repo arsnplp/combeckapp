@@ -58,7 +58,7 @@ export default function SubscriptionSection() {
 
       <div className="mt-4 flex flex-wrap gap-2">
         {isFree ? (
-          <a href="/tarifs"
+          <a href="/abonnement"
             className="flex items-center gap-1.5 rounded-xl bg-green-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-green-700 transition-colors">
             Passer à un plan payant
           </a>
@@ -69,7 +69,7 @@ export default function SubscriptionSection() {
               {opening ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
               Gérer mon abonnement
             </button>
-            <a href="/tarifs"
+            <a href="/abonnement"
               className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-colors">
               Changer de plan
             </a>

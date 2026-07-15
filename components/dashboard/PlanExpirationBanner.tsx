@@ -50,7 +50,7 @@ export default function PlanExpirationBanner() {
         <p className={`text-[13.5px] font-semibold ${textColor}`}>{message}</p>
         {status.isExpired && (
           <p className={`text-[12px] ${textColor} mt-1`}>
-            <a href="/tarifs" className="underline hover:no-underline font-semibold">
+            <a href="/abonnement" className="underline hover:no-underline font-semibold">
               Choisir un plan
             </a>
           </p>

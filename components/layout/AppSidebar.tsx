@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Package, Users, CreditCard,
-  Bell, BarChart3, Settings, ScanLine,
+  Bell, BarChart3, Settings, ScanLine, Gem,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 
@@ -32,6 +32,12 @@ const navSections = [
       { href: "/notifications", label: "Notifications", icon: Bell },
       { href: "/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/parametres", label: "Paramètres", icon: Settings },
+    ],
+  },
+  {
+    label: "Compte",
+    items: [
+      { href: "/abonnement", label: "Abonnement", icon: Gem },
     ],
   },
 ];
