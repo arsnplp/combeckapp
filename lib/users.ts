@@ -103,7 +103,7 @@ export async function createUserFromGoogle(email: string, name: string): Promise
     email: normalized,
     passwordHash: "",
     storeName: name.trim() || "",
-    plan: "starter",
+    plan: "free", // essai gratuit standard, comme toute inscription
     planExpiresAt: expiresAt.toISOString(),
     createdAt: new Date().toISOString(),
     emailVerified: true,
@@ -138,20 +138,23 @@ export async function createUser(
   email: string,
   password: string,
   storeName: string,
-  plan: PlanId = "starter",
-  city?: string,
+  _plan: PlanId = "free", // le plan payant n'est JAMAIS attribué ici : seul le
+  city?: string,          // webhook Stripe le fait, après un vrai paiement
 ): Promise<DbUser> {
   const normalized = email.toLowerCase().trim();
   if (await getUserByEmail(normalized)) throw new Error("EMAIL_EXISTS");
   const passwordHash = await bcrypt.hash(password, 12);
   const verificationToken = randomBytes(32).toString("hex");
+  const trialEnd = new Date();
+  trialEnd.setDate(trialEnd.getDate() + 90);
   const user: DbUser = {
     id: `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     email: normalized,
     passwordHash,
     storeName: storeName.trim(),
     city: city?.trim(),
-    plan,
+    plan: "free",
+    planExpiresAt: trialEnd.toISOString(),
     createdAt: new Date().toISOString(),
     emailVerified: false,
     emailVerificationToken: verificationToken,
@@ -162,7 +165,8 @@ export async function createUser(
     password_hash: passwordHash,
     store_name: user.storeName,
     city: user.city ?? "",
-    plan,
+    plan: "free",
+    plan_expires_at: user.planExpiresAt,
     created_at: user.createdAt,
     email_verified: false,
     email_verification_token: verificationToken,

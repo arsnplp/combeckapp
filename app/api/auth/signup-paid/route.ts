@@ -58,7 +58,9 @@ export async function POST(req: NextRequest) {
       store_name: storeName.trim(),
       city: city?.trim() ?? "",
       plan: "free",
-      plan_expires_at: null,
+      // Essai 90j : si le paiement n'aboutit pas, le compte reste un essai
+      // normal (le webhook Stripe attribuera le plan payant au paiement)
+      plan_expires_at: new Date(Date.now() + 90 * 86400_000).toISOString(),
       created_at: new Date().toISOString(),
       email_verified: true,
       is_admin: false,
