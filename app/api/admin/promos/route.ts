@@ -3,8 +3,10 @@ import { auth } from "@/auth";
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) return null;
+  // Version d'API épinglée : les versions 2025+ ont restructuré les codes
+  // promo (le paramètre `coupon` n'existe plus) — on reste sur la classique
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require("stripe")(process.env.STRIPE_SECRET_KEY);
+  return require("stripe")(process.env.STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" });
 }
 
 // GET — liste des codes promo Stripe (actifs et inactifs)
@@ -14,9 +16,8 @@ export async function GET() {
   const stripe = getStripe();
   if (!stripe) return NextResponse.json({ error: "Stripe non configuré." }, { status: 503 });
 
-  // expand nécessaire : les versions récentes de l'API ne renvoient plus le
-  // coupon complet dans la liste
-  const codes = await stripe.promotionCodes.list({ limit: 50, expand: ["data.coupon"] });
+  // En version classique, le coupon complet est inclus dans la liste
+  const codes = await stripe.promotionCodes.list({ limit: 50 });
   return NextResponse.json({
     promos: codes.data.map((p: {
       id: string; code: string; active: boolean; times_redeemed: number;
