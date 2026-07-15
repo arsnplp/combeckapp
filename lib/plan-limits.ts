@@ -9,14 +9,15 @@ export const PLAN_LIMITS: Record<PlanId, {
   csvExport: boolean;
   analyticsHistoryDays: number;
 }> = {
+  // Essai gratuit = niveau Business : le commerçant teste TOUT pendant 3 mois
   free: {
-    clients: 150,
-    notifs: 10000,
-    cards: 1,
-    targetingAdvanced: false,
-    referralEnabled: false,
-    csvExport: false,
-    analyticsHistoryDays: 7,
+    clients: Infinity,
+    notifs: Infinity,
+    cards: Infinity,
+    targetingAdvanced: true,
+    referralEnabled: true,
+    csvExport: true,
+    analyticsHistoryDays: 730,
   },
   starter: {
     clients: 150,

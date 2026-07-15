@@ -37,9 +37,9 @@ function map(r: Row): RecurringNotification {
   };
 }
 
-// Les notifications automatiques sont réservées aux plans Pro et Business
+// Notifications automatiques : Pro, Business — et essai gratuit (niveau Business)
 export function planAllowsRecurring(plan: string): boolean {
-  return plan === "pro" || plan === "business";
+  return plan === "pro" || plan === "business" || plan === "free";
 }
 
 export async function listRecurring(tenantId: string): Promise<RecurringNotification[]> {

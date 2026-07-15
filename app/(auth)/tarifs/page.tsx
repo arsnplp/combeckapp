@@ -131,7 +131,7 @@ export default function TarifsPage() {
               <p className="text-[15px] font-bold text-green-900">Nouveau sur ComeBack ?</p>
             </div>
             <p className="mt-1 text-[13px] text-green-800/70">
-              Testez tout pendant <strong>3 mois gratuitement</strong> — sans carte bancaire, sans engagement.
+              <strong>3 mois gratuits avec toutes les fonctionnalités du plan Business</strong> — sans carte bancaire, sans engagement.
             </p>
             <Link
               href="/signup?plan=free"
