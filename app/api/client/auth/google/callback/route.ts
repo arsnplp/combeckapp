@@ -94,7 +94,17 @@ export async function GET(req: NextRequest) {
         const alreadyIn = db.customers.find(
           (c) => c.email.toLowerCase() === email.toLowerCase(),
         );
-        if (!alreadyIn && (limit === Infinity || current < limit)) {
+        // Carte gelée (au-delà de la limite du plan) → pas de nouvelle inscription
+        let cardFrozen = false;
+        try {
+          const blobCheck = await getTenantSettings(tenantId);
+          const maxCards = (PLAN_LIMITS[user?.plan ?? "starter"]).cards;
+          if (maxCards !== Infinity) {
+            const allowedIds = new Set(blobCheck.loyaltyCards.slice(0, maxCards).map((c) => c.id));
+            cardFrozen = !allowedIds.has(cardId);
+          }
+        } catch { /* fail-open */ }
+        if (!cardFrozen && !alreadyIn && (limit === Infinity || current < limit)) {
           const now = new Date().toISOString();
           const customerId = `c${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
           const customerCardId = `cc${Date.now()}${Math.random().toString(36).slice(2, 5)}`;

@@ -180,6 +180,14 @@ export default function CartePage() {
     ? customerCards.filter((cc) => cc.cardId === deleteTarget.id).length
     : 0;
 
+  // Cartes gelées : au-delà de la limite du plan (ordre de création — mêmes
+  // règles que le serveur). Données conservées, nouvelles inscriptions bloquées.
+  const frozenIds = (() => {
+    if (maxCards === Infinity || loyaltyCards.length <= maxCards) return new Set<string>();
+    const sorted = [...loyaltyCards].sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
+    return new Set(sorted.slice(maxCards).map((c) => c.id));
+  })();
+
   const modeBlocked = (mode: LoyaltyMode) => {
     if (editingId) return false;
     return mode === "stamps" ? hasStamps : hasPoints;
@@ -219,6 +227,18 @@ export default function CartePage() {
           </div>
         ) : (
           <div className="space-y-2">
+            {frozenIds.size > 0 && (
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-3.5 py-2.5">
+                <p className="text-[12px] font-semibold text-sky-800">
+                  🧊 {frozenIds.size} carte{frozenIds.size > 1 ? "s" : ""} gelée{frozenIds.size > 1 ? "s" : ""}
+                </p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-sky-700/70">
+                  Votre plan permet {maxCards} carte{maxCards > 1 ? "s" : ""} active{maxCards > 1 ? "s" : ""}.
+                  Les clients et soldes des cartes gelées sont conservés, mais les nouvelles inscriptions
+                  y sont bloquées. <a href="/abonnement" className="font-semibold underline">Passer au plan supérieur</a> les réactive instantanément.
+                </p>
+              </div>
+            )}
             {loyaltyCards.map((card) => (
               <div key={card.id} onClick={() => setSelectedId(card.id)} role="button" tabIndex={0}
                 onKeyDown={(e) => e.key === "Enter" && setSelectedId(card.id)}
@@ -236,6 +256,11 @@ export default function CartePage() {
                     <p className="text-[11.5px] text-slate-400">
                       {card.loyaltyMode === "stamps" ? `🎫 ${card.stampsRequired} tampons` : `⭐ ${card.pointsPerEuro} pts/€`}
                     </p>
+                    {frozenIds.has(card.id) && (
+                      <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-sky-50 border border-sky-200 px-2 py-0.5 text-[10px] font-semibold text-sky-600">
+                        🧊 Gelée — limite du plan
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-1">
                     <button onClick={(e) => { e.stopPropagation(); openEdit(card); }}

@@ -75,13 +75,29 @@ export async function POST(req: NextRequest) {
     // Points de bienvenue : TOUJOURS lus depuis la config de la carte côté serveur
     // (jamais depuis le client — sinon n'importe qui s'injecte des points)
     let welcomePoints = 0;
+    let tenantCards: Array<{ id: string }> = [];
     try {
       const blob = await getTenantSettings(tenantId);
       welcomePoints = blob.loyaltyCards.find((c) => c.id === cardId)?.welcomePoints ?? 0;
+      tenantCards = blob.loyaltyCards; // triées par date de création
     } catch { /* 0 par défaut */ }
 
     // Vérifier la limite de clients selon le plan
     const user = await getUserById(tenantId);
+    // Cartes gelées : au-delà de la limite du plan (les N plus anciennes restent
+    // actives). Aucune donnée supprimée — plus de NOUVELLES inscriptions seulement.
+    if (user && tenantCards.length > 0) {
+      const maxCards = (PLAN_LIMITS[user.plan] ?? PLAN_LIMITS["starter"]).cards;
+      if (maxCards !== Infinity) {
+        const allowedIds = new Set(tenantCards.slice(0, maxCards).map((c) => c.id));
+        if (!allowedIds.has(cardId)) {
+          return NextResponse.json(
+            { error: "Ce programme de fidélité n'est plus disponible pour le moment." },
+            { status: 403 },
+          );
+        }
+      }
+    }
     if (user) {
       const limit = (PLAN_LIMITS[user.plan] ?? PLAN_LIMITS["starter"]).clients;
       if (limit !== Infinity) {

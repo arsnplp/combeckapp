@@ -76,7 +76,7 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
           ? `Limite de 150 clients — vous en avez déjà ${usage.clients} : vous ne pourrez plus en accueillir de nouveaux`
           : `Limité à 150 clients (vous en avez ${usage?.clients ?? 0})`,
         usage && usage.cards > 1
-          ? `1 seule carte de fidélité — vous en avez ${usage.cards} : les autres seront inutilisables`
+          ? `1 seule carte de fidélité active — vos ${usage.cards - 1} autre${usage.cards > 2 ? "s" : ""} carte${usage.cards > 2 ? "s" : ""} seront gelées : plus aucune nouvelle inscription dessus (les clients et soldes existants sont conservés)`
           : "1 seule carte de fidélité",
         "❌ Notifications automatiques récurrentes désactivées",
         "❌ Programme de parrainage désactivé (vos clients ne pourront plus parrainer)",
@@ -88,7 +88,7 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
     } else if (planId === "pro") {
       losses.push(
         usage && usage.cards > 3
-          ? `3 cartes de fidélité maximum — vous en avez ${usage.cards}`
+          ? `3 cartes de fidélité actives maximum — vous en avez ${usage.cards} : les autres seront gelées (données conservées)`
           : "3 cartes de fidélité maximum",
         "Notifications plafonnées à 50 000 / mois",
         "Pas de support dédié (< 4h)",
