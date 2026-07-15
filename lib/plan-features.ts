@@ -6,6 +6,7 @@ export interface PlanFeatures extends PlanInfo {
   plan: PlanId;
   label: string;
   maxCards: number;
+  maxClients: number | null; // null = illimité (Infinity ne passe pas en JSON)
   canTarget: boolean;
   canReferral: boolean;
   canRecurring: boolean;
@@ -21,6 +22,7 @@ export function getPlanFeatures(plan: PlanId, expiresAt?: string | null): PlanFe
     plan: (plan || "starter") as PlanId,
     label: PLAN_LABELS[plan] ?? "Starter",
     maxCards: limits.cards,
+    maxClients: limits.clients === Infinity ? null : limits.clients,
     canTarget: limits.targetingAdvanced,
     canReferral: limits.referralEnabled,
     canRecurring: ["pro", "business", "free"].includes(plan),

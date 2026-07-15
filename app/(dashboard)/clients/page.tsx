@@ -19,6 +19,7 @@ import { formatDate, formatTimeAgo } from "@/lib/utils";
 import { useStore } from "@/lib/store-context";
 import { useNetworkOrigin } from "@/lib/use-network-origin";
 import type { ActivityItem, Customer, CustomerCard, LoyaltyCard, Reward } from "@/types";
+import { fetchPlanFeatures } from "@/lib/plan-features";
 
 // ── Folder types ──────────────────────────────────────────────────────────────
 
@@ -464,6 +465,11 @@ export default function ClientsPage() {
   const [newCardId, setNewCardId] = useState("");
 
   const [showAssign, setShowAssign] = useState(false);
+  const [maxClients, setMaxClients] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetchPlanFeatures().then((f) => setMaxClients(f?.maxClients ?? null));
+  }, []);
 
   const [showEdit, setShowEdit] = useState(false);
   const [editName, setEditName] = useState("");
@@ -543,8 +549,41 @@ export default function ClientsPage() {
     };
   });
 
+  const atClientLimit = maxClients !== null && customers.length >= maxClients;
+  const nearClientLimit = maxClients !== null && !atClientLimit && customers.length >= maxClients * 0.8;
+
   return (
     <div className="space-y-4">
+      {/* Limite clients du plan */}
+      {atClientLimit && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border-2 border-red-300 bg-red-50 px-4 py-3.5">
+          <span className="text-[20px]">🚫</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[14px] font-bold text-red-800">
+              {customers.length}/{maxClients} clients — les nouvelles inscriptions sont bloquées
+            </p>
+            <p className="text-[12px] text-red-700/70">
+              Vos clients actuels continuent de cumuler normalement, mais personne ne peut plus rejoindre votre programme.
+            </p>
+          </div>
+          <a href="/abonnement"
+            className="flex-shrink-0 rounded-xl bg-red-600 px-4 py-2.5 text-[13px] font-bold text-white shadow-md shadow-red-600/25 transition-all hover:bg-red-700 active:scale-[0.98]">
+            Passer au plan supérieur
+          </a>
+        </div>
+      )}
+      {nearClientLimit && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3">
+          <span className="text-[18px]">⚠️</span>
+          <p className="min-w-0 flex-1 text-[13px] text-amber-800">
+            <strong>{customers.length}/{maxClients} clients</strong> — plus que {maxClients - customers.length} place{maxClients - customers.length > 1 ? "s" : ""} sur votre plan.
+          </p>
+          <a href="/abonnement" className="flex-shrink-0 text-[12.5px] font-semibold text-amber-700 underline hover:text-amber-900">
+            Voir les plans
+          </a>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-end justify-between gap-4">
         <div>
