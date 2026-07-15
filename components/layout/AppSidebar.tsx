@@ -37,7 +37,7 @@ const navSections = [
   {
     label: "Compte",
     items: [
-      { href: "/abonnement", label: "Abonnement", icon: Gem },
+      { href: "/abonnement", label: "Choisir un plan", icon: Gem, highlight: true },
     ],
   },
 ];
@@ -70,6 +70,23 @@ export default function AppSidebar() {
               {section.items.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                 const Icon = item.icon;
+                // Entrée mise en avant (ex : Choisir un plan) — colorée et plus visible
+                if ("highlight" in item && item.highlight) {
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`group flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[14px] font-bold shadow-sm transition-all active:scale-[0.98] ${
+                        isActive
+                          ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-green-600/25"
+                          : "bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-green-500/25 hover:from-green-600 hover:to-emerald-700"
+                      }`}
+                    >
+                      <Icon className="h-[17px] w-[17px] flex-shrink-0 text-white" />
+                      <span className="truncate">{item.label}</span>
+                    </Link>
+                  );
+                }
                 return (
                   <Link
                     key={item.href}

@@ -74,7 +74,7 @@ export default function AbonnementPage() {
       {/* Header */}
       <div>
         <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-green-600">Compte</p>
-        <h2 className="mt-1 text-[22px] font-bold text-slate-900">Abonnement</h2>
+        <h2 className="mt-1 text-[22px] font-bold text-slate-900">Choisir un plan</h2>
         <p className="mt-0.5 text-[13px] text-slate-500">Votre plan actuel, et changez quand vous voulez.</p>
       </div>
 
