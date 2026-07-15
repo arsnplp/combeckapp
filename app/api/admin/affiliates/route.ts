@@ -73,8 +73,10 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.isAdmin) return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
 
-  const { action, affiliateId, withdrawalId, reason, notes } = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => ({}));
+  const { action, affiliateId, withdrawalId, reason, notes } = body;
   const sb = supabase();
+  const req2Amount = (b: { amount?: number | string }) => b.amount;
 
   // ── Suspension / réactivation d'un affilié ──
   if (action === "suspend" && affiliateId) {
@@ -86,6 +88,46 @@ export async function POST(req: NextRequest) {
   if (action === "reactivate" && affiliateId) {
     await sb.from("affiliates").update({ status: "active", suspension_reason: null }).eq("id", affiliateId);
     return NextResponse.json({ ok: true });
+  }
+
+  // ── Virement manuel (initié par l'admin, sans demande de l'affilié) ──
+  if (action === "manual-payout" && affiliateId) {
+    const { data: w } = await sb.from("affiliate_wallets").select("available_balance, total_withdrawn").eq("affiliate_id", affiliateId).maybeSingle();
+    const available = Number(w?.available_balance ?? 0);
+    const amount = Math.round(Number(req2Amount(body) ?? available) * 100) / 100;
+    if (!amount || amount <= 0) return NextResponse.json({ error: "Montant invalide." }, { status: 400 });
+    if (amount > available) {
+      return NextResponse.json({ error: `Montant supérieur au disponible (${available.toFixed(2)} €).` }, { status: 400 });
+    }
+    const { data: aff } = await sb.from("affiliates").select("email, name, bank_method, bank_details").eq("id", affiliateId).maybeSingle();
+    if (!aff) return NextResponse.json({ error: "Affilié introuvable." }, { status: 404 });
+
+    const now = new Date().toISOString();
+    const wdId = `wd_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    // Trace dans l'historique des retraits de l'affilié (statut payé direct)
+    await sb.from("affiliate_withdrawals").insert({
+      id: wdId, affiliate_id: affiliateId, amount, status: "paid",
+      bank_method: aff.bank_method ?? "virement",
+      bank_details: aff.bank_details ?? {},
+      requested_at: now, approved_at: now, paid_at: now,
+      admin_notes: notes ?? "Virement manuel effectué par l'administrateur",
+    });
+    // Cagnotte : déduite du disponible, total reversé incrémenté
+    await sb.from("affiliate_wallets").update({
+      available_balance: Math.round((available - amount) * 100) / 100,
+      total_withdrawn: Number(w?.total_withdrawn ?? 0) + amount,
+      last_withdrawal_date: now,
+    }).eq("affiliate_id", affiliateId);
+    await sb.from("affiliate_transactions").insert({
+      id: `atx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      affiliate_id: affiliateId, type: "withdrawn", amount,
+      related_withdrawal_id: wdId,
+      description: `Virement reçu (${aff.bank_method ?? "virement"})`,
+      created_at: now,
+    });
+    const { sendAffiliateWithdrawalEmail } = await import("@/lib/mailer");
+    sendAffiliateWithdrawalEmail(aff.email, "paid", amount).catch(console.error);
+    return NextResponse.json({ ok: true, amount });
   }
 
   // ── Retraits ──

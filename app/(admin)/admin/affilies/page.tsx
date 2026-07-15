@@ -173,7 +173,7 @@ export default function AdminAffiliatesPage() {
                 <th className="py-2 pr-4">Tier</th>
                 <th className="py-2 pr-4">Clients</th>
                 <th className="py-2 pr-4">Cagnotte</th>
-                <th className="py-2 pr-4">Total gagné</th>
+                <th className="py-2 pr-4">Total gagné (à vie)</th>
                 <th className="py-2 pr-4">Code</th>
                 <th className="py-2" />
               </tr>
@@ -198,20 +198,42 @@ export default function AdminAffiliatesPage() {
                     <span className="text-green-400">{eur(a.available)}</span>
                     {a.pending > 0 && <span className="text-amber-400"> +{eur(a.pending)} ⏳</span>}
                   </td>
-                  <td className="py-3 pr-4 text-[12.5px] text-slate-300">{eur(a.totalEarned)}</td>
+                  <td className="py-3 pr-4">
+                    <p className="text-[12.5px] font-semibold text-slate-200">{eur(a.totalEarned)}</p>
+                    {a.totalWithdrawn > 0 && (
+                      <p className="text-[10.5px] text-slate-500">dont {eur(a.totalWithdrawn)} versés</p>
+                    )}
+                  </td>
                   <td className="py-3 pr-4 font-mono text-[11.5px] text-slate-400">{a.referralCode}</td>
                   <td className="py-3">
-                    {a.status === "active" ? (
-                      <button onClick={() => { const r = prompt("Raison de la suspension ?") ?? "Suspendu par l'administrateur"; act({ action: "suspend", affiliateId: a.id, reason: r }); }}
-                        className="flex items-center gap-1 rounded-lg border border-red-500/20 px-2 py-1 text-[11px] text-red-400 hover:bg-red-600/20">
-                        <Ban className="h-3 w-3" /> Suspendre
-                      </button>
-                    ) : (
-                      <button onClick={() => act({ action: "reactivate", affiliateId: a.id })}
-                        className="flex items-center gap-1 rounded-lg border border-green-500/20 px-2 py-1 text-[11px] text-green-400 hover:bg-green-600/20">
-                        <RotateCcw className="h-3 w-3" /> Réactiver
-                      </button>
-                    )}
+                    <div className="flex flex-col gap-1">
+                      {a.available >= 0.01 && (
+                        <button
+                          onClick={() => {
+                            const v = prompt(`Montant du virement effectué à ${a.name} (disponible : ${eur(a.available)}) :`, String(a.available));
+                            if (v === null) return;
+                            const amount = parseFloat(v.replace(",", "."));
+                            if (!amount || amount <= 0) { alert("Montant invalide."); return; }
+                            if (!confirm(`Confirmer : virement de ${eur(amount)} marqué comme effectué. Sa cagnotte disponible sera réduite d'autant.`)) return;
+                            act({ action: "manual-payout", affiliateId: a.id, amount: String(amount) });
+                          }}
+                          className="flex items-center gap-1 rounded-lg border border-green-500/30 bg-green-600/20 px-2 py-1 text-[11px] font-medium text-green-300 hover:bg-green-600/30"
+                        >
+                          <Banknote className="h-3 w-3" /> Virement fait
+                        </button>
+                      )}
+                      {a.status === "active" ? (
+                        <button onClick={() => { const r = prompt("Raison de la suspension ?") ?? "Suspendu par l'administrateur"; act({ action: "suspend", affiliateId: a.id, reason: r }); }}
+                          className="flex items-center gap-1 rounded-lg border border-red-500/20 px-2 py-1 text-[11px] text-red-400 hover:bg-red-600/20">
+                          <Ban className="h-3 w-3" /> Suspendre
+                        </button>
+                      ) : (
+                        <button onClick={() => act({ action: "reactivate", affiliateId: a.id })}
+                          className="flex items-center gap-1 rounded-lg border border-green-500/20 px-2 py-1 text-[11px] text-green-400 hover:bg-green-600/20">
+                          <RotateCcw className="h-3 w-3" /> Réactiver
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
