@@ -156,14 +156,22 @@ export default function AbonnementPage() {
               )}
 
               <p className="text-[12px] font-semibold uppercase tracking-wider text-slate-400">{plan.name}</p>
-              <div className="mt-1.5 flex items-end gap-1">
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {billing === "annual" && (
+                  <span className="text-[16px] font-semibold text-slate-300 line-through">{plan.price}€</span>
+                )}
                 <span className="text-[30px] font-bold leading-none text-slate-900">
                   {billing === "monthly" ? plan.price : annualMonthly(plan.price)}€
                 </span>
-                <span className="mb-0.5 text-[13px] text-slate-400">/mois</span>
+                <span className="text-[13px] text-slate-400">/mois</span>
+                {billing === "annual" && (
+                  <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10.5px] font-bold text-green-400">
+                    économisez {plan.price * 12 - annualTotal(plan.price)}€
+                  </span>
+                )}
               </div>
               {billing === "annual" && (
-                <p className="mt-0.5 text-[11.5px] font-medium text-green-600">Facturé {annualTotal(plan.price)}€ / an</p>
+                <p className="mt-0.5 text-[11.5px] text-slate-400">Facturé {annualTotal(plan.price)}€ / an</p>
               )}
 
               <ul className="mb-5 mt-4 flex-1 space-y-2">
@@ -178,10 +186,12 @@ export default function AbonnementPage() {
               <button
                 onClick={() => checkout(plan.id)}
                 disabled={!!paying || isCurrent}
-                className={`flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[13.5px] font-semibold transition-colors disabled:opacity-60 ${
+                className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[13.5px] font-semibold transition-all active:scale-[0.98] disabled:opacity-60 ${
                   isCurrent
                     ? "border border-slate-200 bg-slate-50 text-slate-400"
-                    : "bg-green-600 text-white hover:bg-green-700"
+                    : plan.highlight
+                      ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/30 hover:from-green-600 hover:to-emerald-600"
+                      : "bg-slate-900 text-white hover:bg-slate-800"
                 }`}
               >
                 {paying === plan.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

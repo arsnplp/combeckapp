@@ -201,16 +201,22 @@ export default function TarifsPage() {
 
                 <div className="mb-5">
                   <p className="text-[13px] font-semibold uppercase tracking-wider text-slate-400">{plan.name}</p>
-                  <div className="mt-2 flex items-end gap-1">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {billing === "annual" && (
+                      <span className="text-[20px] font-semibold text-slate-300 line-through">{plan.price}€</span>
+                    )}
                     <span className="text-[38px] font-bold leading-none text-slate-900">
                       {billing === "monthly" ? plan.price : annualMonthly(plan.price)}€
                     </span>
-                    <span className="mb-1 text-[14px] text-slate-400">/mois</span>
+                    <span className="text-[14px] text-slate-400">/mois</span>
+                    {billing === "annual" && (
+                      <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11.5px] font-bold text-green-400">
+                        économisez {plan.price * 12 - annualTotal(plan.price)}€
+                      </span>
+                    )}
                   </div>
                   {billing === "annual" ? (
-                    <p className="mt-1 text-[12px] text-green-600 font-medium">
-                      Facturé {annualTotal(plan.price)}€ / an — au lieu de {plan.price * 12}€
-                    </p>
+                    <p className="mt-1 text-[12px] text-slate-400">Facturé {annualTotal(plan.price)}€ / an</p>
                   ) : (
                     <p className="mt-1 text-[12px] text-slate-400">Sans engagement</p>
                   )}
@@ -230,12 +236,12 @@ export default function TarifsPage() {
                   <button
                     onClick={() => checkout(plan.id)}
                     disabled={!!paying || isCurrent}
-                    className={`flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[14px] font-semibold transition-colors disabled:opacity-60 ${
+                    className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-semibold transition-all active:scale-[0.98] disabled:opacity-60 ${
                       isCurrent
                         ? "border border-slate-200 bg-slate-50 text-slate-400"
                         : plan.highlight
-                          ? "bg-green-600 text-white hover:bg-green-700"
-                          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/30 hover:from-green-600 hover:to-emerald-600"
+                          : "bg-slate-900 text-white hover:bg-slate-800"
                     }`}
                   >
                     {paying === plan.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -244,10 +250,10 @@ export default function TarifsPage() {
                 ) : (
                   <Link
                     href={`/signup?plan=${plan.id}&billing=${billing}`}
-                    className={`flex w-full items-center justify-center rounded-xl py-2.5 text-[14px] font-semibold transition-colors ${
+                    className={`flex w-full items-center justify-center rounded-xl py-3 text-[14px] font-semibold transition-all active:scale-[0.98] ${
                       plan.highlight
-                        ? "bg-green-600 text-white hover:bg-green-700"
-                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/30 hover:from-green-600 hover:to-emerald-600"
+                        : "bg-slate-900 text-white hover:bg-slate-800"
                     }`}
                   >
                     Choisir {plan.name}
