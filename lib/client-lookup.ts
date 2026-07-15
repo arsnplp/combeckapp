@@ -111,8 +111,8 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
   const results: ClientCard[] = [];
   for (const cust of customers) {
     const merchant = cust.merchants as unknown as { id: string; store_name: string; city: string; logo_url: string | null; plan: string | null } | null;
-    // Le parrainage est une feature de plan (Pro/Business/essai) — pas Starter
-    const planAllowsReferral = ["free", "pro", "business"].includes(merchant?.plan ?? "starter");
+    // Le parrainage est disponible sur tous les plans (compte actif)
+    const planAllowsReferral = true;
     const rewards = rewardsByMerchant.get(cust.merchant_id as string) ?? [];
 
     for (const cc of (cust.customer_cards as unknown as Array<{

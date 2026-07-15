@@ -6,15 +6,15 @@ import { Check, Star, Loader2, AlertTriangle } from "lucide-react";
 const PLANS = [
   {
     id: "starter", name: "Starter", price: 19, highlight: false,
-    features: ["150 clients maximum", "10 000 notifications / mois", "1 carte de fidélité", "Stats sur 7 jours"],
+    features: ["50 clients maximum", "1 000 notifications / mois", "1 carte de fidélité", "Stats sur 7 jours"],
   },
   {
     id: "pro", name: "Pro", price: 49, highlight: true,
-    features: ["Clients illimités", "50 000 notifications / mois", "3 cartes de fidélité", "Ciblage avancé + notifications auto", "Parrainage avec bonus", "Historique complet + export CSV"],
+    features: ["Clients illimités", "50 000 notifications / mois", "3 cartes de fidélité", "Ciblage avancé + notifications auto", "Historique complet + export CSV"],
   },
   {
     id: "business", name: "Business", price: 99, highlight: false,
-    features: ["Tout illimité (clients, notifs, cartes)", "Ciblage avancé + notifications auto", "Parrainage avec bonus", "Support dédié (< 4h)"],
+    features: ["Tout illimité (clients, notifs, cartes)", "Ciblage avancé + notifications auto", "Support dédié (< 4h)"],
   },
 ] as const;
 
@@ -72,18 +72,17 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
     const losses: string[] = [];
     if (planId === "starter") {
       losses.push(
-        usage && usage.clients > 150
-          ? `Limite de 150 clients — vous en avez déjà ${usage.clients} : vous ne pourrez plus en accueillir de nouveaux`
-          : `Limité à 150 clients (vous en avez ${usage?.clients ?? 0})`,
+        usage && usage.clients > 50
+          ? `Limite de 50 clients — vous en avez déjà ${usage.clients} : vous ne pourrez plus en accueillir de nouveaux`
+          : `Limité à 50 clients (vous en avez ${usage?.clients ?? 0})`,
         usage && usage.cards > 1
           ? `1 seule carte de fidélité active — vos ${usage.cards - 1} autre${usage.cards > 2 ? "s" : ""} carte${usage.cards > 2 ? "s" : ""} seront gelées : plus aucune nouvelle inscription dessus (les clients et soldes existants sont conservés)`
           : "1 seule carte de fidélité",
         "❌ Notifications automatiques récurrentes désactivées",
-        "❌ Programme de parrainage désactivé (vos clients ne pourront plus parrainer)",
         "❌ Ciblage avancé (rangs, clients inactifs) désactivé",
         "❌ Export CSV de votre base clients désactivé",
         "Statistiques limitées aux 7 derniers jours (au lieu de 2 ans)",
-        "10 000 notifications / mois maximum",
+        "1 000 notifications / mois maximum (au lieu d'illimité)",
       );
     } else if (planId === "pro") {
       losses.push(

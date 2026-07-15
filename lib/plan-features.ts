@@ -8,6 +8,7 @@ export interface PlanFeatures extends PlanInfo {
   maxCards: number;
   canTarget: boolean;
   canReferral: boolean;
+  canRecurring: boolean;
   canExportCSV: boolean;
   analyticsHistoryDays: number;
 }
@@ -22,6 +23,7 @@ export function getPlanFeatures(plan: PlanId, expiresAt?: string | null): PlanFe
     maxCards: limits.cards,
     canTarget: limits.targetingAdvanced,
     canReferral: limits.referralEnabled,
+    canRecurring: ["pro", "business", "free"].includes(plan),
     canExportCSV: limits.csvExport,
     analyticsHistoryDays: limits.analyticsHistoryDays,
   };

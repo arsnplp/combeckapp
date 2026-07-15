@@ -48,9 +48,9 @@ export default function RecurringNotifications() {
         return;
       }
       const planData = await planRes.json();
-      setPlanAllowed(planData.canReferral ?? false); // Pro/Business ont canReferral true
+      setPlanAllowed(planData.canRecurring ?? false);
 
-      if (planData.canReferral) {
+      if (planData.canRecurring) {
         // Charger les items que si éligible
         const res = await fetch("/api/notifications/recurring");
         if (!res.ok) {
