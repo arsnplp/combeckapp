@@ -1,3 +1,6 @@
+import { getUserById } from "@/lib/users";
+import { PLAN_LIMITS } from "@/lib/plan-limits";
+import { isTrialExpired } from "@/lib/plan-billing";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db_getAll } from "@/lib/server-db";
@@ -18,6 +21,14 @@ export async function GET() {
   }
 
   const tenantId = session.user.id;
+  // Export CSV : réservé aux plans qui l'incluent, et pas pendant une suspension
+  const user = await getUserById(tenantId);
+  if (isTrialExpired(user)) {
+    return NextResponse.json({ error: "Essai terminé — choisissez un plan pour continuer." }, { status: 403 });
+  }
+  if (!(PLAN_LIMITS[user?.plan ?? "starter"] ?? PLAN_LIMITS.starter).csvExport) {
+    return NextResponse.json({ error: "L'export CSV est réservé aux plans Pro et Business." }, { status: 403 });
+  }
   const data = await db_getAll(tenantId);
   const settings = await getTenantSettings(tenantId);
   const cardNames = new Map<string, string>(

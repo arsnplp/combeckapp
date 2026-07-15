@@ -39,7 +39,7 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
   const { data: customers } = await sb.from("customers")
     .select(`
       id, name, merchant_id,
-      merchants ( id, store_name, city, logo_url ),
+      merchants ( id, store_name, city, logo_url, plan ),
       customer_cards (
         id, card_id, stamps, points, referral_count, referral_points,
         loyalty_cards (
@@ -110,7 +110,9 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
 
   const results: ClientCard[] = [];
   for (const cust of customers) {
-    const merchant = cust.merchants as unknown as { id: string; store_name: string; city: string; logo_url: string | null } | null;
+    const merchant = cust.merchants as unknown as { id: string; store_name: string; city: string; logo_url: string | null; plan: string | null } | null;
+    // Le parrainage est une feature de plan (Pro/Business/essai) — pas Starter
+    const planAllowsReferral = ["free", "pro", "business"].includes(merchant?.plan ?? "starter");
     const rewards = rewardsByMerchant.get(cust.merchant_id as string) ?? [];
 
     for (const cc of (cust.customer_cards as unknown as Array<{
@@ -165,7 +167,7 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
         logoUrl: merchant?.logo_url ? `/api/settings/logo?tenantId=${cust.merchant_id as string}&t=${merchant.logo_url}` : "",
         rewards: cardRewards,
         referral: {
-          enabled: lc.referral_enabled ?? false,
+          enabled: (lc.referral_enabled ?? false) && planAllowsReferral,
           referrerBonus: lc.referral_bonus ?? 1,
           bonusType: (lc.referral_bonus_type ?? "stamps") as "stamps" | "points",
         },

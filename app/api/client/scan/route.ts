@@ -3,6 +3,8 @@ import { auth } from "@/auth";
 import { getRedemption, markUsed } from "@/lib/redemptions";
 import { db_deductReward, db_getAll, db_addRedemption, db_incrementRewardUsage } from "@/lib/server-db";
 import { walletNotificationService } from "@/lib/wallet-notification-service";
+import { getUserById } from "@/lib/users";
+import { isTrialExpired } from "@/lib/plan-billing";
 
 // Verrou en mémoire — évite le double-scan simultané du même QR
 const processingTokens = new Set<string>();
@@ -12,6 +14,11 @@ export async function POST(req: NextRequest) {
   const tenantId = session?.user?.id;
   if (!tenantId || tenantId === "admin") {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+  }
+
+  // Essai gratuit expiré : service suspendu
+  if (isTrialExpired(await getUserById(tenantId))) {
+    return NextResponse.json({ error: "Essai terminé — choisissez un plan pour continuer." }, { status: 403 });
   }
 
   const { token } = await req.json();

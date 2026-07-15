@@ -121,8 +121,9 @@ export async function GET(req: NextRequest) {
             { id: customerId, name, email: email.toLowerCase(), phone: "", joinDate: now, totalVisits: 0, lastVisitAt: null },
             { id: customerCardId, customerId, cardId, stamps: 0, points: welcomePoints, referralCount: 0, referralPoints: 0, joinDate: now, lastActivity: now },
           );
-          // Parrainage : enregistré en attente, crédité à la première visite
-          if (cookiePayload.ref) {
+          // Parrainage : enregistré en attente si le plan l'autorise
+          const refAllowed = (PLAN_LIMITS[user?.plan ?? "starter"] ?? PLAN_LIMITS.starter).referralEnabled;
+          if (cookiePayload.ref && refAllowed) {
             try {
               await db_recordPendingReferral(tenantId, cookiePayload.ref, customerId, email.toLowerCase());
             } catch { /* ignore referral errors */ }

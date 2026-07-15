@@ -9,6 +9,7 @@ import { walletNotificationService } from "@/lib/wallet-notification-service";
 import { auth } from "@/auth";
 import { getUserById } from "@/lib/users";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
+import { isTrialExpired } from "@/lib/plan-billing";
 import { createClientAccount, getClientAccount, verifyClientPassword } from "@/lib/client-accounts";
 import { sendWelcomeClient } from "@/lib/mailer";
 import { checkRateLimit, getIp, tooManyRequests } from "@/lib/rate-limit";
@@ -84,6 +85,13 @@ export async function POST(req: NextRequest) {
 
     // Vérifier la limite de clients selon le plan
     const user = await getUserById(tenantId);
+    // Essai gratuit expiré : service suspendu jusqu'au choix d'un plan
+    if (isTrialExpired(user)) {
+      return NextResponse.json(
+        { error: "Ce commerce n'accepte plus de nouvelles inscriptions pour le moment." },
+        { status: 403 },
+      );
+    }
     // Cartes gelées au-delà de la limite du plan : le commerçant choisit ses
     // cartes actives (champ active) ; les places restantes vont aux plus
     // anciennes. Aucune donnée supprimée — nouvelles inscriptions bloquées.
@@ -203,7 +211,8 @@ export async function POST(req: NextRequest) {
     // première visite réelle du filleul (anti-farm), et seulement si le
     // filleul a un compte avec email.
     const ref = body.ref;
-    if (ref) {
+    const referralAllowed = (PLAN_LIMITS[user?.plan ?? "starter"] ?? PLAN_LIMITS.starter).referralEnabled;
+    if (ref && referralAllowed) {
       try {
         await db_recordPendingReferral(tenantId, ref, customerId, clientEmail);
       } catch { /* ignore referral errors */ }
@@ -275,6 +284,11 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const { action, customerCardId, points } = body;
     const tenantId = session.user.id;
+    // Essai gratuit expiré : service suspendu
+    const patchUser = await getUserById(tenantId);
+    if (isTrialExpired(patchUser)) {
+      return NextResponse.json({ error: "Essai terminé — choisissez un plan pour continuer." }, { status: 403 });
+    }
     if (action === "stamp") {
       const card = await db_addStamp(tenantId, customerCardId);
       walletNotificationService.updateStamps(customerCardId).catch(console.error);

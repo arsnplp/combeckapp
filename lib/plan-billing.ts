@@ -60,6 +60,12 @@ export async function setPlanUntil(merchantId: string, plan: PlanId, expiresAt: 
   }).eq("id", merchantId);
 }
 
+/** Essai gratuit expiré = compte suspendu (service gelé jusqu'au paiement). */
+export function isTrialExpired(user: { plan: string; planExpiresAt?: string | null } | null | undefined): boolean {
+  if (!user) return false;
+  return user.plan === "free" && !!user.planExpiresAt && new Date(user.planExpiresAt) < new Date();
+}
+
 /** Plan + cycle depuis un ID de prix Stripe (source de vérité de la facture). */
 export function planFromPriceId(priceId: string): { plan: PlanId; billingCycle: "monthly" | "annual" } | null {
   for (const plan of ["starter", "pro", "business"] as PlanId[]) {

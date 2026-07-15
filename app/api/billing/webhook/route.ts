@@ -87,23 +87,35 @@ export async function POST(req: NextRequest) {
     if (event.type === "invoice.paid") {
       const invoice = event.data.object;
 
-      // Métadonnées portées par l'abonnement
+      // Métadonnées + prix courant portés par l'abonnement. ATTENTION aux
+      // factures de proration (changement de plan via le portail) : la 1ère
+      // ligne peut être un AVOIR sur l'ancien prix — le prix courant de
+      // l'abonnement fait foi, pas la 1ère ligne.
       let meta = invoice.subscription_details?.metadata ?? {};
-      if (!meta.merchantId && invoice.subscription) {
-        const sub = await stripe.subscriptions.retrieve(invoice.subscription as string);
-        meta = sub.metadata ?? {};
+      let subPriceId: string | undefined;
+      let subPeriodEnd: number | undefined;
+      if (invoice.subscription) {
+        try {
+          const sub = await stripe.subscriptions.retrieve(invoice.subscription as string);
+          if (!meta.merchantId) meta = sub.metadata ?? {};
+          subPriceId = sub.items?.data?.[0]?.price?.id;
+          subPeriodEnd = sub.current_period_end;
+        } catch { /* fallback lignes de facture */ }
       }
       const merchantId = meta.merchantId;
-      // Plan : le PRICE facturé fait foi (les métadonnées deviennent périmées
-      // si le commerçant change de plan via le portail Stripe)
-      const linePriceId = invoice.lines?.data?.[0]?.price?.id as string | undefined;
-      const fromPrice = linePriceId ? planFromPriceId(linePriceId) : null;
+      // Fallback : la ligne au montant le plus élevé (jamais l'avoir négatif)
+      const bestLine = (invoice.lines?.data ?? []).reduce(
+        (best: { amount?: number; price?: { id?: string }; period?: { end?: number } } | null,
+         l: { amount?: number; price?: { id?: string }; period?: { end?: number } }) =>
+          !best || (l.amount ?? 0) > (best.amount ?? 0) ? l : best, null);
+      const priceId = subPriceId ?? bestLine?.price?.id;
+      const fromPrice = priceId ? planFromPriceId(priceId) : null;
       const plan = fromPrice?.plan ?? meta.plan;
       const billingCycle = fromPrice?.billingCycle ?? meta.billingCycle;
 
       if (merchantId && plan) {
         // Plan actif jusqu'à la fin de la période facturée + 3 jours de grâce
-        const periodEnd = invoice.lines?.data?.[0]?.period?.end as number | undefined;
+        const periodEnd = subPeriodEnd ?? (bestLine?.period?.end as number | undefined);
         const expiresAt = periodEnd
           ? new Date(periodEnd * 1000 + 3 * 86400_000)
           : new Date(Date.now() + (billingCycle === "annual" ? 365 : 30) * 86400_000);

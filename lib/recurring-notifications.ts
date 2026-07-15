@@ -138,10 +138,14 @@ export async function runDueRecurringNotifications(): Promise<RecurringRunResult
       }
     }
 
-    // Gating plan : seuls Pro et Business envoient
+    // Gating plan : seuls Pro, Business et l'essai ACTIF envoient
     const user = await getUserById(r.merchant_id);
     if (!user || !planAllowsRecurring(user.plan)) {
       result.skipped.push({ id: r.id, reason: `plan ${user?.plan ?? "?"} non éligible` });
+      continue;
+    }
+    if (user.plan === "free" && user.planExpiresAt && new Date(user.planExpiresAt) < new Date()) {
+      result.skipped.push({ id: r.id, reason: "essai expiré — compte suspendu" });
       continue;
     }
 
