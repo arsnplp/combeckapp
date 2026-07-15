@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, Pencil, Trash2, CreditCard, Check, Lock } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Plus, Pencil, Trash2, CreditCard, Check, Lock, Download, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -80,7 +80,7 @@ function buildPassUrl(origin: string, card: LoyaltyCard): string {
 void buildPassUrl;
 
 export default function CartePage() {
-  const { loyaltyCards, addLoyaltyCard, updateLoyaltyCard, deleteLoyaltyCard, customerCards } = useStore();
+  const { loyaltyCards, addLoyaltyCard, updateLoyaltyCard, deleteLoyaltyCard, customerCards, settings } = useStore();
   const networkOrigin = useNetworkOrigin();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -104,8 +104,8 @@ export default function CartePage() {
     fetchPlanFeatures().then((f) => setMaxCards(f?.maxCards ?? 1));
   }, []);
 
-  useEffect(() => {
-    if (!selected || !networkOrigin) { setQrDataUrl(""); return; }
+  const joinUrl = useMemo(() => {
+    if (!selected || !networkOrigin) return "";
     const json = JSON.stringify({
       id: selected.id, name: selected.name, welcomeMessage: selected.welcomeMessage,
       backgroundColor: selected.backgroundColor, accentColor: selected.accentColor,
@@ -116,11 +116,76 @@ export default function CartePage() {
     const utf8Bytes = new TextEncoder().encode(json);
     let binary = "";
     utf8Bytes.forEach((b) => { binary += String.fromCharCode(b); });
-    const cardData = btoa(binary);
-    const url = `${networkOrigin}/join/${selected.id}?d=${cardData}`;
-    QRCode.toDataURL(url, { width: 120, margin: 1, color: { dark: "#0f172a", light: "#ffffff" } })
-      .then(setQrDataUrl).catch(() => setQrDataUrl(""));
+    return `${networkOrigin}/join/${selected.id}?d=${btoa(binary)}`;
   }, [selected, networkOrigin]);
+
+  useEffect(() => {
+    if (!joinUrl) { setQrDataUrl(""); return; }
+    QRCode.toDataURL(joinUrl, { width: 120, margin: 1, color: { dark: "#0f172a", light: "#ffffff" } })
+      .then(setQrDataUrl).catch(() => setQrDataUrl(""));
+  }, [joinUrl]);
+
+  // Nom de fichier propre : "qr-ma-carte.png"
+  const slugify = (t: string) =>
+    t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "carte";
+
+  // PNG haute résolution (2048 px) pour impression / réseaux sociaux
+  const downloadQr = async () => {
+    if (!joinUrl || !selected) return;
+    const png = await QRCode.toDataURL(joinUrl, {
+      width: 2048, margin: 2, color: { dark: "#0f172a", light: "#ffffff" },
+    });
+    const a = document.createElement("a");
+    a.href = png;
+    a.download = `qr-${slugify(selected.name)}.png`;
+    a.click();
+  };
+
+  // Affiche A4 prête à imprimer (QR vectoriel = netteté parfaite)
+  const printQr = async () => {
+    if (!joinUrl || !selected) return;
+    const svg = await QRCode.toString(joinUrl, {
+      type: "svg", margin: 2, color: { dark: "#0f172a", light: "#ffffff" },
+    });
+    const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const store = esc(settings.name || "Mon commerce");
+    const accent = selected.accentColor || "#16a34a";
+    const w = window.open("", "_blank");
+    if (!w) { alert("Autorisez les pop-ups pour imprimer l'affiche."); return; }
+    w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+<title>QR fidélité — ${store}</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #0f172a;
+         width: 210mm; min-height: 297mm; display: flex; flex-direction: column;
+         align-items: center; justify-content: center; padding: 18mm; text-align: center; }
+  .band { position: absolute; top: 0; left: 0; right: 0; height: 9mm; background: ${accent}; }
+  h1 { font-size: 30pt; font-weight: 800; letter-spacing: -0.5pt; }
+  .sub { font-size: 14pt; color: #475569; margin-top: 3mm; }
+  .qr { width: 105mm; height: 105mm; margin: 12mm auto; }
+  .qr svg { width: 100%; height: 100%; }
+  .cta { font-size: 17pt; font-weight: 700; }
+  .steps { margin-top: 7mm; font-size: 12pt; color: #334155; line-height: 2; }
+  .steps b { color: ${accent}; }
+  .foot { position: absolute; bottom: 10mm; left: 0; right: 0; font-size: 9pt; color: #94a3b8; }
+</style></head><body>
+  <div class="band"></div>
+  <h1>${store}</h1>
+  <p class="sub">Programme de fidélité — ${esc(selected.name)}</p>
+  <div class="qr">${svg}</div>
+  <p class="cta">📱 Scannez avec votre téléphone</p>
+  <p class="steps">
+    <b>1.</b> Scannez le QR code avec l'appareil photo<br>
+    <b>2.</b> Inscrivez-vous en 30 secondes<br>
+    <b>3.</b> Votre carte arrive dans Apple Wallet ou Google Wallet
+  </p>
+  <p class="foot">Carte de fidélité digitale — getcomeback.fr</p>
+</body></html>`);
+    w.document.close();
+    setTimeout(() => { w.focus(); w.print(); }, 400);
+  };
 
   const hasStamps = loyaltyCards.some((c) => c.loyaltyMode === "stamps" && c.id !== editingId);
   const hasPoints = loyaltyCards.some((c) => c.loyaltyMode === "points" && c.id !== editingId);
@@ -321,6 +386,16 @@ export default function CartePage() {
                 <p className="text-center text-[10.5px] text-slate-400 leading-relaxed">
                   Imprimez et posez sur le comptoir.<br />Le client scanne → s'inscrit → reçoit sa carte.
                 </p>
+                <div className="flex w-full gap-2">
+                  <button onClick={downloadQr}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2.5 text-[12px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 active:scale-[0.98]">
+                    <Download className="h-3.5 w-3.5" /> PNG HD
+                  </button>
+                  <button onClick={printQr}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-green-600 py-2.5 text-[12px] font-semibold text-white shadow-sm shadow-green-600/20 transition-colors hover:bg-green-700 active:scale-[0.98]">
+                    <Printer className="h-3.5 w-3.5" /> Affiche A4
+                  </button>
+                </div>
               </div>
             )}
           </>
