@@ -61,10 +61,17 @@ function LoginForm() {
         <div className="absolute -bottom-32 -left-32 h-96 w-96 rounded-full bg-green-600/20 blur-3xl" />
         <div className="absolute -top-32 -right-32 h-96 w-96 rounded-full bg-green-600/10 blur-3xl" />
 
-        {/* Logo */}
+        {/* Logo + promesse */}
         <div className="relative">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Comeback" className="h-8 w-auto object-contain brightness-0 invert" />
+          <p className="mt-7 max-w-sm text-[19px] font-bold leading-snug text-white">
+            📈 Augmentez votre chiffre d&apos;affaires sur le long terme,{" "}
+            <span className="text-green-400">pour une activité plus stable et croissante.</span>
+          </p>
+          <p className="mt-2 text-[13px] leading-relaxed text-slate-400">
+            Des clients qui reviennent, c&apos;est un revenu qui se construit — pas qui se subit.
+          </p>
         </div>
 
         {/* Hero */}
