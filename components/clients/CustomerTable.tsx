@@ -83,7 +83,7 @@ export default function CustomerTable({ customers, onSelect, selectedIds, onSele
             className="pl-8 h-9 text-sm"
           />
         </div>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           {FILTERS.map((f) => (
             <button
               key={f.value}
@@ -98,8 +98,60 @@ export default function CustomerTable({ customers, onSelect, selectedIds, onSele
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
+      {/* Liste mobile : cartes compactes (le tableau 8 colonnes est illisible sur téléphone) */}
+      <div className="space-y-2 sm:hidden">
+        {pagedCustomers.map((customer) => {
+          const initials = customer.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+          const isSelected = selectedIds.has(customer.id);
+          const rankEmoji = RANK_EMOJIS[customer.rank];
+          return (
+            <div
+              key={customer.id}
+              onClick={() => onSelect(customer)}
+              className={`cursor-pointer rounded-2xl border p-3.5 transition-colors ${
+                isSelected ? "border-green-300 bg-green-50" : "border-slate-100 bg-white active:bg-slate-50"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 flex-shrink-0 accent-green-600"
+                  checked={isSelected}
+                  onClick={(e) => toggleOne(customer.id, e)}
+                  readOnly
+                />
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-green-600 text-[12px] font-bold text-white">
+                  {initials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-[14px] font-semibold leading-tight text-slate-800">{customer.name}</p>
+                    {customer.rank !== "none" && <span className="flex-shrink-0 text-[13px]">{rankEmoji}</span>}
+                  </div>
+                  <p className="truncate text-[12px] text-slate-400">{customer.email || customer.phone || "—"}</p>
+                </div>
+                <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-300" />
+              </div>
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 pl-[52px] text-[11.5px] text-slate-500">
+                <span>{customer.totalVisits} visite{customer.totalVisits > 1 ? "s" : ""}</span>
+                <span>
+                  <span className="font-semibold text-green-600">{customer.points}</span> pts · {customer.stamps} tampon{customer.stamps > 1 ? "s" : ""}
+                </span>
+                {(customer.referrals ?? 0) > 0 && <span>🤝 {customer.referrals}</span>}
+                {(customer.referralsPending ?? 0) > 0 && (
+                  <span className="rounded-full border border-amber-100 bg-amber-50 px-1.5 py-0.5 text-[10.5px] font-medium text-amber-600">
+                    {customer.referralsPending} en attente
+                  </span>
+                )}
+                <span className="text-slate-400">{formatDateShort(customer.lastVisit)}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Table (écrans >= sm) */}
+      <div className="hidden overflow-x-auto sm:block">
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-slate-100">
@@ -186,10 +238,11 @@ export default function CustomerTable({ customers, onSelect, selectedIds, onSele
             })}
           </tbody>
         </table>
-        {filtered.length === 0 && (
-          <div className="py-10 text-center text-[13px] text-slate-400">Aucun client trouvé</div>
-        )}
       </div>
+
+      {filtered.length === 0 && (
+        <div className="py-10 text-center text-[13px] text-slate-400">Aucun client trouvé</div>
+      )}
 
       {/* Pagination */}
       {filtered.length > PAGE_SIZE && (

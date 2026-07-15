@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -34,6 +34,14 @@ export default function MobileNav() {
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname === href || pathname.startsWith(href + "/");
   const menuActive = menuItems.some((m) => isActive(m.href)) || isActive("/abonnement");
+
+  // Verrouille le scroll de la page derrière la feuille menu
+  useEffect(() => {
+    if (!menuOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [menuOpen]);
 
   return (
     <>
@@ -93,16 +101,22 @@ export default function MobileNav() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
+              transition={{ duration: 0.2, ease: "linear" }}
               onClick={() => setMenuOpen(false)}
-              className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-[2px] lg:hidden"
+              className="fixed inset-0 z-50 bg-slate-900/45 lg:hidden"
             />
             <motion.div
               initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "tween", duration: 0.22, ease: "easeOut" }}
-              className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-white pb-[calc(16px+env(safe-area-inset-bottom))] shadow-2xl lg:hidden"
+              animate={{ y: 0, transition: { type: "tween", duration: 0.32, ease: [0.32, 0.72, 0, 1] } }}
+              exit={{ y: "100%", transition: { type: "tween", duration: 0.22, ease: [0.4, 0, 1, 1] } }}
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0, bottom: 0.55 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 80 || info.velocity.y > 500) setMenuOpen(false);
+              }}
+              style={{ willChange: "transform" }}
+              className="fixed inset-x-0 bottom-0 z-50 touch-none rounded-t-3xl bg-white pb-[calc(16px+env(safe-area-inset-bottom))] shadow-2xl lg:hidden"
             >
               <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-slate-200" />
               <div className="flex items-center justify-between px-5 pb-2 pt-3">
