@@ -180,13 +180,30 @@ export default function CartePage() {
     ? customerCards.filter((cc) => cc.cardId === deleteTarget.id).length
     : 0;
 
-  // Cartes gelées : au-delà de la limite du plan (ordre de création — mêmes
-  // règles que le serveur). Données conservées, nouvelles inscriptions bloquées.
-  const frozenIds = (() => {
-    if (maxCards === Infinity || loyaltyCards.length <= maxCards) return new Set<string>();
-    const sorted = [...loyaltyCards].sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
-    return new Set(sorted.slice(maxCards).map((c) => c.id));
+  // Cartes gelées : au-delà de la limite du plan. Le commerçant CHOISIT ses
+  // cartes actives ; les places restantes vont aux plus anciennes (même règle
+  // que le serveur). Données conservées, nouvelles inscriptions bloquées.
+  const allowedIds = (() => {
+    if (maxCards === Infinity || loyaltyCards.length <= maxCards) return new Set(loyaltyCards.map((c) => c.id));
+    const prioritized = [...loyaltyCards]
+      .sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""))
+      .sort((a, b) => (a.active === false ? 1 : 0) - (b.active === false ? 1 : 0));
+    return new Set(prioritized.slice(0, maxCards).map((c) => c.id));
   })();
+  const frozenIds = new Set(loyaltyCards.filter((c) => !allowedIds.has(c.id)).map((c) => c.id));
+
+  // Le commerçant choisit d'activer une carte gelée : elle prend la place de
+  // la dernière carte active (rien n'est supprimé, l'autre est gelée)
+  const useThisCard = (target: LoyaltyCard) => {
+    const allowedSorted = loyaltyCards
+      .filter((c) => allowedIds.has(c.id))
+      .sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
+    const displaced = allowedSorted.slice(Math.max(0, maxCards - 1));
+    const displacedNames = displaced.map((c) => c.name).join(", ");
+    if (!confirm(`« ${target.name} » deviendra active et remplacera « ${displacedNames} » (qui sera gelée : clients et soldes conservés, plus de nouvelles inscriptions). Continuer ?`)) return;
+    updateLoyaltyCard(target.id, { active: true });
+    for (const c of displaced) updateLoyaltyCard(c.id, { active: false });
+  };
 
   const modeBlocked = (mode: LoyaltyMode) => {
     if (editingId) return false;
@@ -233,9 +250,10 @@ export default function CartePage() {
                   🧊 {frozenIds.size} carte{frozenIds.size > 1 ? "s" : ""} gelée{frozenIds.size > 1 ? "s" : ""}
                 </p>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-sky-700/70">
-                  Votre plan permet {maxCards} carte{maxCards > 1 ? "s" : ""} active{maxCards > 1 ? "s" : ""}.
-                  Les clients et soldes des cartes gelées sont conservés, mais les nouvelles inscriptions
-                  y sont bloquées. <a href="/abonnement" className="font-semibold underline">Passer au plan supérieur</a> les réactive instantanément.
+                  Votre plan permet {maxCards} carte{maxCards > 1 ? "s" : ""} active{maxCards > 1 ? "s" : ""} — c&apos;est vous qui
+                  choisissez laquelle avec « Utiliser cette carte ». Les clients et soldes des cartes gelées
+                  sont conservés, mais les nouvelles inscriptions y sont bloquées.{" "}
+                  <a href="/abonnement" className="font-semibold underline">Passer au plan supérieur</a> les réactive toutes instantanément.
                 </p>
               </div>
             )}
@@ -257,8 +275,16 @@ export default function CartePage() {
                       {card.loyaltyMode === "stamps" ? `🎫 ${card.stampsRequired} tampons` : `⭐ ${card.pointsPerEuro} pts/€`}
                     </p>
                     {frozenIds.has(card.id) && (
-                      <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-sky-50 border border-sky-200 px-2 py-0.5 text-[10px] font-semibold text-sky-600">
-                        🧊 Gelée — limite du plan
+                      <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 border border-sky-200 px-2 py-0.5 text-[10px] font-semibold text-sky-600">
+                          🧊 Gelée
+                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); useThisCard(card); }}
+                          className="rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700 hover:bg-green-100 transition-colors"
+                        >
+                          Utiliser cette carte
+                        </button>
                       </span>
                     )}
                   </div>

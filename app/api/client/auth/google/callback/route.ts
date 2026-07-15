@@ -100,7 +100,9 @@ export async function GET(req: NextRequest) {
           const blobCheck = await getTenantSettings(tenantId);
           const maxCards = (PLAN_LIMITS[user?.plan ?? "starter"]).cards;
           if (maxCards !== Infinity) {
-            const allowedIds = new Set(blobCheck.loyaltyCards.slice(0, maxCards).map((c) => c.id));
+            const prioritized = [...blobCheck.loyaltyCards]
+              .sort((a, b) => (a.active === false ? 1 : 0) - (b.active === false ? 1 : 0));
+            const allowedIds = new Set(prioritized.slice(0, maxCards).map((c) => c.id));
             cardFrozen = !allowedIds.has(cardId);
           }
         } catch { /* fail-open */ }
