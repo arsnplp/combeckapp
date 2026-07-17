@@ -317,6 +317,14 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
     setCustomerCards((prev) => prev.filter((cc) => cc.id !== customerCardId));
   }, []);
 
+  // Quand le commerçant revient sur l'app (onglet/téléphone), on rafraîchit
+  // les compteurs depuis le serveur — plus besoin de refresh manuel
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") syncFromServer(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [syncFromServer]);
+
   const addStampToCard = useCallback((customerCardId: string) => {
     const cc = customerCards.find((c) => c.id === customerCardId);
     if (!cc) return;
@@ -338,8 +346,12 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "stamp", customerCardId }),
+    }).then((res) => {
+      // Échec serveur (session, carte inconnue…) : on réaligne l'affichage
+      // sur la vérité serveur au lieu de laisser un compteur mensonger
+      if (!res.ok) syncFromServer();
     }).catch(() => {});
-  }, [customerCards, loyaltyCards, customers, addActivity]);
+  }, [customerCards, loyaltyCards, customers, addActivity, syncFromServer]);
 
   const addPointsToCard = useCallback((customerCardId: string, amount: number) => {
     const cc = customerCards.find((c) => c.id === customerCardId);
@@ -359,8 +371,10 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "points", customerCardId, points: amount }),
+    }).then((res) => {
+      if (!res.ok) syncFromServer();
     }).catch(() => {});
-  }, [customerCards, loyaltyCards, customers, addActivity]);
+  }, [customerCards, loyaltyCards, customers, addActivity, syncFromServer]);
 
   const useRewardOnCard = useCallback((customerCardId: string, reward: Reward) => {
     const cc = customerCards.find((c) => c.id === customerCardId);

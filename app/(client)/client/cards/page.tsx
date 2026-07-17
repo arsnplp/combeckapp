@@ -8,6 +8,7 @@ import LogoutButton from "./LogoutButton";
 import RefreshButton from "./RefreshButton";
 import GdprSection from "./GdprSection";
 import AddToHomeScreen from "./AddToHomeScreen";
+import AutoRefresh from "./AutoRefresh";
 
 export default async function CardsPage() {
   const cookieStore = await cookies();
@@ -37,6 +38,7 @@ export default async function CardsPage() {
 
   return (
     <div>
+      <AutoRefresh />
       <AddToHomeScreen />
       <div className="mb-6">
         <p className="text-[13px] text-gray-400 font-medium">Bonjour 👋</p>

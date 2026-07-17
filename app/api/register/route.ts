@@ -248,8 +248,26 @@ export async function POST(req: NextRequest) {
 // GET — appelé depuis le dashboard (avec session)
 export async function GET(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ customers: [], customerCards: [], redemptions: [] });
+  if (!session?.user?.id) {
+    // Le mode ccId (page /process) doit distinguer « non connecté » de « vide »
+    if (req.nextUrl.searchParams.get("ccId")) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    return NextResponse.json({ customers: [], customerCards: [], redemptions: [] });
+  }
   const data = await db_getAll(session.user.id);
+
+  // Lecture directe d'une carte client (page /process après scan du QR wallet)
+  const ccId = req.nextUrl.searchParams.get("ccId");
+  if (ccId) {
+    const cc = data.customerCards.find((c) => c.id === ccId);
+    if (!cc) return NextResponse.json({ error: "Carte introuvable." }, { status: 404 });
+    const customer = data.customers.find((c) => c.id === cc.customerId) ?? null;
+    let loyaltyCard = null;
+    try {
+      const blob = await getTenantSettings(session.user.id);
+      loyaltyCard = blob.loyaltyCards.find((c: { id: string }) => c.id === cc.cardId) ?? null;
+    } catch { /* settings manquants */ }
+    return NextResponse.json({ customerCard: cc, customer, loyaltyCard });
+  }
 
   // Recherche rapide par nom/email (pour le scanner)
   const q = req.nextUrl.searchParams.get("q")?.toLowerCase().trim();
@@ -291,12 +309,18 @@ export async function PATCH(req: NextRequest) {
     }
     if (action === "stamp") {
       const card = await db_addStamp(tenantId, customerCardId);
+      // Carte absente côté serveur (données locales périmées) : refuser au lieu
+      // de répondre ok — sinon l'UI croit que le tampon est enregistré
+      if (!card) return NextResponse.json({ error: "Carte introuvable — resynchronisez vos données." }, { status: 404 });
       walletNotificationService.updateStamps(customerCardId).catch(console.error);
-      if (card) creditReferralsOnFirstVisit(tenantId, card.customerId);
+      creditReferralsOnFirstVisit(tenantId, card.customerId);
+      return NextResponse.json({ ok: true, stamps: card.stamps, points: card.points });
     } else if (action === "points") {
       const card = await db_addPoints(tenantId, customerCardId, points ?? 0);
+      if (!card) return NextResponse.json({ error: "Carte introuvable — resynchronisez vos données." }, { status: 404 });
       walletNotificationService.updatePoints(customerCardId).catch(console.error);
-      if (card) creditReferralsOnFirstVisit(tenantId, card.customerId);
+      creditReferralsOnFirstVisit(tenantId, card.customerId);
+      return NextResponse.json({ ok: true, stamps: card.stamps, points: card.points });
     } else if (action === "reward") {
       const { rewardName, rewardEmoji, cost, costType, customerId } = body;
       await db_deductReward(tenantId, customerCardId, costType, cost);

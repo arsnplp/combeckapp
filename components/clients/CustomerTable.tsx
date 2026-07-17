@@ -206,10 +206,10 @@ export default function CustomerTable({ customers, onSelect, selectedIds, onSele
                     ) : <span className="text-[12px] text-slate-300">—</span>}
                   </td>
                   <td className="py-3 pr-4 text-[13px] text-slate-600">{customer.totalVisits}</td>
-                  <td className="py-3 pr-4">
-                    <span className="text-[13px] font-medium text-green-600">{customer.points}</span>
-                    <span className="text-[12px] text-slate-300 mx-1">/</span>
-                    <span className="text-[13px] text-slate-500">{customer.stamps}</span>
+                  <td className="py-3 pr-4 whitespace-nowrap">
+                    <span className="text-[13px] font-medium text-green-600">{customer.points} pt{customer.points > 1 ? "s" : ""}</span>
+                    <span className="text-[12px] text-slate-300 mx-1">·</span>
+                    <span className="text-[13px] text-slate-500">{customer.stamps} tampon{customer.stamps > 1 ? "s" : ""}</span>
                   </td>
                   <td className="py-3 pr-4">
                     {(customer.referrals ?? 0) > 0 || (customer.referralsPending ?? 0) > 0 ? (
