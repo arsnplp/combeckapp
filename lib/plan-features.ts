@@ -1,11 +1,12 @@
 import { PLAN_LIMITS, PLAN_LABELS } from "./plan-limits";
-import { getPlanInfo, type PlanInfo } from "./plan-billing";
+import { getPlanInfo, PLAN_PRICING, type PlanInfo } from "./plan-billing";
 import type { PlanId } from "@/types";
 
 export interface PlanFeatures extends PlanInfo {
   plan: PlanId;
   label: string;
   maxCards: number;
+  priceMonthly: number | null; // null pour l'essai gratuit
   maxClients: number | null; // null = illimité (Infinity ne passe pas en JSON)
   canTarget: boolean;
   canReferral: boolean;
@@ -22,6 +23,7 @@ export function getPlanFeatures(plan: PlanId, expiresAt?: string | null): PlanFe
     plan: (plan || "starter") as PlanId,
     label: PLAN_LABELS[plan] ?? "Starter",
     maxCards: limits.cards,
+    priceMonthly: plan in PLAN_PRICING ? PLAN_PRICING[plan as keyof typeof PLAN_PRICING].monthly : null,
     maxClients: limits.clients === Infinity ? null : limits.clients,
     canTarget: limits.targetingAdvanced,
     canReferral: limits.referralEnabled,

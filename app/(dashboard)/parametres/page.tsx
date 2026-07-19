@@ -11,6 +11,7 @@ import { useStore } from "@/lib/store-context";
 import { useDarkMode } from "@/lib/use-dark-mode";
 import { signOut } from "next-auth/react";
 import SubscriptionSection from "@/components/settings/SubscriptionSection";
+import CurrentPlanCard from "@/components/settings/CurrentPlanCard";
 
 export default function ParametresPage() {
   const { settings, updateSettings } = useStore();
@@ -197,36 +198,8 @@ export default function ParametresPage() {
         </CardContent>
       </Card>
 
-      {/* Subscription */}
-      <div
-        className="rounded-2xl p-6"
-        style={{
-          background: "linear-gradient(135deg, rgba(245,158,11,0.1), rgba(217,119,6,0.05))",
-          border: "1px solid rgba(245,158,11,0.2)",
-        }}
-      >
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Zap className="h-4 w-4 text-amber-400" />
-              <p className="text-sm font-semibold text-amber-300">Plan Pro</p>
-            </div>
-            <p className="text-xs text-amber-500/70">Renouvellement le 15 février 2025</p>
-            <ul className="mt-3 space-y-1">
-              {["Clients illimités", "Notifications illimitées", "Analytics avancées", "Support prioritaire"].map((f) => (
-                <li key={f} className="flex items-center gap-2 text-xs text-amber-400/80">
-                  <CheckCircle className="h-3 w-3 text-amber-500" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="text-right">
-            <p className="text-2xl font-bold text-amber-400">29€</p>
-            <p className="text-xs text-amber-500/60">/mois</p>
-          </div>
-        </div>
-      </div>
+      {/* Plan actuel (données réelles) */}
+      <CurrentPlanCard />
 
       {/* Save */}
       <div className="flex justify-end">
