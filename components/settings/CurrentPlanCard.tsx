@@ -11,7 +11,7 @@ const PLAN_DISPLAY: Record<string, {
   accent: string; border: string; bg: string; text: string; sub: string;
 }> = {
   free: {
-    features: ["Toutes les fonctionnalités débloquées", "Clients & notifications illimités", "Cartes illimitées", "Parrainage & ciblage avancé"],
+    features: ["Toutes les fonctionnalités débloquées", "Clients & notifications illimités", "2 cartes de fidélité", "Parrainage & ciblage avancé"],
     next: { label: "Choisir un plan" },
     accent: "#16a34a", border: "rgba(22,163,74,0.25)",
     bg: "linear-gradient(135deg, rgba(22,163,74,0.08), rgba(5,150,105,0.04))",
@@ -25,14 +25,14 @@ const PLAN_DISPLAY: Record<string, {
     text: "text-slate-700", sub: "text-slate-500",
   },
   pro: {
-    features: ["Clients illimités", "50 000 notifications / mois", "3 cartes de fidélité", "Ciblage avancé + export CSV"],
+    features: ["Jusqu'à 100 clients", "10 000 notifications / mois", "2 cartes de fidélité", "Ciblage avancé + export CSV"],
     next: { label: "Passer au plan Business" },
     accent: "#d97706", border: "rgba(245,158,11,0.25)",
     bg: "linear-gradient(135deg, rgba(245,158,11,0.09), rgba(217,119,6,0.04))",
     text: "text-amber-700", sub: "text-amber-700/60",
   },
   business: {
-    features: ["Clients illimités", "Notifications illimitées", "Cartes illimitées", "Toutes les fonctionnalités incluses"],
+    features: ["Clients illimités", "Notifications illimitées", "2 cartes de fidélité", "Toutes les fonctionnalités incluses"],
     next: null,
     accent: "#7c3aed", border: "rgba(124,58,237,0.25)",
     bg: "linear-gradient(135deg, rgba(124,58,237,0.08), rgba(109,40,217,0.04))",

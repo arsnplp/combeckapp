@@ -53,7 +53,7 @@ function SignupForm() {
     if (password.length < 8) { setError("Le mot de passe doit faire au moins 8 caractères."); return; }
     setLoading(true);
     try {
-      // Essai gratuit → route dédiée (90 jours d'expiration) ; payant → signup classique
+      // Essai gratuit → route dédiée (30 jours d'expiration) ; payant → signup classique
       const endpoint = plan === "free" ? "/api/auth/free-trial" : "/api/auth/signup";
       const res = await fetch(endpoint, {
         method: "POST",
@@ -108,7 +108,7 @@ function SignupForm() {
             </h2>
             <p className="mt-3 text-[14px] leading-relaxed text-slate-400">
               {plan === "free"
-                ? "Gratuit 3 mois · Toutes les fonctionnalités Business · Sans carte bancaire"
+                ? "Gratuit 30 jours · Toutes les fonctionnalités Business · Sans carte bancaire"
                 : billingCycle === "annual"
                   ? `${Math.round(planInfo.price * 12 * 0.8)}€ / an (soit ${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12)}€/mois, -20 %)`
                   : `${planInfo.price}€ / mois · Sans engagement`}
@@ -139,7 +139,7 @@ function SignupForm() {
           <div className={`mb-5 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold ${planInfo.color}`}>
             {plan === "pro" && <Star className="h-3 w-3" fill="currentColor" />}
             {plan === "free"
-              ? "Essai gratuit — 3 mois offerts, niveau Business"
+              ? "Essai gratuit — 30 jours offerts, niveau Business"
               : `Plan ${planInfo.label} — ${billingCycle === "annual" ? `${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12)}€/mois facturé annuellement` : `${planInfo.price}€/mois`}`}
           </div>
 

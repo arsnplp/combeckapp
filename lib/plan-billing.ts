@@ -31,7 +31,7 @@ export function getPlanInfo(plan: string | null, expiresAt: string | null): Plan
 
 export async function createFreeTrial(email: string): Promise<{ id: string; plan_expires_at: string }> {
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 90); // 3 months
+  expiresAt.setDate(expiresAt.getDate() + 30); // 30 jours d'essai
   return {
     id: `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     plan_expires_at: expiresAt.toISOString(),

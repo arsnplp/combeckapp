@@ -27,9 +27,9 @@ const PLANS = [
     description: "Le choix des commerçants actifs",
     highlight: true,
     features: [
-      "Clients illimités",
-      "50 000 notifications / mois",
-      "3 cartes de fidélité",
+      "100 clients maximum",
+      "10 000 notifications / mois",
+      "2 cartes de fidélité (tampons + points)",
       "Ciblage avancé (par rang client, inactifs)",
       "Notifications automatiques récurrentes",
       "Stats historique complet + export CSV",
@@ -45,7 +45,7 @@ const PLANS = [
     features: [
       "Clients illimités",
       "Notifications illimitées",
-      "Cartes de fidélité illimitées",
+      "2 cartes de fidélité (tampons + points)",
       "Ciblage avancé (par rang client, inactifs)",
       "Notifications automatiques récurrentes",
       "Stats historique complet + export CSV",
@@ -138,7 +138,7 @@ export default function TarifsPage() {
               <p className="text-[15px] font-bold text-green-900">Nouveau sur ComeBack ?</p>
             </div>
             <p className="mt-1 text-[13px] text-green-800/70">
-              <strong>3 mois gratuits avec toutes les fonctionnalités du plan Business</strong> — sans carte bancaire, sans engagement.
+              <strong>30 jours gratuits avec toutes les fonctionnalités du plan Business</strong> — sans carte bancaire, sans engagement.
             </p>
             <Link
               href="/signup?plan=free"

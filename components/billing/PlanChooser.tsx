@@ -10,11 +10,11 @@ const PLANS = [
   },
   {
     id: "pro", name: "Pro", price: 49, highlight: true,
-    features: ["Clients illimités", "50 000 notifications / mois", "3 cartes de fidélité", "Ciblage avancé + notifications auto", "Historique complet + export CSV"],
+    features: ["100 clients maximum", "10 000 notifications / mois", "2 cartes de fidélité", "Ciblage avancé + notifications auto", "Historique complet + export CSV"],
   },
   {
     id: "business", name: "Business", price: 99, highlight: false,
-    features: ["Tout illimité (clients, notifs, cartes)", "Ciblage avancé + notifications auto", "Support dédié (< 4h)"],
+    features: ["Clients & notifications illimités", "2 cartes de fidélité", "Ciblage avancé + notifications auto", "Support dédié (< 4h)"],
   },
 ] as const;
 
@@ -86,10 +86,13 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
       );
     } else if (planId === "pro") {
       losses.push(
-        usage && usage.cards > 3
-          ? `3 cartes de fidélité actives maximum — vous en avez ${usage.cards} : les autres seront gelées (données conservées)`
-          : "3 cartes de fidélité maximum",
-        "Notifications plafonnées à 50 000 / mois",
+        usage && usage.clients > 100
+          ? `Limite de 100 clients — vous en avez déjà ${usage.clients} : vous ne pourrez plus en accueillir de nouveaux`
+          : `Limité à 100 clients (vous en avez ${usage?.clients ?? 0})`,
+        usage && usage.cards > 2
+          ? `2 cartes de fidélité actives maximum — vous en avez ${usage.cards} : les autres seront gelées (données conservées)`
+          : "2 cartes de fidélité maximum",
+        "Notifications plafonnées à 10 000 / mois",
         "Pas de support dédié (< 4h)",
       );
     }

@@ -97,7 +97,7 @@ export async function createUserFromGoogle(email: string, name: string): Promise
   const existing = await getUserByEmail(normalized);
   if (existing) return existing;
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 90);
+  expiresAt.setDate(expiresAt.getDate() + 30);
   const user: DbUser = {
     id: `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     email: normalized,
@@ -146,7 +146,7 @@ export async function createUser(
   const passwordHash = await bcrypt.hash(password, 12);
   const verificationToken = randomBytes(32).toString("hex");
   const trialEnd = new Date();
-  trialEnd.setDate(trialEnd.getDate() + 90);
+  trialEnd.setDate(trialEnd.getDate() + 30);
   const user: DbUser = {
     id: `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     email: normalized,
