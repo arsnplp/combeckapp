@@ -152,6 +152,7 @@ export async function regeneratePass(passId: string): Promise<Buffer | null> {
   }
 
   return generateClientPass({
+    tenantId: found?.tenantId,
     type: opts.type,
     clientName: opts.clientName,
     clientId: walletPass.customerId,

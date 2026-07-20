@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFileSync, existsSync } from "fs";
-import path from "path";
 import { auth } from "@/auth";
 import { supabase } from "@/lib/supabase";
 
 const BUCKET = "logos";
-const LEGACY_PATH = path.join(process.cwd(), "data", "logo.png");
 
 // GET ?tenantId=xxx — public (utilisé par Google Wallet et l'espace client).
 // Sans tenantId : logo du commerçant connecté.
@@ -24,12 +21,9 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Fallback transitoire : ancien fichier global (avant le stockage par commerce)
-  if (existsSync(LEGACY_PATH)) {
-    return new NextResponse(readFileSync(LEGACY_PATH), {
-      headers: { "Content-Type": "image/png", "Cache-Control": "no-cache" },
-    });
-  }
+  // Pas de logo pour ce commerce précis : 404 franc — jamais de fallback
+  // partagé entre commerces (ancien bug : un fichier global unique servait
+  // de logo à tous les commerçants qui n'avaient pas encore uploadé le leur).
   return new NextResponse(null, { status: 404 });
 }
 

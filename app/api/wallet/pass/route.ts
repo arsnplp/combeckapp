@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { generateClientPass } from "@/lib/apple-wallet";
 import { walletDb_upsertPass, walletDb_getPassBySerial } from "@/lib/wallet-db";
+import { findTenantByCustomerCardId } from "@/lib/server-db";
 
 export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams;
@@ -35,9 +36,15 @@ export async function GET(req: NextRequest) {
   const authenticationToken = existingPass?.authenticationToken ?? randomBytes(20).toString("hex");
   const webServiceURL = process.env.WALLET_WEB_SERVICE_URL; // e.g. https://app.comeback.app/api/wallet
 
+  // Logo du commerce : résolu côté serveur depuis ccId (jamais fait confiance
+  // à un paramètre client) — évite tout mélange de logo entre commerces
+  const tenantId = customerCardId
+    ? (await findTenantByCustomerCardId(customerCardId))?.tenantId
+    : undefined;
+
   try {
     const buffer = await generateClientPass({
-      type, clientName, clientId, customerCardId, passOrigin,
+      tenantId, type, clientName, clientId, customerCardId, passOrigin,
       stamps, stampsRequired, points, nextReward, storeName, accentColor, bgColor,
       serialNumber, authenticationToken, webServiceURL,
     });

@@ -1,10 +1,11 @@
 import forge from "node-forge";
 import JSZip from "jszip";
-import { readFileSync, existsSync } from "fs";
+import { readFileSync } from "fs";
 import path from "path";
 import { createHash } from "crypto";
 import { deflateSync } from "zlib";
 import sharp from "sharp";
+import { supabase } from "./supabase";
 
 // ── Minimal solid-colour PNG ──────────────────────────────────────────────────
 
@@ -163,6 +164,7 @@ async function generateStripImage(opts: ClientPassOptions): Promise<Buffer> {
 // ── Pass JSON ─────────────────────────────────────────────────────────────────
 
 export interface ClientPassOptions {
+  tenantId?: string;         // logo du commerce — sans ça, pas de logo (jamais celui d'un autre)
   type: "stamps" | "points";
   clientName: string;
   clientId: string;
@@ -340,9 +342,22 @@ function signManifest(
   return Buffer.from(forge.asn1.toDer(p7.toAsn1()).getBytes(), "binary");
 }
 
+// ── Logo du commerce (isolé par tenant — jamais de fallback global partagé) ────
+
+async function fetchTenantLogo(tenantId?: string): Promise<Buffer | null> {
+  if (!tenantId) return null;
+  try {
+    const { data } = await supabase().storage.from("logos").download(`${tenantId}.png`);
+    if (!data) return null;
+    return Buffer.from(await data.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
 // ── Core ZIP builder ──────────────────────────────────────────────────────────
 
-async function buildPkpass(passJson: object, stripImage?: Buffer): Promise<Buffer> {
+async function buildPkpass(passJson: object, stripImage: Buffer | undefined, logoBuffer: Buffer | null): Promise<Buffer> {
   const p12Path = path.join(
     process.cwd(),
     process.env.APPLE_P12_PATH ?? "certificates/comeback-wallet.p12"
@@ -355,11 +370,7 @@ async function buildPkpass(passJson: object, stripImage?: Buffer): Promise<Buffe
     readFileSync(path.join(process.cwd(), "certificates/wwdr.pem"), "utf8")
   );
 
-  // Use uploaded logo if available, otherwise fall back to solid color
-  const logoPath = path.join(process.cwd(), "data", "logo.png");
-  const hasLogo = existsSync(logoPath);
-  const logoBuffer = hasLogo ? readFileSync(logoPath) : null;
-
+  // Logo du commerce (résolu par l'appelant via fetchTenantLogo) — sinon couleur unie
   const icon   = logoBuffer ?? solidPNG(29, 29, 37, 99, 235);
   const icon2x = logoBuffer ?? solidPNG(58, 58, 37, 99, 235);
   const logo   = logoBuffer ?? solidPNG(160, 50, 37, 99, 235);
@@ -395,9 +406,10 @@ async function buildPkpass(passJson: object, stripImage?: Buffer): Promise<Buffe
 // ── Public exports ────────────────────────────────────────────────────────────
 
 export async function generateClientPass(opts: ClientPassOptions): Promise<Buffer> {
-  const [passJson, stripImage] = await Promise.all([
+  const [passJson, stripImage, logoBuffer] = await Promise.all([
     Promise.resolve(buildPassJSON(opts)),
     generateStripImage(opts).catch(() => undefined),
+    fetchTenantLogo(opts.tenantId),
   ]);
-  return buildPkpass(passJson, stripImage);
+  return buildPkpass(passJson, stripImage, logoBuffer);
 }
