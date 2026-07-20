@@ -106,14 +106,9 @@ export default function TarifsPage() {
           <span className="text-[15px] font-bold text-slate-900">Comeback</span>
         </div>
         {loggedIn ? (
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard" className="text-[13px] font-medium text-slate-500 hover:text-slate-800 transition-colors">
-              ← Retour au dashboard
-            </Link>
-            <Link href="/login" className="text-[13px] font-medium text-slate-500 hover:text-slate-800 transition-colors">
-              Changer de compte
-            </Link>
-          </div>
+          <Link href="/login" className="text-[13px] font-medium text-slate-500 hover:text-slate-800 transition-colors">
+            Changer de compte
+          </Link>
         ) : (
           <Link href="/login" className="text-[13px] font-medium text-slate-500 hover:text-slate-800 transition-colors">
             Déjà un compte ? Se connecter
