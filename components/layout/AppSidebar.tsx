@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Package, Users, CreditCard,
+  LayoutDashboard, Gift, Users, CreditCard,
   Bell, BarChart3, Settings, ScanLine, Gem,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
@@ -17,7 +17,7 @@ const navSections = [
     items: [
       { href: "/carte", label: "Cartes Wallet", icon: CreditCard },
       { href: "/clients", label: "Clients", icon: Users },
-      { href: "/produits", label: "Produits & Récompenses", icon: Package },
+      { href: "/produits", label: "Récompenses", icon: Gift },
     ],
   },
   {

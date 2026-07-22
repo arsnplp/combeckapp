@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Users, CreditCard, ScanLine, Menu, X,
-  Package, Bell, BarChart3, Settings, Gem, LogOut,
+  Gift, Bell, BarChart3, Settings, Gem, LogOut,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useStore } from "@/lib/store-context";
@@ -19,7 +19,7 @@ const tabs = [
 ];
 
 const menuItems = [
-  { href: "/produits", label: "Produits & Récompenses", icon: Package },
+  { href: "/produits", label: "Récompenses", icon: Gift },
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/parametres", label: "Paramètres", icon: Settings },

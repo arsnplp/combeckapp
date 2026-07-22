@@ -9,7 +9,7 @@ const pageMeta: Record<string, { title: string; subtitle: string }> = {
   "/dashboard": { title: "Vue d'ensemble", subtitle: "" },
   "/dashboard/scan": { title: "Scanner", subtitle: "Créditez vos clients en un scan" },
   "/abonnement": { title: "Choisir un plan", subtitle: "Gérez votre abonnement" },
-  "/produits": { title: "Produits & Récompenses", subtitle: "Gérez votre catalogue et récompenses" },
+  "/produits": { title: "Récompenses", subtitle: "Définissez ce que vos clients peuvent échanger" },
   "/clients": { title: "Clients", subtitle: "Gérez votre base de clients" },
   "/carte": { title: "Carte Wallet", subtitle: "Personnalisez votre carte de fidélité" },
   "/notifications": { title: "Notifications", subtitle: "Communiquez avec vos clients" },
