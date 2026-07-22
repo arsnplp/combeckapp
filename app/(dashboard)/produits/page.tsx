@@ -11,11 +11,54 @@ import { useStore } from "@/lib/store-context";
 import type { Reward } from "@/types";
 
 const MAX_POINTS_COST = 10000;
+// Plafond de bon sens pour un coût en tampons — un commerce peut avoir plusieurs
+// cartes tampons avec des seuils différents, donc pas de valeur "officielle" unique
+// (l'ancien réglage global settings.stampsRequired n'existe plus dans le système multi-cartes)
+const MAX_STAMPS_COST = 20;
 
-const EMOJIS = ["🎁", "☕", "🥐", "🍕", "🍔", "🧁", "🍦", "🥤", "🎀", "💐", "🛍️", "✨"];
+const EMOJIS = [
+  "🎁", "☕", "🥐", "🍕", "🍔", "🧁", "🍦", "🥤", "🎀", "💐", "🛍️", "✨",
+  "🍰", "🍩", "🥗", "🍜", "🍷", "🍺", "🎂", "🎉", "💎", "🏆", "🎫", "💳",
+  "🧊", "🍫", "🥯", "🌮", "🍿", "🧃",
+];
+
+function EmojiPickerButton({ value, onChange }: { value: string; onChange: (emoji: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative flex-shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-[44px] w-[44px] items-center justify-center rounded-lg border border-slate-200 bg-white text-lg transition-colors hover:bg-slate-50"
+        title="Choisir un emoji"
+      >
+        {value}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-[calc(100%+6px)] z-20 grid w-64 grid-cols-6 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+            {EMOJIS.map((e) => (
+              <button
+                key={e}
+                type="button"
+                onClick={() => { onChange(e); setOpen(false); }}
+                className={`flex h-9 w-9 items-center justify-center rounded-lg text-lg transition-colors hover:bg-slate-100 ${
+                  e === value ? "bg-green-100 ring-1 ring-green-400" : ""
+                }`}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function ProduitsPage() {
-  const { settings, rewards, setRewards } = useStore();
+  const { rewards, setRewards } = useStore();
 
   // Add reward dialog
   const [showAddReward, setShowAddReward] = useState(false);
@@ -49,7 +92,7 @@ export default function ProduitsPage() {
       ...r,
       name: editRewardName.trim(),
       description: `Récompense : ${editRewardName.trim()}`,
-      cost: Math.min(cost, editRewardMode === "stamps" ? settings.stampsRequired : MAX_POINTS_COST),
+      cost: Math.min(cost, editRewardMode === "stamps" ? MAX_STAMPS_COST : MAX_POINTS_COST),
       mode: editRewardMode,
       emoji: editRewardEmoji,
     }));
@@ -64,7 +107,7 @@ export default function ProduitsPage() {
       id: `r${Date.now()}`,
       name: newRewardName,
       description: `Récompense : ${newRewardName}`,
-      cost: Math.min(cost, newRewardMode === "stamps" ? settings.stampsRequired : MAX_POINTS_COST),
+      cost: Math.min(cost, newRewardMode === "stamps" ? MAX_STAMPS_COST : MAX_POINTS_COST),
       mode: newRewardMode,
       emoji: newRewardEmoji,
       usageCount: 0,
@@ -139,17 +182,7 @@ export default function ProduitsPage() {
             <div className="space-y-2">
               <Label htmlFor="reward-name">Nom de la récompense *</Label>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="flex-shrink-0 rounded-lg border border-slate-200 bg-white px-3 text-lg hover:bg-slate-50 transition-colors"
-                  onClick={() => {
-                    const idx = EMOJIS.indexOf(newRewardEmoji);
-                    setNewRewardEmoji(EMOJIS[(idx + 1) % EMOJIS.length]);
-                  }}
-                  title="Changer l'emoji"
-                >
-                  {newRewardEmoji}
-                </button>
+                <EmojiPickerButton value={newRewardEmoji} onChange={setNewRewardEmoji} />
                 <Input
                   id="reward-name"
                   placeholder="ex: Café offert"
@@ -191,13 +224,13 @@ export default function ProduitsPage() {
                 id="reward-cost"
                 type="text"
                 inputMode="numeric"
-                placeholder={newRewardMode === "stamps" ? `1 – ${settings.stampsRequired}` : `1 – ${MAX_POINTS_COST}`}
+                placeholder={newRewardMode === "stamps" ? `1 – ${MAX_STAMPS_COST}` : `1 – ${MAX_POINTS_COST}`}
                 value={newRewardCost}
                 onChange={(e) => setNewRewardCost(e.target.value.replace(/\D/g, ""))}
               />
-              {newRewardMode === "stamps" && newRewardCost && parseInt(newRewardCost) > settings.stampsRequired && (
+              {newRewardMode === "stamps" && newRewardCost && parseInt(newRewardCost) > MAX_STAMPS_COST && (
                 <p className="text-[11.5px] text-amber-600">
-                  Le maximum est {settings.stampsRequired} tampons (configuré dans Programme)
+                  Le maximum est {MAX_STAMPS_COST} tampons
                 </p>
               )}
             </div>
@@ -227,16 +260,7 @@ export default function ProduitsPage() {
             <div className="space-y-2">
               <Label>Nom de la récompense</Label>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="flex-shrink-0 rounded-lg border border-slate-200 bg-white px-3 text-lg hover:bg-slate-50 transition-colors"
-                  onClick={() => {
-                    const idx = EMOJIS.indexOf(editRewardEmoji);
-                    setEditRewardEmoji(EMOJIS[(idx + 1) % EMOJIS.length]);
-                  }}
-                >
-                  {editRewardEmoji}
-                </button>
+                <EmojiPickerButton value={editRewardEmoji} onChange={setEditRewardEmoji} />
                 <Input
                   placeholder="ex: Café offert"
                   value={editRewardName}
