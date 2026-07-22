@@ -172,7 +172,7 @@ export default async function TenantCardPage({
 
       <WalletButton ccId={card.customerCardId} walletAdded={card.walletAdded} />
 
-      {(card.referral?.enabled || card.referralPoints > 0 || card.referralCount > 0 || card.pendingReferrals > 0) && (
+      {(card.referral?.enabled || card.referralCount > 0 || card.pendingReferrals > 0) && (
         <ReferralSection
           cardId={card.cardId}
           cardName={card.cardName}
@@ -184,9 +184,8 @@ export default async function TenantCardPage({
           backgroundColor={card.backgroundColor}
           accentColor={card.accentColor}
           customerCardId={card.customerCardId}
-          referral={card.referral ?? { enabled: false, referrerBonus: 1, bonusType: "points" }}
+          referral={card.referral ?? { enabled: false, referrerBonus: 1, referredBonus: 0 }}
           referralCount={card.referralCount}
-          referralPoints={card.referralPoints}
           pendingReferrals={card.pendingReferrals}
         />
       )}

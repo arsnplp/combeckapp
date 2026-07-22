@@ -16,14 +16,12 @@ export interface GoogleWalletPassInput {
   accentColor: string;
   nextReward?: string;
   referralCount?: number;
-  referralPoints?: number;
 }
 
 function buildTextModules(opts: {
   totalVisits: number;
   nextReward?: string;
   referralCount?: number;
-  referralPoints?: number;
 }): Array<{ header: string; body: string; id: string }> {
   const modules = [
     { header: "Visites", body: String(opts.totalVisits), id: "visits" },
@@ -31,10 +29,10 @@ function buildTextModules(opts: {
   if (opts.nextReward) {
     modules.push({ header: "Prochain cadeau", body: opts.nextReward, id: "reward" });
   }
-  if ((opts.referralCount ?? 0) > 0 || (opts.referralPoints ?? 0) > 0) {
+  if ((opts.referralCount ?? 0) > 0) {
     modules.push({
       header: "Parrainages",
-      body: `${opts.referralCount ?? 0} filleul${(opts.referralCount ?? 0) > 1 ? "s" : ""} · ${opts.referralPoints ?? 0} pt${(opts.referralPoints ?? 0) > 1 ? "s" : ""} à dépenser`,
+      body: `${opts.referralCount} filleul${(opts.referralCount ?? 0) > 1 ? "s" : ""}`,
       id: "referral",
     });
   }
@@ -312,7 +310,6 @@ export interface GoogleWalletUpdateInput {
   totalVisits: number;
   nextReward?: string;
   referralCount?: number;
-  referralPoints?: number;
 }
 
 export async function updateGoogleWalletObject(input: GoogleWalletUpdateInput): Promise<void> {

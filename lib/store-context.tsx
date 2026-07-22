@@ -173,14 +173,13 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
           const srv = incoming.find((s: CustomerCard) => s.id === c.id);
           if (srv && (
             srv.stamps !== c.stamps || srv.points !== c.points ||
-            (srv.referralPoints ?? 0) !== (c.referralPoints ?? 0) ||
             (srv.referralCount ?? 0) !== (c.referralCount ?? 0) ||
             (srv.pendingReferrals ?? 0) !== (c.pendingReferrals ?? 0)
           )) {
             changed = true;
             return {
               ...c, stamps: srv.stamps, points: srv.points,
-              referralCount: srv.referralCount ?? 0, referralPoints: srv.referralPoints ?? 0,
+              referralCount: srv.referralCount ?? 0,
               pendingReferrals: srv.pendingReferrals ?? 0,
             };
           }
@@ -243,21 +242,44 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
   useEffect(() => { save(KEYS.loyalty_cards, loyaltyCards); }, [KEYS.loyalty_cards, loyaltyCards]);
   useEffect(() => { save(KEYS.customer_cards, customerCards); }, [KEYS.customer_cards, customerCards]);
 
-  // Persist merchant config to server (debounced 1s, only after hydration)
+  // Persist merchant config to server (debounced 1s, only after hydration).
+  // pendingSavePayload garde la dernière version en attente pour pouvoir la
+  // flusher immédiatement si l'utilisateur change de page avant la fin du délai.
+  const pendingSavePayload = useRef<string | null>(null);
   useEffect(() => {
     if (!serverHydrated.current) return;
+    const payload = JSON.stringify({
+      settings, walletConfig, loyaltyCards, products, rewards,
+      confirmedCardDeletions: confirmedCardDeletions.current,
+    });
+    pendingSavePayload.current = payload;
     const t = setTimeout(() => {
       fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          settings, walletConfig, loyaltyCards, products, rewards,
-          confirmedCardDeletions: confirmedCardDeletions.current,
-        }),
-      }).catch(() => {});
+        body: payload,
+      }).then(() => { pendingSavePayload.current = null; }).catch(() => {});
     }, 1000);
     return () => clearTimeout(t);
   }, [settings, walletConfig, loyaltyCards, products, rewards]);
+
+  // Filet de sécurité : si l'utilisateur quitte la page (onglet fermé, changement
+  // d'app) avant que le délai de 1s ne s'écoule, on flush immédiatement via
+  // sendBeacon — garanti de partir même pendant le déchargement de la page.
+  useEffect(() => {
+    const flush = () => {
+      if (!pendingSavePayload.current) return;
+      navigator.sendBeacon?.("/api/settings", new Blob([pendingSavePayload.current], { type: "application/json" }));
+      pendingSavePayload.current = null;
+    };
+    const onVisibility = () => { if (document.visibilityState === "hidden") flush(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, []);
 
   const updateSettings = useCallback((patch: Partial<StoreSettings>) => {
     setSettings((prev) => ({ ...prev, ...patch }));

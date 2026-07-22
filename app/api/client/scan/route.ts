@@ -53,9 +53,6 @@ export async function POST(req: NextRequest) {
     if (r.costType === "points" && cc.points < r.cost) {
       return NextResponse.json({ error: `Pas assez de points (${cc.points}/${r.cost}).` }, { status: 422 });
     }
-    if (r.costType === "referral" && ((cc as { referralPoints?: number }).referralPoints ?? 0) < r.cost) {
-      return NextResponse.json({ error: `Pas assez de points de parrainage (${(cc as { referralPoints?: number }).referralPoints ?? 0}/${r.cost}).` }, { status: 422 });
-    }
 
     const result = await db_deductReward(tenantId, r.customerCardId, r.costType, r.cost);
     if (!result.success) {
@@ -65,7 +62,6 @@ export async function POST(req: NextRequest) {
     await db_incrementRewardUsage(tenantId, r.rewardName);
 
     // Notifier les wallets pour mettre à jour la carte en temps réel
-    // (referral : le solde de points de parrainage affiché sur la carte Google change)
     if (r.costType === "stamps") {
       walletNotificationService.updateStamps(r.customerCardId).catch(console.error);
     } else {

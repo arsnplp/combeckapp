@@ -10,7 +10,7 @@ interface QRData {
   rewardEmoji: string;
   storeName: string;
   cost: number;
-  costType: "stamps" | "points" | "referral";
+  costType: "stamps" | "points";
   exp: number;
 }
 
@@ -80,7 +80,7 @@ function QRModal({ qr, onClose }: { qr: QRData; onClose: () => void }) {
         <div className="mt-4 flex items-center justify-between px-1">
           <CountdownTimer exp={qr.exp} />
           <span className="text-[11px] text-gray-400">
-            -{qr.cost} {qr.costType === "stamps" ? "tampon" + (qr.cost > 1 ? "s" : "") : qr.costType === "referral" ? `pt${qr.cost > 1 ? "s" : ""} parrainage` : "pts"}
+            -{qr.cost} {qr.costType === "stamps" ? "tampon" + (qr.cost > 1 ? "s" : "") : "pts"}
           </span>
         </div>
 
@@ -93,7 +93,7 @@ function QRModal({ qr, onClose }: { qr: QRData; onClose: () => void }) {
 }
 
 interface RewardButtonProps {
-  reward: { id: string; name: string; description: string; cost: number; mode: string; emoji: string; referral?: boolean };
+  reward: { id: string; name: string; description: string; cost: number; mode: string; emoji: string };
   canAfford: boolean;
   customerCardId: string;
 }
@@ -132,11 +132,7 @@ function RewardButton({ reward, canAfford, customerCardId }: RewardButtonProps) 
               <p className="text-[12px] text-gray-400 mt-0.5">{reward.description}</p>
             )}
             <p className="text-[11px] font-semibold text-gray-500 mt-1">
-              {reward.cost} {reward.referral
-                ? `point${reward.cost > 1 ? "s" : ""} parrainage`
-                : reward.mode === "stamps"
-                  ? `tampon${reward.cost > 1 ? "s" : ""}`
-                  : "points"}
+              {reward.cost} {reward.mode === "stamps" ? `tampon${reward.cost > 1 ? "s" : ""}` : "points"}
             </p>
           </div>
         </div>
@@ -173,10 +169,7 @@ export default function RedeemSection({
   card: ClientCard;
   customerCardId: string;
 }) {
-  const regularRewards = card.rewards.filter((r) => !r.referral);
-  const referralRewards = card.rewards.filter((r) => r.referral);
-
-  if (regularRewards.length === 0 && referralRewards.length === 0) {
+  if (card.rewards.length === 0) {
     return (
       <div className="mt-6">
         <p className="text-[13px] font-semibold text-gray-700 mb-3">Récompenses</p>
@@ -189,35 +182,17 @@ export default function RedeemSection({
 
   return (
     <div className="mt-6 space-y-5">
-      {regularRewards.length > 0 && (
-        <div>
-          <p className="text-[13px] font-semibold text-gray-700 mb-3">Récompenses disponibles</p>
-          <div className="space-y-2">
-            {regularRewards.map((reward) => {
-              const canAfford = reward.mode === "stamps"
-                ? card.stamps >= reward.cost
-                : card.points >= reward.cost;
-              return <RewardButton key={reward.id} reward={reward} canAfford={canAfford} customerCardId={customerCardId} />;
-            })}
-          </div>
+      <div>
+        <p className="text-[13px] font-semibold text-gray-700 mb-3">Récompenses disponibles</p>
+        <div className="space-y-2">
+          {card.rewards.map((reward) => {
+            const canAfford = reward.mode === "stamps"
+              ? card.stamps >= reward.cost
+              : card.points >= reward.cost;
+            return <RewardButton key={reward.id} reward={reward} canAfford={canAfford} customerCardId={customerCardId} />;
+          })}
         </div>
-      )}
-      {referralRewards.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[13px] font-semibold text-gray-700">Récompenses parrainage</p>
-            <span className="text-[11px] text-gray-400 bg-gray-50 border border-gray-100 rounded-full px-2.5 py-0.5">
-              {card.referralPoints} pt{card.referralPoints > 1 ? "s" : ""} disponible{card.referralPoints > 1 ? "s" : ""}
-            </span>
-          </div>
-          <div className="space-y-2">
-            {referralRewards.map((reward) => {
-              const canAfford = card.referralPoints >= reward.cost;
-              return <RewardButton key={reward.id} reward={reward} canAfford={canAfford} customerCardId={customerCardId} />;
-            })}
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

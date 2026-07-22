@@ -194,7 +194,6 @@ export default function ProduitsPage() {
   const [newRewardName, setNewRewardName] = useState("");
   const [newRewardCost, setNewRewardCost] = useState("");
   const [newRewardMode, setNewRewardMode] = useState<"stamps" | "points">("stamps");
-  const [newRewardIsReferral, setNewRewardIsReferral] = useState(false);
   const [newRewardEmoji, setNewRewardEmoji] = useState("🎁");
   const [newRewardProductId, setNewRewardProductId] = useState<string | null>(null);
 
@@ -204,7 +203,6 @@ export default function ProduitsPage() {
   const [editRewardCost, setEditRewardCost] = useState("");
   const [editRewardEmoji, setEditRewardEmoji] = useState("🎁");
   const [editRewardMode, setEditRewardMode] = useState<"stamps" | "points">("stamps");
-  const [editRewardIsReferral, setEditRewardIsReferral] = useState(false);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const editImageInputRef = useRef<HTMLInputElement>(null);
@@ -304,7 +302,6 @@ export default function ProduitsPage() {
     setEditRewardCost(String(reward.cost));
     setEditRewardEmoji(reward.emoji ?? "🎁");
     setEditRewardMode(reward.mode as "stamps" | "points");
-    setEditRewardIsReferral(reward.referral === true);
   };
 
   const handleSaveEditReward = () => {
@@ -315,10 +312,9 @@ export default function ProduitsPage() {
       ...r,
       name: editRewardName.trim(),
       description: `Récompense : ${editRewardName.trim()}`,
-      cost: editRewardIsReferral ? cost : Math.min(cost, editRewardMode === "stamps" ? settings.stampsRequired : MAX_POINTS_COST),
-      mode: editRewardIsReferral ? "stamps" : editRewardMode,
+      cost: Math.min(cost, editRewardMode === "stamps" ? settings.stampsRequired : MAX_POINTS_COST),
+      mode: editRewardMode,
       emoji: editRewardEmoji,
-      referral: editRewardIsReferral || undefined,
     }));
     setEditingReward(null);
   };
@@ -331,13 +327,12 @@ export default function ProduitsPage() {
       id: `r${Date.now()}`,
       name: newRewardName,
       description: `Récompense : ${newRewardName}`,
-      cost: newRewardIsReferral ? cost : Math.min(cost, newRewardMode === "stamps" ? settings.stampsRequired : MAX_POINTS_COST),
-      mode: newRewardIsReferral ? "stamps" : newRewardMode,
+      cost: Math.min(cost, newRewardMode === "stamps" ? settings.stampsRequired : MAX_POINTS_COST),
+      mode: newRewardMode,
       emoji: newRewardEmoji,
       productId: newRewardProductId ?? undefined,
       usageCount: 0,
       active: true,
-      referral: newRewardIsReferral || undefined,
     };
     setRewards((prev) => [...prev, r]);
     setShowAddReward(false);
@@ -345,7 +340,6 @@ export default function ProduitsPage() {
     setNewRewardCost("");
     setNewRewardEmoji("🎁");
     setNewRewardProductId(null);
-    setNewRewardIsReferral(false);
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -422,7 +416,7 @@ export default function ProduitsPage() {
         <TabsContent value="recompenses" className="mt-5">
           <div className="space-y-6">
             {(["stamps", "points"] as const).map((mode) => {
-              const list = rewards.filter((r) => r.mode === mode && !r.referral);
+              const list = rewards.filter((r) => r.mode === mode);
               return (
                 <div key={mode}>
                   <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">
@@ -440,25 +434,6 @@ export default function ProduitsPage() {
                 </div>
               );
             })}
-            {(() => {
-              const list = rewards.filter((r) => r.referral);
-              return (
-                <div>
-                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">
-                    Récompenses parrainage
-                  </p>
-                  {list.length > 0 ? (
-                    <div className="space-y-2">
-                      {list.map((reward) => (
-                        <RewardCard key={reward.id} reward={reward} onEdit={openEditReward} onDelete={handleDeleteReward} />
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-[12.5px] text-slate-400">Aucune récompense parrainage</p>
-                  )}
-                </div>
-              );
-            })()}
             {rewards.length === 0 && (
               <div className="flex flex-col items-center gap-4 rounded-xl border border-dashed border-slate-200 bg-white py-14 text-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100">
@@ -614,7 +589,7 @@ export default function ProduitsPage() {
       {/* ── Add Reward Dialog ──────────────────────────────────────────────── */}
       <Dialog open={showAddReward} onOpenChange={(open) => {
         setShowAddReward(open);
-        if (!open) { setNewRewardName(""); setNewRewardCost(""); setNewRewardEmoji("🎁"); setNewRewardProductId(null); setNewRewardIsReferral(false); }
+        if (!open) { setNewRewardName(""); setNewRewardCost(""); setNewRewardEmoji("🎁"); setNewRewardProductId(null); }
       }}>
         <DialogContent className="sm:max-w-[460px]">
           <div className="px-7 pt-7 pb-5 pr-14">
@@ -687,14 +662,14 @@ export default function ProduitsPage() {
             {/* ── Type de programme ── */}
             <div className="space-y-2">
               <Label>Type de programme</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {(["stamps", "points"] as const).map((m) => (
                   <button
                     key={m}
                     type="button"
-                    onClick={() => { setNewRewardMode(m); setNewRewardIsReferral(false); }}
+                    onClick={() => setNewRewardMode(m)}
                     className={`rounded-lg border py-2.5 text-[13px] font-medium transition-colors ${
-                      !newRewardIsReferral && newRewardMode === m
+                      newRewardMode === m
                         ? "border-green-200 bg-green-50 text-green-700"
                         : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
                     }`}
@@ -702,34 +677,23 @@ export default function ProduitsPage() {
                     {m === "stamps" ? "🎫 Tampons" : "⭐ Points"}
                   </button>
                 ))}
-                <button
-                  type="button"
-                  onClick={() => setNewRewardIsReferral(true)}
-                  className={`rounded-lg border py-2.5 text-[13px] font-medium transition-colors ${
-                    newRewardIsReferral
-                      ? "border-green-200 bg-green-50 text-green-700"
-                      : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
-                  }`}
-                >
-                  🤝 Parrainage
-                </button>
               </div>
             </div>
 
             {/* ── Coût ── */}
             <div className="space-y-2">
               <Label htmlFor="reward-cost">
-                Coût en {newRewardIsReferral ? "points de parrainage" : newRewardMode === "stamps" ? "tampons" : "points"} *
+                Coût en {newRewardMode === "stamps" ? "tampons" : "points"} *
               </Label>
               <Input
                 id="reward-cost"
                 type="text"
                 inputMode="numeric"
-                placeholder={newRewardIsReferral ? "ex: 3" : newRewardMode === "stamps" ? `1 – ${settings.stampsRequired}` : `1 – ${MAX_POINTS_COST}`}
+                placeholder={newRewardMode === "stamps" ? `1 – ${settings.stampsRequired}` : `1 – ${MAX_POINTS_COST}`}
                 value={newRewardCost}
                 onChange={(e) => setNewRewardCost(e.target.value.replace(/\D/g, ""))}
               />
-              {!newRewardIsReferral && newRewardMode === "stamps" && newRewardCost && parseInt(newRewardCost) > settings.stampsRequired && (
+              {newRewardMode === "stamps" && newRewardCost && parseInt(newRewardCost) > settings.stampsRequired && (
                 <p className="text-[11.5px] text-amber-600">
                   Le maximum est {settings.stampsRequired} tampons (configuré dans Programme)
                 </p>
@@ -785,33 +749,26 @@ export default function ProduitsPage() {
             {/* Mode */}
             <div className="space-y-2">
               <Label>Type de programme</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {(["stamps", "points"] as const).map((m) => (
                   <button
                     key={m}
                     type="button"
-                    onClick={() => { setEditRewardMode(m); setEditRewardIsReferral(false); }}
-                    className={`rounded-xl border py-3 text-[13px] font-medium transition-all ${!editRewardIsReferral && editRewardMode === m ? "border-green-500 bg-green-50 text-green-700" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"}`}
+                    onClick={() => setEditRewardMode(m)}
+                    className={`rounded-xl border py-3 text-[13px] font-medium transition-all ${editRewardMode === m ? "border-green-500 bg-green-50 text-green-700" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"}`}
                   >
                     {m === "stamps" ? "🎟️ Tampons" : "⭐ Points"}
                   </button>
                 ))}
-                <button
-                  type="button"
-                  onClick={() => setEditRewardIsReferral(true)}
-                  className={`rounded-xl border py-3 text-[13px] font-medium transition-all ${editRewardIsReferral ? "border-green-500 bg-green-50 text-green-700" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"}`}
-                >
-                  🤝 Parrainage
-                </button>
               </div>
             </div>
 
             {/* Coût */}
             <div className="space-y-2">
-              <Label>Coût ({editRewardIsReferral ? "points de parrainage" : editRewardMode === "stamps" ? "tampons" : "points"})</Label>
+              <Label>Coût ({editRewardMode === "stamps" ? "tampons" : "points"})</Label>
               <Input
                 type="number" min="1"
-                placeholder={editRewardIsReferral ? "ex: 3" : editRewardMode === "stamps" ? "ex: 10" : "ex: 100"}
+                placeholder={editRewardMode === "stamps" ? "ex: 10" : "ex: 100"}
                 value={editRewardCost}
                 onChange={(e) => setEditRewardCost(e.target.value.replace(/\D/g, ""))}
               />

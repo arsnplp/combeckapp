@@ -16,7 +16,6 @@ import CurrentPlanCard from "@/components/settings/CurrentPlanCard";
 export default function ParametresPage() {
   const { settings, updateSettings } = useStore();
   const { dark, toggle: toggleDark } = useDarkMode();
-  const [saved, setSaved] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string>("");
   const [logoUploading, setLogoUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -47,11 +46,6 @@ export default function ParametresPage() {
       setLogoPreview(`/api/settings/logo?t=${Date.now()}`);
     }
   }, [settings.logoUrl]);
-
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
 
   const update = (key: keyof typeof settings, value: string | number) => {
     updateSettings({ [key]: value } as Parameters<typeof updateSettings>[0]);
@@ -118,6 +112,15 @@ export default function ParametresPage() {
           <p className="text-sm text-slate-500 mb-4">
             Ce logo apparaît sur votre carte Apple Wallet et dans les notifications push.
           </p>
+          {!logoPreview && (
+            <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3">
+              <span className="text-[16px] leading-none">⚠️</span>
+              <p className="text-[12.5px] leading-relaxed text-amber-800">
+                <strong>Ajoutez votre logo</strong> — c&apos;est ce que vos clients verront en premier
+                sur leur carte de fidélité. Une carte sans logo fait beaucoup moins pro.
+              </p>
+            </div>
+          )}
           <div className="flex items-center gap-4">
             <div
               onClick={() => fileRef.current?.click()}
@@ -201,18 +204,10 @@ export default function ParametresPage() {
       {/* Plan actuel (données réelles) */}
       <CurrentPlanCard />
 
-      {/* Save */}
-      <div className="flex justify-end">
-        <Button onClick={handleSave} className="gap-2">
-          {saved ? (
-            <>
-              <CheckCircle className="h-4 w-4" />
-              Sauvegardé !
-            </>
-          ) : (
-            "Sauvegarder les paramètres"
-          )}
-        </Button>
+      {/* Sauvegarde automatique — pas de bouton, tout est enregistré au fil de l'eau */}
+      <div className="flex items-center justify-end gap-1.5 text-[12.5px] text-slate-400">
+        <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+        Sauvegarde automatique
       </div>
 
       {/* ── Zone de danger ── */}

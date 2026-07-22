@@ -22,7 +22,8 @@ interface CardForm {
   pointsPerEuro: number;
   welcomePoints: number;
   rankThresholds: RankThresholds;
-  referral: { enabled: boolean; referrerBonus: number; bonusType: "stamps" | "points" };
+  // referrerBonus/referredBonus s'interprètent en tampons ou points selon loyaltyMode
+  referral: { enabled: boolean; referrerBonus: number; referredBonus: number };
 }
 
 const defaultForm = (): CardForm => ({
@@ -35,7 +36,7 @@ const defaultForm = (): CardForm => ({
   pointsPerEuro: 10,
   welcomePoints: 0,
   rankThresholds: { silver: 2, gold: 5, platine: 10 },
-  referral: { enabled: false, referrerBonus: 1, bonusType: "stamps" },
+  referral: { enabled: false, referrerBonus: 1, referredBonus: 1 },
 });
 
 const colorPresets = [
@@ -212,7 +213,7 @@ export default function CartePage() {
       loyaltyMode: card.loyaltyMode, stampsRequired: card.stampsRequired,
       pointsPerEuro: card.pointsPerEuro, welcomePoints: card.welcomePoints,
       rankThresholds: card.rankThresholds ?? { silver: 2, gold: 5, platine: 10 },
-      referral: card.referral ? { ...card.referral, bonusType: card.loyaltyMode } : { enabled: false, referrerBonus: 1, bonusType: card.loyaltyMode },
+      referral: card.referral ?? { enabled: false, referrerBonus: 1, referredBonus: 1 },
     });
     setEditingId(card.id);
     setShowCreate(true);
@@ -437,7 +438,7 @@ export default function CartePage() {
                 {(["stamps", "points"] as LoyaltyMode[]).map((mode) => {
                   const blocked = modeBlocked(mode);
                   return (
-                    <button key={mode} type="button" onClick={() => !blocked && patch({ loyaltyMode: mode, referral: { ...form.referral, bonusType: mode } })} disabled={blocked}
+                    <button key={mode} type="button" onClick={() => !blocked && patch({ loyaltyMode: mode })} disabled={blocked}
                       title={blocked ? "Vous avez déjà une carte de ce type" : undefined}
                       className={`rounded-xl border py-3 text-[13px] font-medium transition-colors ${
                         blocked ? "border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed"
@@ -528,23 +529,39 @@ export default function CartePage() {
               </div>
               {form.referral.enabled && (
                 <div className="rounded-xl border border-green-100 bg-green-50 p-4 space-y-3">
-                  <div className="flex items-end gap-3">
-                    <div className="flex-1 space-y-1.5">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
                       <label className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-slate-500">Bonus du parrain</label>
-                      <input
-                        type="number" min={1} max={50}
-                        className="h-[38px] w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-900 outline-none focus:border-green-400"
-                        value={form.referral.referrerBonus || ""}
-                        onChange={(e) => { const n = parseInt(e.target.value); patch({ referral: { ...form.referral, referrerBonus: isNaN(n) ? 0 : n } }); }}
-                        onBlur={() => { if (!form.referral.referrerBonus || form.referral.referrerBonus < 1) patch({ referral: { ...form.referral, referrerBonus: 1 } }); else if (form.referral.referrerBonus > 50) patch({ referral: { ...form.referral, referrerBonus: 50 } }); }}
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number" min={1} max={50}
+                          className="h-[38px] w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-900 outline-none focus:border-green-400"
+                          value={form.referral.referrerBonus || ""}
+                          onChange={(e) => { const n = parseInt(e.target.value); patch({ referral: { ...form.referral, referrerBonus: isNaN(n) ? 0 : n } }); }}
+                          onBlur={() => { if (!form.referral.referrerBonus || form.referral.referrerBonus < 1) patch({ referral: { ...form.referral, referrerBonus: 1 } }); else if (form.referral.referrerBonus > 50) patch({ referral: { ...form.referral, referrerBonus: 50 } }); }}
+                        />
+                        <span className="flex-shrink-0 text-[12px] text-slate-500">{form.loyaltyMode === "stamps" ? "🎫" : "⭐"}</span>
+                      </div>
                     </div>
-                    <div className="flex h-[38px] items-center rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-500 whitespace-nowrap">
-                      {form.loyaltyMode === "stamps" ? "🎫 Tampons" : "⭐ Points"}
+                    <div className="space-y-1.5">
+                      <label className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-slate-500">Bonus du filleul</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number" min={0} max={50}
+                          className="h-[38px] w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-900 outline-none focus:border-green-400"
+                          value={form.referral.referredBonus || ""}
+                          onChange={(e) => { const n = parseInt(e.target.value); patch({ referral: { ...form.referral, referredBonus: isNaN(n) ? 0 : n } }); }}
+                          onBlur={() => { if (!form.referral.referredBonus || form.referral.referredBonus < 0) patch({ referral: { ...form.referral, referredBonus: 0 } }); else if (form.referral.referredBonus > 50) patch({ referral: { ...form.referral, referredBonus: 50 } }); }}
+                        />
+                        <span className="flex-shrink-0 text-[12px] text-slate-500">{form.loyaltyMode === "stamps" ? "🎫" : "⭐"}</span>
+                      </div>
                     </div>
                   </div>
                   <p className="text-[11px] text-green-600">
-                    Le parrain reçoit {form.referral.referrerBonus || 1} {form.loyaltyMode === "stamps" ? "tampon(s)" : "point(s)"} à chaque parrainage réussi.
+                    Le parrain reçoit {form.referral.referrerBonus || 1} {form.loyaltyMode === "stamps" ? "tampon(s)" : "point(s)"} à la première visite de son filleul.{" "}
+                    {form.referral.referredBonus > 0 && (
+                      <>Le filleul reçoit {form.referral.referredBonus} {form.loyaltyMode === "stamps" ? "tampon(s)" : "point(s)"}{form.loyaltyMode === "points" ? " en plus des points de bienvenue" : ""} dès son inscription.</>
+                    )}
                   </p>
                 </div>
               )}

@@ -123,13 +123,12 @@ export default async function CardsPage() {
                 </div>
               )}
 
-              {(card.referral?.enabled || card.referralPoints > 0) && (
+              {card.referralCount > 0 && (
                 <div className="mt-2 flex items-center gap-1.5 text-[12px]">
                   <span>🤝</span>
-                  <span className="font-semibold text-gray-800">{card.referralPoints}</span>
+                  <span className="font-semibold text-gray-800">{card.referralCount}</span>
                   <span className="text-gray-400">
-                    point{card.referralPoints > 1 ? "s" : ""} de parrainage
-                    {card.referralCount > 0 && ` · ${card.referralCount} ami${card.referralCount > 1 ? "s" : ""} parrainé${card.referralCount > 1 ? "s" : ""}`}
+                    ami{card.referralCount > 1 ? "s" : ""} parrainé{card.referralCount > 1 ? "s" : ""}
                   </span>
                 </div>
               )}

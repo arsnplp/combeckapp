@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClientAccountFromGoogle } from "@/lib/client-accounts";
-import { findTenantByCardId, db_getAll, db_addCustomer, db_recordPendingReferral } from "@/lib/server-db";
+import { findTenantByCardId, db_getAll, db_addCustomer, db_recordPendingReferral, db_wouldReferralSucceed } from "@/lib/server-db";
 import { getUserById } from "@/lib/users";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { createClientSession } from "@/lib/client-sessions";
@@ -110,22 +110,41 @@ export async function GET(req: NextRequest) {
           const now = new Date().toISOString();
           const customerId = `c${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
           const customerCardId = `cc${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
-          // Points de bienvenue lus depuis la config serveur, pas depuis le cookie
+          // Config carte (points de bienvenue + parrainage) lue côté serveur, pas depuis le cookie
           let welcomePoints = 0;
+          let cardLoyaltyMode: "stamps" | "points" = "stamps";
+          let cardStampsRequired = 8;
+          let cardReferral: { enabled: boolean; referrerBonus: number; referredBonus: number } | undefined;
           try {
             const blob = await getTenantSettings(tenantId);
-            welcomePoints = blob.loyaltyCards.find((c) => c.id === cardId)?.welcomePoints ?? 0;
+            const cfg = blob.loyaltyCards.find((c) => c.id === cardId);
+            welcomePoints = cfg?.welcomePoints ?? 0;
+            cardLoyaltyMode = cfg?.loyaltyMode ?? "stamps";
+            cardStampsRequired = cfg?.stampsRequired ?? 8;
+            cardReferral = cfg?.referral;
           } catch { /* 0 par défaut */ }
+
+          const clientEmail = email.toLowerCase();
+          const refAllowed = (PLAN_LIMITS[user?.plan ?? "starter"] ?? PLAN_LIMITS.starter).referralEnabled;
+          const referralWillApply = !!(cookiePayload.ref && refAllowed && cardReferral?.enabled
+            && await db_wouldReferralSucceed(tenantId, cookiePayload.ref, clientEmail));
+
+          let initialStamps = 0;
+          let initialPoints = welcomePoints;
+          if (referralWillApply && cardReferral && cardReferral.referredBonus > 0) {
+            if (cardLoyaltyMode === "stamps") initialStamps = Math.min(cardReferral.referredBonus, cardStampsRequired);
+            else initialPoints += cardReferral.referredBonus;
+          }
+
           await db_addCustomer(
             tenantId,
-            { id: customerId, name, email: email.toLowerCase(), phone: "", joinDate: now, totalVisits: 0, lastVisitAt: null },
-            { id: customerCardId, customerId, cardId, stamps: 0, points: welcomePoints, referralCount: 0, referralPoints: 0, joinDate: now, lastActivity: now },
+            { id: customerId, name, email: clientEmail, phone: "", joinDate: now, totalVisits: 0, lastVisitAt: null },
+            { id: customerCardId, customerId, cardId, stamps: initialStamps, points: initialPoints, referralCount: 0, joinDate: now, lastActivity: now },
           );
-          // Parrainage : enregistré en attente si le plan l'autorise
-          const refAllowed = (PLAN_LIMITS[user?.plan ?? "starter"] ?? PLAN_LIMITS.starter).referralEnabled;
-          if (cookiePayload.ref && refAllowed) {
+          // Parrainage : enregistré en attente — le parrain sera crédité à la première visite réelle
+          if (referralWillApply) {
             try {
-              await db_recordPendingReferral(tenantId, cookiePayload.ref, customerId, email.toLowerCase());
+              await db_recordPendingReferral(tenantId, cookiePayload.ref!, customerId, clientEmail);
             } catch { /* ignore referral errors */ }
           }
         }

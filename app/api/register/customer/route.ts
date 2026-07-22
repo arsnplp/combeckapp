@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     await db_addCustomer(
       tenantId,
       { id: customerId, name, email: email || "", phone: phone || "", joinDate: now, totalVisits: 0, lastVisitAt: null },
-      { id: customerCardId, customerId, cardId, stamps: stamps ?? 0, points: points ?? 0, referralCount: 0, referralPoints: 0, joinDate: now, lastActivity: now },
+      { id: customerCardId, customerId, cardId, stamps: stamps ?? 0, points: points ?? 0, referralCount: 0, joinDate: now, lastActivity: now },
     );
 
     return NextResponse.json({ ok: true });

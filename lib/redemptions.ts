@@ -9,7 +9,7 @@ export interface Redemption {
   rewardName: string;
   rewardEmoji: string;
   cost: number;
-  costType: "stamps" | "points" | "referral";
+  costType: "stamps" | "points";
   exp: number;
   used: boolean;
   usedAt: string | null;

@@ -10,7 +10,7 @@ export interface DbRedemption {
   rewardName: string;
   rewardEmoji: string;
   cost: number;
-  costType: "stamps" | "points" | "referral";
+  costType: "stamps" | "points";
   redeemedAt: string;
 }
 
@@ -31,7 +31,6 @@ export interface DbCustomerCard {
   stamps: number;
   points: number;
   referralCount: number;
-  referralPoints: number;
   pendingReferrals?: number; // filleuls inscrits non encore crédités
   joinDate: string;
   lastActivity: string;
@@ -51,7 +50,7 @@ interface CustomerRow {
 }
 interface CardRow {
   id: string; customer_id: string; card_id: string; stamps: number; points: number;
-  referral_count: number; referral_points: number; join_date: string; last_activity: string;
+  referral_count: number; join_date: string; last_activity: string;
 }
 interface RedemptionRow {
   id: string; customer_id: string | null; customer_card_id: string | null;
@@ -64,7 +63,7 @@ const mapCustomer = (r: CustomerRow): DbCustomer => ({
 });
 const mapCard = (r: CardRow): DbCustomerCard => ({
   id: r.id, customerId: r.customer_id, cardId: r.card_id, stamps: r.stamps, points: r.points,
-  referralCount: r.referral_count, referralPoints: r.referral_points,
+  referralCount: r.referral_count,
   joinDate: r.join_date, lastActivity: r.last_activity,
 });
 const mapRedemption = (r: RedemptionRow): DbRedemption => ({
@@ -139,7 +138,7 @@ export async function db_addCustomer(
     stamps: customerCard.stamps ?? 0,
     points: customerCard.points ?? 0,
     referral_count: customerCard.referralCount ?? 0,
-    referral_points: customerCard.referralPoints ?? 0,
+    referral_points: 0, // colonne conservée pour compat DB — plus utilisée comme monnaie
     join_date: customerCard.joinDate,
     last_activity: customerCard.lastActivity,
   });
@@ -173,6 +172,29 @@ export async function db_deleteCustomer(tenantId: string, customerId: string): P
   // customer_cards + redemptions liés suivent via FK cascade / set null
   await sb.from("customers").delete()
     .eq("id", customerId).eq("merchant_id", tenantId);
+}
+
+/**
+ * Vérifie SANS écrire si un parrainage serait valide (parrain existant dans
+ * ce commerce, pas d'auto-parrainage, email présent) — utilisé pour décider
+ * du bonus filleul AVANT de créer le client (le doublon n'a pas besoin d'être
+ * vérifié ici : un customerId tout juste généré n'a jamais pu être parrainé).
+ */
+export async function db_wouldReferralSucceed(
+  tenantId: string,
+  referrerCardId: string,
+  referredEmail: string,
+): Promise<boolean> {
+  const email = (referredEmail ?? "").toLowerCase().trim();
+  if (!email) return false;
+  const sb = supabase();
+  const { data: refCard } = await sb.from("customer_cards")
+    .select("id, customer_id").eq("id", referrerCardId).eq("merchant_id", tenantId).maybeSingle();
+  if (!refCard) return false;
+  const { data: refCustomer } = await sb.from("customers")
+    .select("email").eq("id", refCard.customer_id).maybeSingle();
+  if (refCustomer?.email && refCustomer.email.toLowerCase() === email) return false;
+  return true;
 }
 
 /**
@@ -243,15 +265,26 @@ export async function db_creditPendingReferrals(tenantId: string, customerId: st
   return credited;
 }
 
+// Crédite le PARRAIN à la première visite réelle de son filleul (anti-farm).
+// Le bonus configuré sur la carte est ajouté directement au solde normal
+// (tampons ou points selon le mode) — plus de monnaie séparée "points de
+// parrainage". referral_count reste un simple compteur d'affichage.
 export async function db_addReferral(tenantId: string, customerCardId: string): Promise<DbCustomerCard | null> {
   const cc = await getCardInTenant(tenantId, customerCardId);
   if (!cc) return null;
+  const { data: lc } = await supabase().from("loyalty_cards")
+    .select("loyalty_mode, referral_bonus, stamps_required")
+    .eq("id", cc.card_id).maybeSingle();
+  const mode = (lc?.loyalty_mode ?? "stamps") as "stamps" | "points";
+  const bonus = lc?.referral_bonus ?? 1;
+  const stampsRequired = lc?.stamps_required ?? 8;
+
+  const patch: Record<string, unknown> = { referral_count: (cc.referral_count ?? 0) + 1 };
+  if (mode === "stamps") patch.stamps = Math.min(cc.stamps + bonus, stampsRequired);
+  else patch.points = cc.points + bonus;
+
   const { data } = await supabase().from("customer_cards")
-    .update({
-      referral_count: (cc.referral_count ?? 0) + 1,
-      referral_points: (cc.referral_points ?? 0) + 1,
-    })
-    .eq("id", customerCardId).select("*").maybeSingle();
+    .update(patch).eq("id", customerCardId).select("*").maybeSingle();
   return data ? mapCard(data as CardRow) : null;
 }
 
@@ -263,6 +296,20 @@ export async function db_addPoints(tenantId: string, customerCardId: string, poi
     .update({ points: cc.points + points, last_activity: now })
     .eq("id", customerCardId).select("*").maybeSingle();
   await maybeRecordVisit(cc.customer_id);
+  return data ? mapCard(data as CardRow) : null;
+}
+
+// Ajoute N tampons d'un coup, plafonné à stampsRequired — utilisé pour le
+// bonus de bienvenue du filleul (le parrain, lui, passe par db_addReferral).
+export async function db_addStampsAmount(
+  tenantId: string, customerCardId: string, amount: number, stampsRequired: number,
+): Promise<DbCustomerCard | null> {
+  const cc = await getCardInTenant(tenantId, customerCardId);
+  if (!cc) return null;
+  const now = new Date().toISOString();
+  const { data } = await supabase().from("customer_cards")
+    .update({ stamps: Math.min(cc.stamps + amount, stampsRequired), last_activity: now })
+    .eq("id", customerCardId).select("*").maybeSingle();
   return data ? mapCard(data as CardRow) : null;
 }
 
@@ -299,7 +346,7 @@ export interface DeductResult {
 export async function db_deductReward(
   tenantId: string,
   customerCardId: string,
-  costType: "stamps" | "points" | "referral",
+  costType: "stamps" | "points",
   cost: number,
 ): Promise<DeductResult> {
   const cc = await getCardInTenant(tenantId, customerCardId);
@@ -307,12 +354,10 @@ export async function db_deductReward(
   const card = mapCard(cc);
   if (costType === "stamps" && cc.stamps < cost) return { success: false, reason: "Pas assez de tampons", card };
   if (costType === "points" && cc.points < cost) return { success: false, reason: "Pas assez de points", card };
-  if (costType === "referral" && (cc.referral_points ?? 0) < cost) return { success: false, reason: "Pas assez de points de parrainage", card };
 
   const patch: Record<string, unknown> = { last_activity: new Date().toISOString() };
   if (costType === "stamps") patch.stamps = cc.stamps - cost;
-  else if (costType === "points") patch.points = cc.points - cost;
-  else patch.referral_points = (cc.referral_points ?? 0) - cost;
+  else patch.points = cc.points - cost;
 
   const { data } = await supabase().from("customer_cards")
     .update(patch).eq("id", customerCardId).select("*").maybeSingle();

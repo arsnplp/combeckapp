@@ -25,8 +25,7 @@ export async function POST(req: NextRequest) {
   const reward = clientCard.rewards.find((r) => r.id === rewardId);
   if (!reward) return NextResponse.json({ error: "Récompense introuvable." }, { status: 404 });
 
-  const isReferral = reward.referral === true;
-  const costType: "stamps" | "points" | "referral" = isReferral ? "referral" : reward.mode as "stamps" | "points";
+  const costType: "stamps" | "points" = reward.mode as "stamps" | "points";
   const cost = reward.cost;
 
   // Vérifier solde en temps réel (re-lit le fichier)
@@ -42,11 +41,6 @@ export async function POST(req: NextRequest) {
   if (costType === "points" && cc.points < cost) {
     return NextResponse.json({
       error: `Pas assez de points. Tu en as ${cc.points} sur ${cost} nécessaires.`,
-    }, { status: 422 });
-  }
-  if (costType === "referral" && ((cc as { referralPoints?: number }).referralPoints ?? 0) < cost) {
-    return NextResponse.json({
-      error: `Pas assez de points de parrainage. Tu en as ${(cc as { referralPoints?: number }).referralPoints ?? 0} sur ${cost} nécessaires.`,
     }, { status: 422 });
   }
 

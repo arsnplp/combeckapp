@@ -183,7 +183,6 @@ export interface ClientPassOptions {
   webServiceURL?: string;    // must be HTTPS in production
   campaignMessage?: string;  // shown in backFields + triggers changeMessage notification
   referralCount?: number;
-  referralPoints?: number;
 }
 
 function toRgbStr(hex: string): string {
@@ -248,13 +247,13 @@ function buildPassJSON(opts: ClientPassOptions): object {
   };
 
   // Parrainage : visible au dos + notification quand le parrain est crédité
+  // (le bonus lui-même est déjà dans le solde tampons/points affiché plus haut)
   const refCount = opts.referralCount ?? 0;
-  const refPoints = opts.referralPoints ?? 0;
-  const referralBackField = refCount > 0 || refPoints > 0
+  const referralBackField = refCount > 0
     ? [{
         key: "referral",
         label: "Parrainage",
-        value: `${refCount} ami${refCount > 1 ? "s" : ""} parrainé${refCount > 1 ? "s" : ""} · ${refPoints} point${refPoints > 1 ? "s" : ""} à dépenser`,
+        value: `${refCount} ami${refCount > 1 ? "s" : ""} parrainé${refCount > 1 ? "s" : ""}`,
         changeMessage: "Parrainage : %@",
       }]
     : [];

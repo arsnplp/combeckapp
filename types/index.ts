@@ -41,7 +41,6 @@ export interface Reward {
   productId?: string;
   usageCount: number;
   active: boolean;
-  referral?: boolean;
 }
 
 export interface Notification {
@@ -92,7 +91,8 @@ export interface LoyaltyCard {
   active: boolean;
   createdAt: string;
   rankThresholds?: RankThresholds;
-  referral?: { enabled: boolean; referrerBonus: number; bonusType: "stamps" | "points" };
+  // referrerBonus/referredBonus s'interprètent en tampons ou points selon loyaltyMode
+  referral?: { enabled: boolean; referrerBonus: number; referredBonus: number };
 }
 
 export type PlanId = "free" | "starter" | "pro" | "business";
@@ -106,7 +106,6 @@ export interface CustomerCard {
   joinDate: string;
   lastActivity: string;
   referralCount?: number;
-  referralPoints?: number;
   pendingReferrals?: number;
 }
 

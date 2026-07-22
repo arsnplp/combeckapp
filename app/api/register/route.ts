@@ -3,7 +3,7 @@ import {
   db_addCustomer, db_addPoints, db_addStamp,
   db_deleteCustomer, db_getAll, findTenantByCardId,
   db_deductReward, db_addRedemption, db_incrementRewardUsage,
-  db_recordPendingReferral, db_creditPendingReferrals,
+  db_recordPendingReferral, db_creditPendingReferrals, db_wouldReferralSucceed,
 } from "@/lib/server-db";
 import { walletNotificationService } from "@/lib/wallet-notification-service";
 import { auth } from "@/auth";
@@ -73,13 +73,20 @@ export async function POST(req: NextRequest) {
     const tenantId = await findTenantByCardId(cardId);
     if (!tenantId) return NextResponse.json({ error: "Card not found" }, { status: 404 });
 
-    // Points de bienvenue : TOUJOURS lus depuis la config de la carte côté serveur
-    // (jamais depuis le client — sinon n'importe qui s'injecte des points)
+    // Config de la carte : TOUJOURS lue côté serveur (jamais depuis le client —
+    // sinon n'importe qui s'injecte des points/bonus)
     let welcomePoints = 0;
+    let cardLoyaltyMode: "stamps" | "points" = "stamps";
+    let cardStampsRequired = 8;
+    let cardReferral: { enabled: boolean; referrerBonus: number; referredBonus: number } | undefined;
     let tenantCards: Array<{ id: string; active?: boolean }> = [];
     try {
       const blob = await getTenantSettings(tenantId);
-      welcomePoints = blob.loyaltyCards.find((c) => c.id === cardId)?.welcomePoints ?? 0;
+      const cfg = blob.loyaltyCards.find((c) => c.id === cardId);
+      welcomePoints = cfg?.welcomePoints ?? 0;
+      cardLoyaltyMode = cfg?.loyaltyMode ?? "stamps";
+      cardStampsRequired = cfg?.stampsRequired ?? 8;
+      cardReferral = cfg?.referral;
       tenantCards = blob.loyaltyCards; // triées par date de création
     } catch { /* 0 par défaut */ }
 
@@ -202,19 +209,31 @@ export async function POST(req: NextRequest) {
     const customerId = `c${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
     const customerCardId = `cc${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
 
-    await db_addCustomer(tenantId,
-      { id: customerId, name: clientName, email: clientEmail, phone: clientPhone, joinDate: now, totalVisits: 0, lastVisitAt: null },
-      { id: customerCardId, customerId, cardId, stamps: 0, points: welcomePoints, referralCount: 0, referralPoints: 0, joinDate: now, lastActivity: now }
-    );
-
-    // Parrainage : enregistré en attente — le parrain sera crédité à la
-    // première visite réelle du filleul (anti-farm), et seulement si le
-    // filleul a un compte avec email.
+    // Parrainage : le FILLEUL reçoit son bonus dès l'inscription (même
+    // confiance que les points de bienvenue — baké dans les valeurs initiales,
+    // pas d'update séparée pour ne pas déclencher un enregistrement de visite).
+    // Le PARRAIN, lui, n'est crédité qu'à la première visite réelle du filleul
+    // (anti-farm) — voir creditReferralsOnFirstVisit.
     const ref = body.ref;
     const referralAllowed = (PLAN_LIMITS[user?.plan ?? "starter"] ?? PLAN_LIMITS.starter).referralEnabled;
-    if (ref && referralAllowed) {
+    const referralWillApply = !!(ref && referralAllowed && cardReferral?.enabled && clientEmail
+      && await db_wouldReferralSucceed(tenantId, ref, clientEmail));
+
+    let initialStamps = 0;
+    let initialPoints = welcomePoints;
+    if (referralWillApply && cardReferral && cardReferral.referredBonus > 0) {
+      if (cardLoyaltyMode === "stamps") initialStamps = Math.min(cardReferral.referredBonus, cardStampsRequired);
+      else initialPoints += cardReferral.referredBonus;
+    }
+
+    await db_addCustomer(tenantId,
+      { id: customerId, name: clientName, email: clientEmail, phone: clientPhone, joinDate: now, totalVisits: 0, lastVisitAt: null },
+      { id: customerCardId, customerId, cardId, stamps: initialStamps, points: initialPoints, referralCount: 0, joinDate: now, lastActivity: now }
+    );
+
+    if (referralWillApply) {
       try {
-        await db_recordPendingReferral(tenantId, ref, customerId, clientEmail);
+        await db_recordPendingReferral(tenantId, ref!, customerId, clientEmail);
       } catch { /* ignore referral errors */ }
     }
 

@@ -97,6 +97,14 @@ export default function AppSidebar() {
                   >
                     <Icon className={`h-[15px] w-[15px] flex-shrink-0 transition-colors ${isActive ? "text-green-600" : "text-slate-400 group-hover:text-slate-600"}`} />
                     <span className="truncate">{item.label}</span>
+                    {item.href === "/parametres" && !hasLogo && (
+                      <span
+                        className="ml-auto flex h-[17px] w-[17px] flex-shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
+                        title="Ajoutez votre logo pour personnaliser vos cartes"
+                      >
+                        1
+                      </span>
+                    )}
                   </Link>
                 );
               })}

@@ -15,20 +15,23 @@ interface Props {
   backgroundColor: string;
   accentColor: string;
   customerCardId: string;
-  referral: { enabled: boolean; referrerBonus: number; bonusType: "stamps" | "points" };
+  // referrerBonus/referredBonus s'interprètent en tampons ou points selon loyaltyMode
+  referral: { enabled: boolean; referrerBonus: number; referredBonus: number };
   referralCount: number;
-  referralPoints: number;
   pendingReferrals?: number;
 }
 
 export default function ReferralSection({
   cardId, cardName, loyaltyMode, stampsRequired, pointsPerEuro,
   welcomePoints, welcomeMessage, backgroundColor, accentColor,
-  customerCardId, referral, referralCount, referralPoints,
+  customerCardId, referral, referralCount,
   pendingReferrals = 0,
 }: Props) {
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [copied, setCopied] = useState(false);
+
+  const unit = loyaltyMode === "stamps" ? "tampon" : "point";
+  const plural = (n: number) => `${unit}${n > 1 ? "s" : ""}`;
 
   useEffect(() => {
     const origin = window.location.origin;
@@ -81,21 +84,18 @@ export default function ReferralSection({
         </div>
         <div>
           <p className="text-[15px] font-semibold text-slate-900">Programme parrainage</p>
-          <p className="text-[12px] text-slate-400">1 point de parrainage par ami invité</p>
+          <p className="text-[12px] text-slate-400">
+            Invitez un ami, gagnez {referral.referrerBonus} {plural(referral.referrerBonus)}
+          </p>
         </div>
       </div>
 
-      {/* Compteurs — toujours visibles (le client garde ses points acquis
-          même si le commerçant désactive le programme) */}
+      {/* Compteurs — toujours visibles (le client garde son historique même
+          si le commerçant désactive le programme) */}
       <div className="flex items-center justify-around py-3 mb-3 rounded-xl bg-slate-50">
         <div className="text-center">
           <p className="text-[26px] font-bold text-slate-900">{referralCount}</p>
           <p className="text-[11px] text-slate-400">ami{referralCount > 1 ? "s" : ""} parrainé{referralCount > 1 ? "s" : ""}</p>
-        </div>
-        <div className="h-10 w-px bg-slate-200" />
-        <div className="text-center">
-          <p className="text-[26px] font-bold text-slate-900">{referralPoints}</p>
-          <p className="text-[11px] text-slate-400">point{referralPoints > 1 ? "s" : ""} disponible{referralPoints > 1 ? "s" : ""}</p>
         </div>
         {pendingReferrals > 0 && (
           <>
@@ -111,9 +111,10 @@ export default function ReferralSection({
       {/* Explication du fonctionnement */}
       <div className="mb-4 rounded-xl bg-blue-50/60 border border-blue-100 px-3.5 py-2.5">
         <p className="text-[11.5px] leading-relaxed text-blue-800/80">
-          <strong>Comment ça marche :</strong> quand un ami s'inscrit avec votre QR,
-          il apparaît « en attente ». Votre point de parrainage est crédité dès sa
-          première visite en boutique — pas avant, pour éviter les fausses inscriptions.
+          <strong>Comment ça marche :</strong> quand un ami s&apos;inscrit avec votre QR,
+          il apparaît « en attente ». Vos {referral.referrerBonus} {plural(referral.referrerBonus)} sont crédités
+          directement sur votre carte dès sa première visite en boutique — pas avant,
+          pour éviter les fausses inscriptions.
         </p>
       </div>
 
@@ -129,7 +130,10 @@ export default function ReferralSection({
             <div className="h-44 w-44 animate-pulse rounded-2xl bg-slate-100" />
           )}
           <p className="text-center text-[12px] text-slate-400 leading-relaxed max-w-[220px]">
-            Faites scanner ce QR à un ami. Il obtient sa carte et vous gagnez 1 point de parrainage.
+            Faites scanner ce QR à un ami.
+            {referral.referredBonus > 0
+              ? ` Il obtient sa carte avec ${referral.referredBonus} ${plural(referral.referredBonus)} offert${referral.referredBonus > 1 ? "s" : ""}, et vous gagnez ${referral.referrerBonus} ${plural(referral.referrerBonus)}.`
+              : ` Il obtient sa carte, et vous gagnez ${referral.referrerBonus} ${plural(referral.referrerBonus)}.`}
           </p>
           <button
             onClick={handleShare}
@@ -141,7 +145,7 @@ export default function ReferralSection({
         </div>
       ) : (
         <p className="text-center text-[12px] text-slate-400">
-          Le programme de parrainage est actuellement désactivé — vos points restent utilisables.
+          Le programme de parrainage est actuellement désactivé.
         </p>
       )}
     </div>

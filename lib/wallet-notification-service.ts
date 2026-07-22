@@ -170,7 +170,6 @@ export async function regeneratePass(passId: string): Promise<Buffer | null> {
     webServiceURL: process.env.WALLET_WEB_SERVICE_URL,
     campaignMessage: walletPass.campaignMessage,
     referralCount: (cc as { referralCount?: number } | undefined)?.referralCount ?? 0,
-    referralPoints: (cc as { referralPoints?: number } | undefined)?.referralPoints ?? 0,
   });
 }
 
@@ -262,7 +261,7 @@ export class WalletNotificationService {
         stampsRequired = loyaltyCard.stampsRequired ?? 8;
       }
       nextReward = settings.rewards
-        .filter((r) => r.mode === loyaltyMode && !r.referral)
+        .filter((r) => r.mode === loyaltyMode)
         .sort((a, b) => a.cost - b.cost)[0]?.name;
     } catch { /* defaults */ }
 
@@ -275,7 +274,6 @@ export class WalletNotificationService {
       totalVisits: customer?.totalVisits ?? 0,
       nextReward,
       referralCount: (cc as { referralCount?: number }).referralCount ?? 0,
-      referralPoints: (cc as { referralPoints?: number }).referralPoints ?? 0,
     });
   }
 

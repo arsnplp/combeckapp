@@ -18,17 +18,17 @@ export interface ClientCard {
   stamps: number;
   points: number;
   referralCount: number;
-  referralPoints: number;
-  pendingReferrals: number; // filleuls inscrits mais pas encore venus (point non crédité)
+  pendingReferrals: number; // filleuls inscrits mais pas encore venus (bonus non crédité)
   walletAdded: boolean;     // carte ajoutée à Apple Wallet OU Google Wallet
   accentColor: string;
   backgroundColor: string;
   logoUrl: string;
   rewards: Array<{
     id: string; name: string; description: string;
-    cost: number; mode: string; emoji: string; referral?: boolean;
+    cost: number; mode: string; emoji: string;
   }>;
-  referral?: { enabled: boolean; referrerBonus: number; bonusType: "stamps" | "points" };
+  // referrerBonus/referredBonus s'interprètent en tampons ou points selon loyaltyMode
+  referral?: { enabled: boolean; referrerBonus: number; referredBonus: number };
 }
 
 export async function findClientCards(email: string): Promise<ClientCard[]> {
@@ -41,11 +41,11 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
       id, name, merchant_id,
       merchants ( id, store_name, city, logo_url, plan ),
       customer_cards (
-        id, card_id, stamps, points, referral_count, referral_points,
+        id, card_id, stamps, points, referral_count,
         loyalty_cards (
           id, name, loyalty_mode, stamps_required, points_per_euro,
           welcome_points, welcome_message, background_color, accent_color,
-          referral_enabled, referral_bonus, referral_bonus_type
+          referral_enabled, referral_bonus, referred_bonus
         )
       )
     `)
@@ -98,7 +98,7 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
   // Récompenses de tous les commerces concernés en une requête
   const merchantIds = [...new Set(customers.map((c) => c.merchant_id as string))];
   const { data: allRewards } = await sb.from("rewards")
-    .select("id, merchant_id, name, description, cost, mode, emoji, is_referral")
+    .select("id, merchant_id, name, description, cost, mode, emoji")
     .in("merchant_id", merchantIds).order("created_at");
 
   const rewardsByMerchant = new Map<string, NonNullable<typeof allRewards>>();
@@ -117,29 +117,25 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
 
     for (const cc of (cust.customer_cards as unknown as Array<{
       id: string; card_id: string; stamps: number; points: number;
-      referral_count: number; referral_points: number;
+      referral_count: number;
       loyalty_cards: {
         id: string; name: string; loyalty_mode: string; stamps_required: number;
         points_per_euro: number; welcome_points: number; welcome_message: string;
         background_color: string; accent_color: string;
-        referral_enabled: boolean; referral_bonus: number; referral_bonus_type: string;
+        referral_enabled: boolean; referral_bonus: number; referred_bonus: number;
       } | null;
     }>) ?? []) {
       const lc = cc.loyalty_cards;
       if (!lc) continue;
 
       const mode = (lc.loyalty_mode ?? "stamps") as "stamps" | "points";
-      const cardRewards = [
-        ...rewards.filter((r) => r.mode === mode && !r.is_referral),
-        ...rewards.filter((r) => r.is_referral),
-      ].map((r) => ({
+      const cardRewards = rewards.filter((r) => r.mode === mode).map((r) => ({
         id: r.id as string,
         name: r.name as string,
         description: (r.description ?? "") as string,
         cost: r.cost as number,
         mode: r.mode as string,
         emoji: (r.emoji ?? "🎁") as string,
-        referral: (r.is_referral as boolean) || undefined,
       }));
 
       results.push({
@@ -159,7 +155,6 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
         stamps: cc.stamps,
         points: cc.points,
         referralCount: cc.referral_count ?? 0,
-        referralPoints: cc.referral_points ?? 0,
         pendingReferrals: pendingByCard.get(cc.id) ?? 0,
         walletAdded: walletAddedCards.has(cc.id),
         accentColor: lc.accent_color ?? "#16a34a",
@@ -169,7 +164,7 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
         referral: {
           enabled: (lc.referral_enabled ?? false) && planAllowsReferral,
           referrerBonus: lc.referral_bonus ?? 1,
-          bonusType: (lc.referral_bonus_type ?? "stamps") as "stamps" | "points",
+          referredBonus: lc.referred_bonus ?? 0,
         },
       });
     }

@@ -10,7 +10,6 @@ import type { Customer, RankType } from "@/types";
 export type EnrichedCustomer = Customer & {
   rank: RankType;
   referrals?: number;        // nombre total d'amis parrainés (crédités)
-  referralPointsLeft?: number; // points de parrainage encore disponibles
   referralsPending?: number; // filleuls inscrits mais pas encore venus
 };
 
@@ -215,13 +214,10 @@ export default function CustomerTable({ customers, onSelect, selectedIds, onSele
                     {(customer.referrals ?? 0) > 0 || (customer.referralsPending ?? 0) > 0 ? (
                       <span className="inline-flex flex-wrap items-center gap-1 text-[13px] text-slate-600">
                         {(customer.referrals ?? 0) > 0 && <>🤝 {customer.referrals}</>}
-                        {(customer.referralPointsLeft ?? 0) > 0 && (
-                          <span className="text-[11.5px] text-slate-400">· {customer.referralPointsLeft} pt{(customer.referralPointsLeft ?? 0) > 1 ? "s" : ""} dispo</span>
-                        )}
                         {(customer.referralsPending ?? 0) > 0 && (
                           <span
                             className="rounded-full bg-amber-50 border border-amber-100 px-1.5 py-0.5 text-[10.5px] font-medium text-amber-600"
-                            title="Filleul inscrit — le point sera crédité à sa première visite"
+                            title="Filleul inscrit — le bonus sera crédité à sa première visite"
                           >
                             {customer.referralsPending} en attente
                           </span>

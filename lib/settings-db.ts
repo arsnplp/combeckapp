@@ -15,7 +15,8 @@ export interface TenantLoyaltyCard {
   welcomePoints: number;
   rankThresholds: { silver: number; gold: number; platine: number };
   active: boolean;
-  referral?: { enabled: boolean; referrerBonus: number; bonusType: "stamps" | "points" };
+  // referrerBonus/referredBonus s'interprètent en tampons ou points selon loyaltyMode
+  referral?: { enabled: boolean; referrerBonus: number; referredBonus: number };
 }
 
 export interface TenantReward {
@@ -25,7 +26,6 @@ export interface TenantReward {
   emoji: string;
   cost: number;
   mode: "stamps" | "points";
-  referral?: boolean;
   usageCount?: number;
 }
 
@@ -53,7 +53,7 @@ interface CardRow {
   id: string; name: string; welcome_message: string; background_color: string;
   accent_color: string; text_color: string; loyalty_mode: string; stamps_required: number;
   points_per_euro: number; welcome_points: number; rank_thresholds: { silver: number; gold: number; platine: number };
-  active: boolean; referral_enabled: boolean; referral_bonus: number; referral_bonus_type: string;
+  active: boolean; referral_enabled: boolean; referral_bonus: number; referred_bonus: number;
 }
 
 function mapCard(r: CardRow): TenantLoyaltyCard {
@@ -73,21 +73,21 @@ function mapCard(r: CardRow): TenantLoyaltyCard {
     referral: {
       enabled: r.referral_enabled,
       referrerBonus: r.referral_bonus,
-      bonusType: r.referral_bonus_type as "stamps" | "points",
+      referredBonus: r.referred_bonus ?? 0,
     },
   };
 }
 
 interface RewardRow {
   id: string; name: string; description: string; emoji: string;
-  cost: number; mode: string; is_referral: boolean; usage_count: number;
+  cost: number; mode: string; usage_count: number;
 }
 
 function mapReward(r: RewardRow): TenantReward {
   return {
     id: r.id, name: r.name, description: r.description, emoji: r.emoji,
     cost: r.cost, mode: r.mode as "stamps" | "points",
-    referral: r.is_referral || undefined, usageCount: r.usage_count,
+    usageCount: r.usage_count,
   };
 }
 
@@ -172,7 +172,7 @@ export async function saveTenantSettings(tenantId: string, blob: Partial<TenantS
       active: c.active ?? true,
       referral_enabled: c.referral?.enabled ?? false,
       referral_bonus: c.referral?.referrerBonus ?? 1,
-      referral_bonus_type: c.referral?.bonusType ?? "stamps",
+      referred_bonus: c.referral?.referredBonus ?? 0,
     })));
     const del = sb.from("loyalty_cards").delete().eq("merchant_id", tenantId);
     await (keep.length ? del.not("id", "in", `(${keep.map((id) => `"${id}"`).join(",")})`) : del);
@@ -188,7 +188,6 @@ export async function saveTenantSettings(tenantId: string, blob: Partial<TenantS
       emoji: r.emoji ?? "🎁",
       cost: Math.max(1, r.cost ?? 1),
       mode: r.mode === "points" ? "points" : "stamps",
-      is_referral: r.referral ?? false,
       usage_count: r.usageCount ?? 0,
     })));
     const del = sb.from("rewards").delete().eq("merchant_id", tenantId);

@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       cardName = loyaltyCard.name ?? cardName;
     }
     nextReward = settings.rewards
-      .filter((r) => r.mode === loyaltyMode && !r.referral)
+      .filter((r) => r.mode === loyaltyMode)
       .sort((a, b) => a.cost - b.cost)[0]?.name;
   } catch {
     // defaults
@@ -58,7 +58,6 @@ export async function GET(req: NextRequest) {
       accentColor,
       nextReward,
       referralCount: (cc as { referralCount?: number }).referralCount ?? 0,
-      referralPoints: (cc as { referralPoints?: number }).referralPoints ?? 0,
     });
     return NextResponse.json({ url });
   } catch (err) {
