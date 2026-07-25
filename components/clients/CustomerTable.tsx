@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Search, ChevronRight, ChevronLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { formatDateShort } from "@/lib/utils";
-import { RANK_COLORS, RANK_EMOJIS } from "@/lib/rank";
+import { RANK_EMOJIS } from "@/lib/rank";
 import type { Customer, RankType } from "@/types";
 
 export type EnrichedCustomer = Customer & {
@@ -176,7 +176,6 @@ export default function CustomerTable({ customers, onSelect, selectedIds, onSele
             {pagedCustomers.map((customer) => {
               const initials = customer.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
               const isSelected = selectedIds.has(customer.id);
-              const rankColors = RANK_COLORS[customer.rank];
               const rankEmoji = RANK_EMOJIS[customer.rank];
               return (
                 <tr
@@ -198,9 +197,8 @@ export default function CustomerTable({ customers, onSelect, selectedIds, onSele
                   </td>
                   <td className="py-3 pr-4">
                     {customer.rank !== "none" ? (
-                      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold border"
-                        style={{ background: rankColors.bg, color: rankColors.text, borderColor: rankColors.border }}>
-                        {rankEmoji} {customer.rank.charAt(0).toUpperCase() + customer.rank.slice(1)}
+                      <span className="text-[17px]" title={customer.rank.charAt(0).toUpperCase() + customer.rank.slice(1)}>
+                        {rankEmoji}
                       </span>
                     ) : <span className="text-[12px] text-slate-300">—</span>}
                   </td>

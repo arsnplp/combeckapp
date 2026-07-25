@@ -372,13 +372,15 @@ export default function CartePage() {
       </div>
 
       {/* Right: preview */}
-      <div className="flex flex-1 flex-col items-center gap-6 pt-2 lg:pt-10">
+      <div className="flex flex-1 flex-col items-center gap-6 pt-2 lg:items-start lg:justify-center lg:pt-10">
         {selected ? (
-          <>
-            <p className="text-[12px] text-slate-400">Aperçu de la carte</p>
-            <WalletPreview card={selected} currentStamps={3} points={120} clientName="Marie Dupont" qrDataUrl={qrDataUrl} />
+          <div className="flex w-full flex-col items-center gap-6 lg:flex-row lg:items-start lg:justify-center lg:gap-8">
+            <div className="flex flex-col items-center gap-6">
+              <p className="text-[12px] text-slate-400">Aperçu de la carte</p>
+              <WalletPreview card={selected} currentStamps={3} points={120} clientName="Marie Dupont" qrDataUrl={qrDataUrl} />
+            </div>
             {qrDataUrl && (
-              <div className="flex flex-col items-center gap-3 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm w-56">
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm w-56 lg:mt-8">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">QR d'inscription</p>
                 <div className="rounded-xl bg-white p-2 ring-1 ring-black/[0.06]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -399,7 +401,7 @@ export default function CartePage() {
                 </div>
               </div>
             )}
-          </>
+          </div>
         ) : (
           <div className="flex flex-col items-center gap-3 pt-20 text-center">
             <CreditCard className="h-10 w-10 text-slate-200" />
