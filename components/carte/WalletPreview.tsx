@@ -170,6 +170,20 @@ export default function WalletPreview({
         </div>
       </div>
 
+      {/* ── Badge "Ajouter à Apple Wallet" (aperçu) ── */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+        background: "#000", color: "#fff", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)",
+        padding: "9px 18px", boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
+      }}>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="2" y="6" width="20" height="13" rx="3" stroke="#fff" strokeWidth="1.6" />
+          <path d="M2 10.5h20" stroke="#fff" strokeWidth="1.6" />
+          <circle cx="6.5" cy="14.5" r="1" fill="#fff" />
+        </svg>
+        <span style={{ fontSize: 13.5, fontWeight: 600, letterSpacing: "-0.01em" }}>Ajouter à Apple Wallet</span>
+      </div>
+
       <p style={{ fontSize: 10, color: "#64748b" }}>Aperçu fidèle Apple Wallet</p>
     </div>
   );
