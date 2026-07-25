@@ -16,25 +16,29 @@ const quickActions = [
 ];
 
 export default function DashboardPage() {
-  const { customers, rewards, activity, settings, walletConfig, loyaltyCards } = useStore();
+  const { customers, rewards, activity, serverRedemptions, loyaltyCards } = useStore();
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
 
   const stats = useMemo(() => {
-    const active = customers.filter((c) => c.status !== "inactive").length;
+    const now = Date.now();
+    // "Actif" = a visité dans les 30 derniers jours (même définition que l'Analytics)
+    const active = customers.filter((c) => c.lastVisit && now - new Date(c.lastVisit).getTime() < 30 * DAY_MS).length;
     const totalVisits = customers.reduce((s, c) => s + c.totalVisits, 0);
-    const totalRewards = customers.reduce((s, c) => s + c.rewardsUsed, 0);
-    const retention =
-      customers.length > 0
-        ? Math.round((customers.filter((c) => c.status === "active" || c.status === "vip").length / customers.length) * 100)
-        : 0;
+    const totalRewards = serverRedemptions.length;
+    const retained = customers.filter((c) => c.totalVisits > 1).length;
+    const retention = customers.length > 0 ? Math.round((retained / customers.length) * 100) : 0;
     return [
       { title: "Clients actifs", value: String(active), icon: Users, subtitle: `${customers.length} inscrits au total` },
       { title: "Visites totales", value: String(totalVisits), icon: Star, subtitle: "depuis le début" },
       { title: "Récompenses utilisées", value: String(totalRewards), icon: Gift, subtitle: "depuis le début" },
-      { title: "Taux de rétention", value: `${retention}%`, icon: TrendingUp, subtitle: "actifs / total inscrits" },
+      { title: "Taux de rétention", value: `${retention}%`, icon: TrendingUp, subtitle: "clients fidèles / total inscrits" },
     ];
-  }, [customers]);
+  }, [customers, serverRedemptions]);
 
-  // Build 30-day visitor data from activity log
+  // 30 derniers jours — reconstruit depuis les données persistées (join_date pour les
+  // nouveaux clients, dernière visite connue comme indicateur d'activité par jour) ;
+  // le journal d'activité local (session) vient compléter si des actions viennent d'avoir lieu
   const visitorData = useMemo(() => {
     const map = new Map<string, { visits: number; newClients: number }>();
     for (let i = 29; i >= 0; i--) {
@@ -42,6 +46,16 @@ export default function DashboardPage() {
       d.setDate(d.getDate() - i);
       map.set(d.toISOString().split("T")[0], { visits: 0, newClients: 0 });
     }
+    customers.forEach((c) => {
+      if (c.joinDate) {
+        const day = c.joinDate.split("T")[0];
+        if (map.has(day)) map.get(day)!.newClients++;
+      }
+      if (c.lastVisit) {
+        const day = c.lastVisit.split("T")[0];
+        if (map.has(day)) map.get(day)!.visits++;
+      }
+    });
     activity.forEach((item) => {
       const day = item.time.split("T")[0];
       if (!map.has(day)) return;
@@ -50,9 +64,25 @@ export default function DashboardPage() {
       if (item.type === "new_client") curr.newClients++;
     });
     return Array.from(map.entries()).map(([date, d]) => ({ date, ...d }));
-  }, [activity]);
+  }, [customers, activity]);
 
-  const recentActivity = activity.slice(0, 7);
+  // Activité récente : le journal de session live, complété par l'historique réel
+  // persisté (inscriptions + récompenses) si l'onglet vient d'être ouvert
+  const recentActivity = useMemo(() => {
+    if (activity.length > 0) return activity.slice(0, 7);
+    const fromJoins = customers
+      .filter((c) => c.joinDate)
+      .map((c) => ({ id: `join-${c.id}`, type: "new_client" as const, customerName: c.name, description: "Nouveau client inscrit", time: c.joinDate }));
+    const fromRedemptions = serverRedemptions.map((r) => ({
+      id: `red-${r.id}`, type: "reward" as const,
+      customerName: customers.find((c) => c.id === r.customerId)?.name ?? "Client",
+      description: `${r.rewardEmoji} ${r.rewardName}`, time: r.redeemedAt,
+    }));
+    return [...fromJoins, ...fromRedemptions]
+      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+      .slice(0, 7);
+  }, [activity, customers, serverRedemptions]);
+
   const hasData = customers.length > 0;
 
   const hasCard = loyaltyCards.length > 0;
@@ -191,19 +221,29 @@ export default function DashboardPage() {
         })}
       </section>
 
-      {/* Programme summary */}
-      <div className="flex items-center gap-3 rounded-xl border border-black/[0.06] bg-white px-4 py-3">
-        <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-emerald-500" />
-        <p className="text-[12.5px] text-slate-500">
-          <span className="font-medium text-slate-700">
-            {settings.loyaltyMode === "stamps" ? "Programme tampons" : "Programme points"}
-          </span>
-          {settings.loyaltyMode === "stamps"
-            ? ` · ${settings.stampsRequired} tampons pour une récompense`
-            : ` · ${settings.pointsPerEuro} points par euro`}
-          {rewards.length > 0 && ` · ${rewards.length} récompense${rewards.length > 1 ? "s" : ""} configurée${rewards.length > 1 ? "s" : ""}`}
-        </p>
-      </div>
+      {/* Programme summary — reflète les vraies cartes configurées, pas un réglage global legacy */}
+      {loyaltyCards.length > 0 && (
+        <div className="flex items-center gap-3 rounded-xl border border-black/[0.06] bg-white px-4 py-3">
+          <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-emerald-500" />
+          <p className="text-[12.5px] text-slate-500">
+            {loyaltyCards.length === 1 ? (
+              <>
+                <span className="font-medium text-slate-700">
+                  {loyaltyCards[0].loyaltyMode === "stamps" ? "Programme tampons" : "Programme points"}
+                </span>
+                {loyaltyCards[0].loyaltyMode === "stamps"
+                  ? ` · ${loyaltyCards[0].stampsRequired} tampons pour une récompense`
+                  : ` · ${loyaltyCards[0].pointsPerEuro} points par euro`}
+              </>
+            ) : (
+              <span className="font-medium text-slate-700">
+                {loyaltyCards.length} programmes actifs ({loyaltyCards.map((c) => c.name).join(", ")})
+              </span>
+            )}
+            {rewards.length > 0 && ` · ${rewards.length} récompense${rewards.length > 1 ? "s" : ""} configurée${rewards.length > 1 ? "s" : ""}`}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

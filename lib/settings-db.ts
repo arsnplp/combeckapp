@@ -27,6 +27,7 @@ export interface TenantReward {
   cost: number;
   mode: "stamps" | "points";
   usageCount?: number;
+  active?: boolean;
 }
 
 export interface TenantProduct {
@@ -88,6 +89,10 @@ function mapReward(r: RewardRow): TenantReward {
     id: r.id, name: r.name, description: r.description, emoji: r.emoji,
     cost: r.cost, mode: r.mode as "stamps" | "points",
     usageCount: r.usage_count,
+    // Pas de colonne DB ni de bascule dans l'UI pour désactiver une récompense
+    // aujourd'hui — toujours "active" (évite le badge "Inactif" trompeur après
+    // chaque rechargement, qui s'affichait pour tous les commerçants)
+    active: true,
   };
 }
 

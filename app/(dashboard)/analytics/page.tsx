@@ -17,7 +17,7 @@ function EmptyChart() {
 }
 
 export default function AnalyticsPage() {
-  const { customers, rewards } = useStore();
+  const { customers, rewards, serverRedemptions } = useStore();
 
   const now = Date.now();
   const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
@@ -56,7 +56,7 @@ export default function AnalyticsPage() {
   const sortedRewards = [...rewards].sort((a, b) => b.usageCount - a.usageCount);
   const bestReward = sortedRewards.find((r) => r.usageCount > 0);
 
-  const withRewards = customers.filter((c) => c.rewardsUsed > 0).length;
+  const withRewards = new Set(serverRedemptions.map((r) => r.customerId)).size;
   const redemptionRate = totalClients === 0 ? 0 : Math.round((withRewards / totalClients) * 100);
 
   const weeklyData = Array.from({ length: 12 }, (_, i) => {
@@ -119,7 +119,7 @@ export default function AnalyticsPage() {
     {
       label: "Taux de rachat",
       value: totalClients === 0 ? "—" : `${redemptionRate}%`,
-      sub: `${withRewards} client${withRewards > 1 ? "s" : ""} ont utilisé une récompense`,
+      sub: `${withRewards} client${withRewards > 1 ? "s" : ""} ${withRewards > 1 ? "ont" : "a"} utilisé une récompense`,
       icon: RefreshCw,
       color: "#8b5cf6",
       bg: "rgba(139,92,246,0.12)",
