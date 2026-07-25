@@ -59,7 +59,7 @@ export default function WalletPreview({
         <div style={{ padding: "5px 14px 4px", background: "#000", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 9, color: "#444" }}>‹ Wallet</span>
           <span style={{ fontSize: 8, color: "#555" }}>Carte Fidélité</span>
-          <span style={{ width: 20 }} />
+          <span style={{ fontSize: 10, color: "#444", letterSpacing: 1 }}>•••</span>
         </div>
 
         {/* Pass card */}
@@ -89,11 +89,17 @@ export default function WalletPreview({
           {/* ── Primary field: client name ── */}
           <div style={{ padding: "4px 14px 2px" }}>
             <p style={{ fontSize: 28, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em", lineHeight: 1.1 }}>{clientName}</p>
-            <p style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", marginTop: 2, letterSpacing: "0.06em" }}>CLIENT</p>
+            <p style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", marginTop: 3, display: "flex", alignItems: "center", gap: 4 }}>
+              Cliente fidèle depuis 12/2023
+              <span style={{ color: "#4ade80" }}>✓</span>
+            </p>
           </div>
 
           {/* ── Stamps circles OR points bar ── */}
           <div style={{ padding: "10px 14px 4px" }}>
+            <p style={{ fontSize: 8, color: accent, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>
+              VOTRE PROGRESSION
+            </p>
             {isStamps ? (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                 {Array.from({ length: stampsRequired }).map((_, i) => (
@@ -142,10 +148,11 @@ export default function WalletPreview({
             <p style={{ fontSize: 11, fontWeight: 600, color: campaignMessage ? "rgba(255,255,255,0.92)" : `${accent}40`, lineHeight: 1.3, flex: 1 }}>
               {campaignMessage || "Aucune notification"}
             </p>
+            <span style={{ fontSize: 12, color: `${accent}50`, flexShrink: 0 }}>›</span>
           </div>
 
           {/* ── QR code ── */}
-          <div style={{ padding: "4px 14px 14px", display: "flex", justifyContent: "center" }}>
+          <div style={{ padding: "4px 14px 6px", display: "flex", justifyContent: "center" }}>
             {qrDataUrl ? (
               <div style={{ width: 110, height: 110, borderRadius: 10, background: "#fff", padding: 5 }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -157,6 +164,9 @@ export default function WalletPreview({
               </div>
             )}
           </div>
+          <p style={{ padding: "0 14px 14px", textAlign: "center", fontSize: 9, color: "rgba(255,255,255,0.4)" }}>
+            Présentez ce code en caisse
+          </p>
         </div>
       </div>
 
