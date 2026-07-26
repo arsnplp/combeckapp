@@ -61,39 +61,35 @@ function LoginForm() {
         <div className="absolute -bottom-32 -left-32 h-96 w-96 rounded-full bg-green-600/20 blur-3xl" />
         <div className="absolute -top-32 -right-32 h-96 w-96 rounded-full bg-green-600/10 blur-3xl" />
 
-        {/* Logo + promesse */}
+        {/* Logo */}
         <div className="relative">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Comeback" className="h-8 w-auto object-contain brightness-0 invert" />
-          <p className="mt-7 max-w-sm text-[19px] font-bold leading-snug text-white">
-            📈 Augmentez votre chiffre d&apos;affaires sur le long terme,{" "}
-            <span className="text-green-400">pour une activité plus stable et croissante.</span>
-          </p>
-          <p className="mt-2 text-[13px] leading-relaxed text-slate-400">
-            Des clients qui reviennent, c&apos;est un revenu qui se construit — pas qui se subit.
-          </p>
         </div>
 
         {/* Hero */}
-        <div className="relative space-y-8">
+        <div className="relative flex flex-1 flex-col justify-center space-y-10 py-10">
           <div>
-            <h2 className="text-[28px] font-bold leading-snug text-white">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-green-400 ring-1 ring-inset ring-green-500/25">
+              ✦ Fidélité digitale
+            </span>
+            <h2 className="mt-5 text-[34px] font-extrabold leading-[1.15] tracking-tight text-white">
               Le programme de fidélité<br />
               <span className="text-green-400">pensé pour les pros</span>
             </h2>
-            <p className="mt-3 text-[14px] leading-relaxed text-slate-400">
-              Créez votre carte Apple Wallet, fidélisez vos clients<br />et boostez vos revenus en quelques minutes.
+            <p className="mt-4 max-w-sm text-[14.5px] leading-relaxed text-slate-400">
+              Créez votre carte Apple Wallet, fidélisez vos clients et boostez vos revenus en quelques minutes.
             </p>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {FEATURES.map(({ icon: Icon, label, desc }) => (
-              <div key={label} className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white/[0.07]">
-                  <Icon className="h-3.5 w-3.5 text-green-400" />
+              <div key={label} className="flex items-center gap-3.5 rounded-2xl bg-white/[0.045] p-3.5 ring-1 ring-inset ring-white/[0.06] transition-colors hover:bg-white/[0.07]">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-green-500/15 ring-1 ring-inset ring-green-500/20">
+                  <Icon className="h-[18px] w-[18px] text-green-400" />
                 </div>
                 <div>
-                  <p className="text-[13px] font-semibold text-white">{label}</p>
+                  <p className="text-[13.5px] font-semibold text-white">{label}</p>
                   <p className="text-[12px] text-slate-400">{desc}</p>
                 </div>
               </div>
