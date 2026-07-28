@@ -9,7 +9,7 @@ import type { PlanId } from "@/types";
 
 const PLAN_INFO: Record<PlanId, { label: string; price: number; color: string }> = {
   free:     { label: "Essai gratuit", price: 0, color: "text-emerald-700 bg-emerald-50" },
-  starter:  { label: "Starter",  price: 19, color: "text-slate-600 bg-slate-100" },
+  starter:  { label: "Starter",  price: 0,  color: "text-slate-600 bg-slate-100" },
   pro:      { label: "Pro",      price: 49, color: "text-green-700 bg-green-50" },
   business: { label: "Business", price: 99, color: "text-violet-700 bg-violet-50" },
 };
@@ -20,6 +20,8 @@ function SignupForm() {
   const planParam = params.get("plan") as PlanId | null;
   const plan: PlanId = planParam && planParam in PLAN_INFO ? planParam : "starter";
   const planInfo = PLAN_INFO[plan];
+  // Starter est gratuit à vie (comme l'essai) : pas de cycle de facturation à choisir
+  const isFreePlan = plan === "free" || plan === "starter";
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">(
     params.get("billing") === "annual" ? "annual" : "monthly",
   );
@@ -71,7 +73,7 @@ function SignupForm() {
         return;
       }
 
-      // Plan payant → Stripe Checkout directement
+      // Starter (gratuit) ou plan payant → active/checkout via le même endpoint
       const co = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -82,7 +84,8 @@ function SignupForm() {
         window.location.href = coData.url;
         return;
       }
-      // Paiement indisponible : le compte existe, on continue vers le dashboard
+      // Starter activé directement (gratuit) ou paiement indisponible :
+      // le compte existe dans les deux cas, on continue vers le dashboard
       router.push("/dashboard");
       router.refresh();
     } catch {
@@ -109,9 +112,11 @@ function SignupForm() {
             <p className="mt-3 text-[14px] leading-relaxed text-slate-400">
               {plan === "free"
                 ? "Gratuit 30 jours · Toutes les fonctionnalités Business · Sans carte bancaire"
-                : billingCycle === "annual"
-                  ? `${Math.round(planInfo.price * 12 * 0.8)}€ / an (soit ${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12)}€/mois, -20 %)`
-                  : `${planInfo.price}€ / mois · Sans engagement`}
+                : plan === "starter"
+                  ? "Gratuit à vie · 30 clients maximum · Sans carte bancaire"
+                  : billingCycle === "annual"
+                    ? `${Math.round(planInfo.price * 12 * 0.8)}€ / an (soit ${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12)}€/mois, -20 %)`
+                    : `${planInfo.price}€ / mois · Sans engagement`}
             </p>
           </div>
           <div className="space-y-2.5">
@@ -140,7 +145,9 @@ function SignupForm() {
             {plan === "pro" && <Star className="h-3 w-3" fill="currentColor" />}
             {plan === "free"
               ? "Essai gratuit — 30 jours offerts, niveau Business"
-              : `Plan ${planInfo.label} — ${billingCycle === "annual" ? `${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12)}€/mois facturé annuellement` : `${planInfo.price}€/mois`}`}
+              : plan === "starter"
+                ? "Plan Starter — Gratuit à vie"
+                : `Plan ${planInfo.label} — ${billingCycle === "annual" ? `${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12)}€/mois facturé annuellement` : `${planInfo.price}€/mois`}`}
           </div>
 
           <div className="mb-6">
@@ -148,8 +155,8 @@ function SignupForm() {
             <p className="mt-1 text-[14px] text-slate-500">Quelques secondes suffisent</p>
           </div>
 
-          {/* Choix du cycle de facturation (plans payants) */}
-          {plan !== "free" && (
+          {/* Choix du cycle de facturation (plans payants uniquement — Starter est gratuit) */}
+          {!isFreePlan && (
             <div className="mb-6 grid grid-cols-2 gap-2">
               <button
                 type="button"

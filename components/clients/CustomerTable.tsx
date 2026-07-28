@@ -11,6 +11,7 @@ export type EnrichedCustomer = Customer & {
   rank: RankType;
   referrals?: number;        // nombre total d'amis parrainés (crédités)
   referralsPending?: number; // filleuls inscrits mais pas encore venus
+  frozen?: boolean;          // au-delà de la limite clients du plan (downgrade) — soldes conservés, plus de cumul
 };
 
 interface CustomerTableProps {
@@ -126,6 +127,11 @@ export default function CustomerTable({ customers, onSelect, selectedIds, onSele
                   <div className="flex items-center gap-1.5">
                     <p className="truncate text-[14px] font-semibold leading-tight text-slate-800">{customer.name}</p>
                     {customer.rank !== "none" && <span className="flex-shrink-0 text-[13px]">{rankEmoji}</span>}
+                    {customer.frozen && (
+                      <span className="flex-shrink-0 rounded-full bg-sky-50 border border-sky-200 px-1.5 py-0.5 text-[9.5px] font-semibold text-sky-600" title="Au-delà de la limite du plan — soldes conservés, plus de cumul">
+                        🧊 Gelé
+                      </span>
+                    )}
                   </div>
                   <p className="truncate text-[12px] text-slate-400">{customer.email || customer.phone || "—"}</p>
                 </div>
@@ -190,7 +196,14 @@ export default function CustomerTable({ customers, onSelect, selectedIds, onSele
                     <div className="flex items-center gap-2.5">
                       <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-green-600 text-[11px] font-bold text-white">{initials}</div>
                       <div className="min-w-0">
-                        <p className="text-[13px] font-medium text-slate-800 leading-tight">{customer.name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-[13px] font-medium text-slate-800 leading-tight">{customer.name}</p>
+                          {customer.frozen && (
+                            <span className="flex-shrink-0 rounded-full bg-sky-50 border border-sky-200 px-1.5 py-0.5 text-[9.5px] font-semibold text-sky-600" title="Au-delà de la limite du plan — soldes conservés, plus de cumul">
+                              🧊 Gelé
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[11.5px] text-slate-400 truncate max-w-[160px]">{customer.email || customer.phone || "—"}</p>
                       </div>
                     </div>

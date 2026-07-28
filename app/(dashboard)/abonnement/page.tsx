@@ -31,7 +31,11 @@ export default function AbonnementPage() {
     setPortalLoading(false);
   };
 
-  const isFree = info?.plan === "free";
+  const isTrial = info?.plan === "free";
+  // Starter est gratuit à vie, sans Stripe — même traitement que l'essai
+  // pour l'affichage (pas de facturation, pas de bouton portail Stripe).
+  const isStarterFree = info?.plan === "starter";
+  const noStripeBilling = isTrial || isStarterFree;
 
   return (
     <div className="space-y-6">
@@ -47,20 +51,22 @@ export default function AbonnementPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-green-200 bg-green-50/60 p-5">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-100">
-              {isFree ? <Gift className="h-5 w-5 text-green-700" /> : <CreditCard className="h-5 w-5 text-green-700" />}
+              {noStripeBilling ? <Gift className="h-5 w-5 text-green-700" /> : <CreditCard className="h-5 w-5 text-green-700" />}
             </div>
             <div>
               <p className="text-[15px] font-bold text-slate-900">Plan actuel : {info.label}</p>
               <p className="text-[12.5px] text-slate-500">
-                {isFree
+                {isTrial
                   ? info.daysLeft !== null
                     ? `Essai gratuit (niveau Business) — ${info.daysLeft} jour${info.daysLeft > 1 ? "s" : ""} restant${info.daysLeft > 1 ? "s" : ""}`
                     : "Essai gratuit (niveau Business)"
-                  : "Renouvellement automatique — géré par Stripe"}
+                  : isStarterFree
+                    ? "Plan gratuit à vie — aucune carte bancaire requise"
+                    : "Renouvellement automatique — géré par Stripe"}
               </p>
             </div>
           </div>
-          {!isFree && (
+          {!noStripeBilling && (
             <button onClick={openPortal} disabled={portalLoading}
               className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-slate-800 disabled:opacity-60 transition-colors">
               {portalLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}

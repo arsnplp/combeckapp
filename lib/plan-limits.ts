@@ -20,7 +20,7 @@ export const PLAN_LIMITS: Record<PlanId, {
     analyticsHistoryDays: 730,
   },
   starter: {
-    clients: 50,
+    clients: 30,
     notifs: 1000,
     cards: 1,
     targetingAdvanced: false,
@@ -55,9 +55,10 @@ export const PLAN_LABELS: Record<PlanId, string> = {
   business: "Business",
 };
 
+// Starter est gratuit à vie (plafonné en clients) — ne passe jamais par Stripe.
 export const PLAN_PRICES: Record<PlanId, number> = {
   free:     0,
-  starter:  19,
+  starter:  0,
   pro:      49,
   business: 99,
 };

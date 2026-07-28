@@ -2,17 +2,18 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Check, Zap, Star, Gift, Loader2 } from "lucide-react";
 
 const PLANS = [
   {
     id: "starter",
     name: "Starter",
-    price: 19,
-    description: "Idéal pour démarrer",
+    price: 0,
+    description: "Gratuit à vie — idéal pour démarrer",
     highlight: false,
     features: [
-      "50 clients maximum",
+      "30 clients maximum",
       "1 000 notifications / mois",
       "1 carte de fidélité",
       "Ciblage basique (tous les clients)",
@@ -59,6 +60,7 @@ const annualTotal = (p: number) => Math.round(p * 12 * 0.8);
 const annualMonthly = (p: number) => Math.round(annualTotal(p) / 12);
 
 export default function TarifsPage() {
+  const router = useRouter();
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
   // Connecté ? (401 = non) — permet de payer directement sans repasser par signup
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
@@ -87,6 +89,8 @@ export default function TarifsPage() {
         body: JSON.stringify({ plan: planId, billingCycle: billing }),
       });
       const data = await res.json();
+      // Starter (gratuit) : activé directement, pas de paiement Stripe
+      if (res.ok && data.activated) { router.push("/dashboard"); router.refresh(); return; }
       if (res.ok && data.url) { window.location.href = data.url; return; }
       setPayError(data?.error ?? "Paiement indisponible pour le moment.");
     } catch {
@@ -203,21 +207,30 @@ export default function TarifsPage() {
 
                 <div className="mb-5">
                   <p className="text-[13px] font-semibold uppercase tracking-wider text-slate-400">{plan.name}</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {billing === "annual" && (
-                      <span className="text-[20px] font-semibold text-slate-300 line-through">{plan.price}€</span>
-                    )}
-                    <span className="text-[38px] font-bold leading-none text-slate-900">
-                      {billing === "monthly" ? plan.price : annualMonthly(plan.price)}€
-                    </span>
-                    <span className="text-[14px] text-slate-400">/mois</span>
-                    {billing === "annual" && (
-                      <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11.5px] font-bold text-green-400">
-                        économisez {plan.price * 12 - annualTotal(plan.price)}€
+                  {plan.price === 0 ? (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-[38px] font-bold leading-none text-slate-900">Gratuit</span>
+                      <span className="rounded-full bg-green-100 px-2.5 py-1 text-[11.5px] font-bold text-green-700">à vie</span>
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {billing === "annual" && (
+                        <span className="text-[20px] font-semibold text-slate-300 line-through">{plan.price}€</span>
+                      )}
+                      <span className="text-[38px] font-bold leading-none text-slate-900">
+                        {billing === "monthly" ? plan.price : annualMonthly(plan.price)}€
                       </span>
-                    )}
-                  </div>
-                  {billing === "annual" ? (
+                      <span className="text-[14px] text-slate-400">/mois</span>
+                      {billing === "annual" && (
+                        <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11.5px] font-bold text-green-400">
+                          économisez {plan.price * 12 - annualTotal(plan.price)}€
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {plan.price === 0 ? (
+                    <p className="mt-1 text-[12px] text-slate-400">Aucune carte bancaire requise</p>
+                  ) : billing === "annual" ? (
                     <p className="mt-1 text-[12px] text-slate-400">Facturé {annualTotal(plan.price)}€ / an</p>
                   ) : (
                     <p className="mt-1 text-[12px] text-slate-400">Sans engagement</p>

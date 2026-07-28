@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Check, Star, Loader2, AlertTriangle } from "lucide-react";
 
 const PLANS = [
   {
-    id: "starter", name: "Starter", price: 19, highlight: false,
-    features: ["50 clients maximum", "1 000 notifications / mois", "1 carte de fidélité", "Stats sur 7 jours"],
+    id: "starter", name: "Starter", price: 0, highlight: false,
+    features: ["Gratuit à vie", "30 clients maximum", "1 000 notifications / mois", "1 carte de fidélité", "Stats sur 7 jours"],
   },
   {
     id: "pro", name: "Pro", price: 49, highlight: true,
@@ -24,6 +25,7 @@ const annualMonthly = (p: number) => Math.round(annualTotal(p) / 12);
 interface Usage { clients: number; cards: number; }
 
 export default function PlanChooser({ currentPlan }: { currentPlan?: string | null }) {
+  const router = useRouter();
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
   const [paying, setPaying] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -55,6 +57,8 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
         body: JSON.stringify({ plan: planId, billingCycle: billing }),
       });
       const data = await res.json();
+      // Starter (gratuit) : activé directement, pas de paiement Stripe
+      if (res.ok && data.activated) { router.push("/dashboard"); router.refresh(); return; }
       if (res.ok && data.url) { window.location.href = data.url; return; }
       setError(data?.error ?? "Paiement indisponible.");
     } catch { setError("Erreur réseau."); }
@@ -72,9 +76,9 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
     const losses: string[] = [];
     if (planId === "starter") {
       losses.push(
-        usage && usage.clients > 50
-          ? `Limite de 50 clients — vous en avez déjà ${usage.clients} : vous ne pourrez plus en accueillir de nouveaux`
-          : `Limité à 50 clients (vous en avez ${usage?.clients ?? 0})`,
+        usage && usage.clients > 30
+          ? `Limite de 30 clients — vous en avez déjà ${usage.clients} : vous garderez vos 30 premiers clients inscrits (les plus anciens), les ${usage.clients - 30} autres seront gelés et ne pourront plus cumuler de tampons/points tant que vous ne repassez pas à un plan supérieur`
+          : `Limité à 30 clients (vous en avez ${usage?.clients ?? 0})`,
         usage && usage.cards > 1
           ? `1 seule carte de fidélité active — vos ${usage.cards - 1} autre${usage.cards > 2 ? "s" : ""} carte${usage.cards > 2 ? "s" : ""} seront gelées : plus aucune nouvelle inscription dessus (les clients et soldes existants sont conservés)`
           : "1 seule carte de fidélité",
@@ -146,22 +150,31 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
               )}
 
               <p className="text-[12px] font-semibold uppercase tracking-wider text-slate-400">{plan.name}</p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                {billing === "annual" && (
-                  <span className="text-[16px] font-semibold text-slate-300 line-through">{plan.price}€</span>
-                )}
-                <span className="text-[30px] font-bold leading-none text-slate-900">
-                  {billing === "monthly" ? plan.price : annualMonthly(plan.price)}€
-                </span>
-                <span className="text-[13px] text-slate-400">/mois</span>
-                {billing === "annual" && (
-                  <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10.5px] font-bold text-green-400">
-                    économisez {plan.price * 12 - annualTotal(plan.price)}€
-                  </span>
-                )}
-              </div>
-              {billing === "annual" && (
-                <p className="mt-0.5 text-[11.5px] text-slate-400">Facturé {annualTotal(plan.price)}€ / an</p>
+              {plan.price === 0 ? (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <span className="text-[30px] font-bold leading-none text-slate-900">Gratuit</span>
+                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10.5px] font-bold text-green-700">à vie</span>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    {billing === "annual" && (
+                      <span className="text-[16px] font-semibold text-slate-300 line-through">{plan.price}€</span>
+                    )}
+                    <span className="text-[30px] font-bold leading-none text-slate-900">
+                      {billing === "monthly" ? plan.price : annualMonthly(plan.price)}€
+                    </span>
+                    <span className="text-[13px] text-slate-400">/mois</span>
+                    {billing === "annual" && (
+                      <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10.5px] font-bold text-green-400">
+                        économisez {plan.price * 12 - annualTotal(plan.price)}€
+                      </span>
+                    )}
+                  </div>
+                  {billing === "annual" && (
+                    <p className="mt-0.5 text-[11.5px] text-slate-400">Facturé {annualTotal(plan.price)}€ / an</p>
+                  )}
+                </>
               )}
 
               <ul className="mb-5 mt-4 flex-1 space-y-2">

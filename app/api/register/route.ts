@@ -4,6 +4,7 @@ import {
   db_deleteCustomer, db_getAll, findTenantByCardId,
   db_deductReward, db_addRedemption, db_incrementRewardUsage,
   db_recordPendingReferral, db_creditPendingReferrals, db_wouldReferralSucceed,
+  db_computeFrozenCustomerIds, db_getCustomerIdForCard,
 } from "@/lib/server-db";
 import { walletNotificationService } from "@/lib/wallet-notification-service";
 import { auth } from "@/auth";
@@ -325,6 +326,25 @@ export async function PATCH(req: NextRequest) {
     const patchUser = await getUserById(tenantId);
     if (isTrialExpired(patchUser)) {
       return NextResponse.json({ error: "Essai terminé — choisissez un plan pour continuer." }, { status: 403 });
+    }
+    // Client gelé (au-delà de la limite du plan après un downgrade) : le
+    // commerçant garde ses données mais ne peut plus faire cumuler ce client
+    // tant qu'il n'est pas repassé à un plan supérieur. Recalculé à chaque
+    // appel (jamais stocké) — même principe que le gel des cartes.
+    if ((action === "stamp" || action === "points") && patchUser) {
+      const maxClients = (PLAN_LIMITS[patchUser.plan] ?? PLAN_LIMITS["starter"]).clients;
+      if (maxClients !== Infinity) {
+        const custId = await db_getCustomerIdForCard(tenantId, customerCardId);
+        if (custId) {
+          const frozen = await db_computeFrozenCustomerIds(tenantId, maxClients);
+          if (frozen.has(custId)) {
+            return NextResponse.json(
+              { error: "Ce client est au-delà de la limite de votre plan. Passez à un plan supérieur pour réactiver son compte." },
+              { status: 403 },
+            );
+          }
+        }
+      }
     }
     if (action === "stamp") {
       const card = await db_addStamp(tenantId, customerCardId);

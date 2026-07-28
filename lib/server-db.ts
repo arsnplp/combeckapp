@@ -97,6 +97,20 @@ export async function db_getAll(tenantId: string): Promise<DbShape> {
   };
 }
 
+// Clients "gelés" au-delà de la limite du plan : calculé à la volée à chaque
+// appel (jamais stocké) — même principe que le gel des cartes de fidélité.
+// Les `maxClients` premiers clients par ancienneté (join_date) restent actifs ;
+// les autres sont gelés (données conservées, plus aucun cumul de tampons/points
+// tant que le commerçant ne repasse pas à un plan supérieur).
+export async function db_computeFrozenCustomerIds(tenantId: string, maxClients: number): Promise<Set<string>> {
+  if (maxClients === Infinity) return new Set();
+  const { data } = await supabase().from("customers")
+    .select("id, join_date").eq("merchant_id", tenantId).order("join_date");
+  const all = data ?? [];
+  if (all.length <= maxClients) return new Set();
+  return new Set(all.slice(maxClients).map((c) => c.id as string));
+}
+
 const TWO_HOURS = 2 * 60 * 60 * 1000;
 
 async function maybeRecordVisit(customerId: string): Promise<void> {
@@ -149,6 +163,12 @@ async function getCardInTenant(tenantId: string, customerCardId: string): Promis
   const { data } = await supabase().from("customer_cards").select("*")
     .eq("id", customerCardId).eq("merchant_id", tenantId).maybeSingle();
   return (data as CardRow) ?? null;
+}
+
+/** ID du client propriétaire d'une carte — utilisé pour vérifier le gel (limite clients du plan). */
+export async function db_getCustomerIdForCard(tenantId: string, customerCardId: string): Promise<string | null> {
+  const cc = await getCardInTenant(tenantId, customerCardId);
+  return cc?.customer_id ?? null;
 }
 
 export async function db_addStamp(tenantId: string, customerCardId: string): Promise<DbCustomerCard | null> {

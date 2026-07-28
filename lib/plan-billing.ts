@@ -9,8 +9,9 @@ export interface PlanInfo {
 }
 
 // Annuel : ~-20 %, arrondi à l'euro (le prix affiché = le prix facturé)
+// Starter n'apparaît PAS ici : il est gratuit à vie et ne passe jamais par
+// Stripe (voir activateStarterFree ci-dessous).
 export const PLAN_PRICING = {
-  starter: { monthly: 19, annual: 182 },
   pro: { monthly: 49, annual: 470 },
   business: { monthly: 99, annual: 950 },
 } as const;
@@ -68,7 +69,8 @@ export function isTrialExpired(user: { plan: string; planExpiresAt?: string | nu
 
 /** Plan + cycle depuis un ID de prix Stripe (source de vérité de la facture). */
 export function planFromPriceId(priceId: string): { plan: PlanId; billingCycle: "monthly" | "annual" } | null {
-  for (const plan of ["starter", "pro", "business"] as PlanId[]) {
+  // Starter est gratuit (pas de prix Stripe) — jamais retourné ici.
+  for (const plan of ["pro", "business"] as PlanId[]) {
     for (const cycle of ["monthly", "annual"] as const) {
       const key = `STRIPE_PRICE_${plan.toUpperCase()}_${cycle === "monthly" ? "MONTHLY" : "ANNUAL"}`;
       if (process.env[key] === priceId) return { plan, billingCycle: cycle };
@@ -81,6 +83,19 @@ export function planFromPriceId(priceId: string): { plan: PlanId; billingCycle: 
 export function stripePriceId(plan: string, billingCycle: "monthly" | "annual"): string | null {
   const key = `STRIPE_PRICE_${plan.toUpperCase()}_${billingCycle === "monthly" ? "MONTHLY" : "ANNUAL"}`;
   return process.env[key] ?? null;
+}
+
+/**
+ * Active le plan Starter gratuit à vie (pas d'expiration — contrairement à
+ * l'essai qui est du niveau Business mais limité à 30 jours). N'annule PAS
+ * un abonnement Stripe existant : c'est à l'appelant (route qui a le client
+ * Stripe sous la main) de le faire avant d'appeler cette fonction.
+ */
+export async function activateStarterFree(merchantId: string): Promise<void> {
+  await supabase().from("merchants").update({
+    plan: "starter",
+    plan_expires_at: null,
+  }).eq("id", merchantId);
 }
 
 export async function downgradePlan(merchantId: string): Promise<void> {

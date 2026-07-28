@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import QRCode from "qrcode";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -534,6 +534,15 @@ export default function ClientsPage() {
     return customers.filter((c) => !assigned.has(c.id)).length;
   })();
 
+  // Clients "gelés" au-delà de la limite du plan (après un downgrade) — les
+  // maxClients premiers par ancienneté restent actifs, recalculé à chaque
+  // rendu (même principe que le gel des cartes de fidélité, jamais stocké).
+  const frozenCustomerIds = useMemo(() => {
+    if (maxClients === null || customers.length <= maxClients) return new Set<string>();
+    const sorted = [...customers].sort((a, b) => (a.joinDate ?? "").localeCompare(b.joinDate ?? ""));
+    return new Set(sorted.slice(maxClients).map((c) => c.id));
+  }, [customers, maxClients]);
+
   const tableCustomers: EnrichedCustomer[] = customersInFolder.map((c) => {
     const ccs = customerCards.filter((cc) => cc.customerId === c.id);
     const firstCard = loyaltyCards.find((card) => ccs.some((cc) => cc.cardId === card.id)) ?? null;
@@ -544,6 +553,7 @@ export default function ClientsPage() {
       rank: computeRank(c, firstCard),
       referrals: ccs.reduce((s, cc) => s + (cc.referralCount ?? 0), 0),
       referralsPending: ccs.reduce((s, cc) => s + (cc.pendingReferrals ?? 0), 0),
+      frozen: frozenCustomerIds.has(c.id),
     };
   });
 
@@ -561,7 +571,9 @@ export default function ClientsPage() {
               {customers.length}/{maxClients} clients — les nouvelles inscriptions sont bloquées
             </p>
             <p className="text-[12px] text-red-700/70">
-              Vos clients actuels continuent de cumuler normalement, mais personne ne peut plus rejoindre votre programme.
+              {frozenCustomerIds.size > 0
+                ? `${frozenCustomerIds.size} client${frozenCustomerIds.size > 1 ? "s" : ""} au-delà de la limite ${frozenCustomerIds.size > 1 ? "sont gelés" : "est gelé"} (🧊 ci-dessous) — soldes conservés, mais plus aucun cumul tant que vous restez sur ce plan.`
+                : "Vos clients actuels continuent de cumuler normalement, mais personne ne peut plus rejoindre votre programme."}
             </p>
           </div>
           <a href="/abonnement"

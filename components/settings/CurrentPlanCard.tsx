@@ -18,7 +18,7 @@ const PLAN_DISPLAY: Record<string, {
     text: "text-green-700", sub: "text-green-700/60",
   },
   starter: {
-    features: ["Jusqu'à 50 clients", "1 000 notifications / mois", "1 carte de fidélité", "Parrainage inclus"],
+    features: ["Jusqu'à 30 clients", "1 000 notifications / mois", "1 carte de fidélité", "Parrainage inclus", "Gratuit à vie"],
     next: { label: "Passer au plan Pro" },
     accent: "#475569", border: "rgba(71,85,105,0.2)",
     bg: "linear-gradient(135deg, rgba(71,85,105,0.06), rgba(100,116,139,0.03))",
@@ -107,10 +107,14 @@ export default function CurrentPlanCard() {
             )
           ) : (
             info.priceMonthly !== null && (
-              <>
-                <p className="text-2xl font-bold" style={{ color: d.accent }}>{info.priceMonthly}€</p>
-                <p className={`text-xs ${d.sub}`}>/mois</p>
-              </>
+              info.priceMonthly === 0 ? (
+                <p className="text-lg font-bold" style={{ color: d.accent }}>Gratuit</p>
+              ) : (
+                <>
+                  <p className="text-2xl font-bold" style={{ color: d.accent }}>{info.priceMonthly}€</p>
+                  <p className={`text-xs ${d.sub}`}>/mois</p>
+                </>
+              )
             )
           )}
         </div>

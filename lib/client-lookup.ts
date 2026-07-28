@@ -1,5 +1,7 @@
 import { supabase } from "./supabase";
 import { googleWalletObjectExists } from "./google-wallet";
+import { PLAN_LIMITS } from "./plan-limits";
+import type { PlanId } from "@/types";
 
 export interface ClientCard {
   tenantId: string;
@@ -111,8 +113,10 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
   const results: ClientCard[] = [];
   for (const cust of customers) {
     const merchant = cust.merchants as unknown as { id: string; store_name: string; city: string; logo_url: string | null; plan: string | null } | null;
-    // Le parrainage est disponible sur tous les plans (compte actif)
-    const planAllowsReferral = true;
+    // Le parrainage n'est disponible que si le plan ACTUEL du commerçant
+    // l'inclut — recalculé à chaque lecture, donc se met à jour instantanément
+    // si le commerçant change de plan (upgrade ou downgrade).
+    const planAllowsReferral = (PLAN_LIMITS[(merchant?.plan as PlanId) ?? "starter"] ?? PLAN_LIMITS.starter).referralEnabled;
     const rewards = rewardsByMerchant.get(cust.merchant_id as string) ?? [];
 
     for (const cc of (cust.customer_cards as unknown as Array<{

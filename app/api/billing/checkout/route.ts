@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { supabase } from "@/lib/supabase";
-import { stripePriceId } from "@/lib/plan-billing";
+import { stripePriceId, activateStarterFree } from "@/lib/plan-billing";
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) return null;
@@ -11,10 +11,6 @@ function getStripe() {
 
 export async function POST(req: NextRequest) {
   try {
-    const stripe = getStripe();
-    if (!stripe) {
-      return NextResponse.json({ error: "Paiement non configuré." }, { status: 503 });
-    }
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
@@ -29,11 +25,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Cycle invalide." }, { status: 400 });
     }
 
-    const priceId = stripePriceId(plan, billingCycle);
-    if (!priceId) {
-      return NextResponse.json({ error: "Tarif non configuré." }, { status: 503 });
-    }
-
     // Récupérer le merchant
     const sb = supabase();
     // Lookup par id de session (l'email de session peut différer de celui en
@@ -46,6 +37,33 @@ export async function POST(req: NextRequest) {
 
     if (!merchant) {
       return NextResponse.json({ error: "Compte non trouvé." }, { status: 404 });
+    }
+
+    // ── Starter est gratuit à vie : jamais de Stripe ─────────────────────
+    // Vérifié AVANT le check "Stripe configuré" — l'activation de Starter ne
+    // doit jamais dépendre de Stripe. Si le commerçant a un abonnement payant
+    // en cours (Pro/Business), on l'annule (gratuit immédiatement, pas de
+    // double facturation) — uniquement si Stripe est disponible.
+    if (plan === "starter") {
+      const stripeForCancel = getStripe();
+      if (stripeForCancel && merchant.stripe_customer_id) {
+        const subs = await stripeForCancel.subscriptions.list({ customer: merchant.stripe_customer_id, status: "active", limit: 10 });
+        for (const s of subs.data) {
+          await stripeForCancel.subscriptions.cancel(s.id).catch((e: unknown) => console.error("[checkout] cancel sub", e));
+        }
+      }
+      await activateStarterFree(merchant.id);
+      return NextResponse.json({ activated: true, plan: "starter" });
+    }
+
+    const stripe = getStripe();
+    if (!stripe) {
+      return NextResponse.json({ error: "Paiement non configuré." }, { status: 503 });
+    }
+
+    const priceId = stripePriceId(plan, billingCycle);
+    if (!priceId) {
+      return NextResponse.json({ error: "Tarif non configuré." }, { status: 503 });
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.getcomeback.fr";

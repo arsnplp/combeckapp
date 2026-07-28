@@ -7,6 +7,7 @@ import { StoreProvider } from "@/lib/store-context";
 import { auth } from "@/auth";
 import ImpersonationBanner from "@/components/layout/ImpersonationBanner";
 import PlanExpirationBanner from "@/components/dashboard/PlanExpirationBanner";
+import BusinessTrialBanner from "@/components/dashboard/BusinessTrialBanner";
 import { getUserById } from "@/lib/users";
 import { getPlanInfo } from "@/lib/plan-billing";
 
@@ -39,6 +40,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
             <Topbar />
             <main className="mx-auto w-full max-w-[1060px] px-4 py-5 pb-[calc(92px+env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:py-8 lg:pb-8">
               <PlanExpirationBanner />
+              <BusinessTrialBanner />
               {children}
             </main>
           </div>

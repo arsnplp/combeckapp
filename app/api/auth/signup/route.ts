@@ -39,10 +39,14 @@ export async function POST(req: NextRequest) {
 
     // Attribution affilié : cookie posé par /ref/{code}
     const affiliateCode = req.cookies.get("comeback_ref")?.value;
-    if (affiliateCode) {
-      const { supabase } = await import("@/lib/supabase");
-      await supabase().from("merchants").update({ affiliate_code: affiliateCode }).eq("id", user.id);
-    }
+    // Marque le compte comme "a choisi un plan directement" (pas l'essai
+    // gratuit) — sert à afficher la proposition d'essai Business 30 jours
+    // sur le dashboard tant que le compte n'est pas déjà en Business.
+    const { supabase } = await import("@/lib/supabase");
+    await supabase().from("merchants").update({
+      ...(affiliateCode ? { affiliate_code: affiliateCode } : {}),
+      settings: { signupChosePlan: plan },
+    }).eq("id", user.id);
 
     return NextResponse.json({ id: user.id, email: user.email, storeName: user.storeName, plan: user.plan });
   } catch (err) {

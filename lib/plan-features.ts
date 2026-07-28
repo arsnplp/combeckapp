@@ -23,7 +23,9 @@ export function getPlanFeatures(plan: PlanId, expiresAt?: string | null): PlanFe
     plan: (plan || "starter") as PlanId,
     label: PLAN_LABELS[plan] ?? "Starter",
     maxCards: limits.cards,
-    priceMonthly: plan in PLAN_PRICING ? PLAN_PRICING[plan as keyof typeof PLAN_PRICING].monthly : null,
+    // Starter est gratuit à vie (0€, pas un essai) — cas spécial car absent
+    // de PLAN_PRICING (jamais de prix Stripe). "null" reste réservé à l'essai.
+    priceMonthly: plan === "starter" ? 0 : plan in PLAN_PRICING ? PLAN_PRICING[plan as keyof typeof PLAN_PRICING].monthly : null,
     maxClients: limits.clients === Infinity ? null : limits.clients,
     canTarget: limits.targetingAdvanced,
     canReferral: limits.referralEnabled,
