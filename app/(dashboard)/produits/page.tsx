@@ -58,7 +58,7 @@ function EmojiPickerButton({ value, onChange }: { value: string; onChange: (emoj
 }
 
 export default function ProduitsPage() {
-  const { rewards, setRewards } = useStore();
+  const { rewards, setRewards, deleteReward } = useStore();
 
   // Add reward dialog
   const [showAddReward, setShowAddReward] = useState(false);
@@ -74,7 +74,7 @@ export default function ProduitsPage() {
   const [editRewardEmoji, setEditRewardEmoji] = useState("🎁");
   const [editRewardMode, setEditRewardMode] = useState<"stamps" | "points">("stamps");
 
-  const handleDeleteReward = (id: string) => setRewards((prev) => prev.filter((r) => r.id !== id));
+  const handleDeleteReward = (id: string) => deleteReward(id);
 
   const openEditReward = (reward: Reward) => {
     setEditingReward(reward);

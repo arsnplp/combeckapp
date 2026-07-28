@@ -22,6 +22,7 @@ export interface DbCustomer {
   joinDate: string;
   totalVisits: number;
   lastVisitAt: string | null;
+  totalSpent?: number; // optionnel en entrée (db_addCustomer) — la colonne a un DEFAULT 0
 }
 
 export interface DbCustomerCard {
@@ -47,6 +48,7 @@ interface DbShape {
 interface CustomerRow {
   id: string; name: string; email: string; phone: string;
   join_date: string; total_visits: number; last_visit_at: string | null;
+  total_spent: number | null;
 }
 interface CardRow {
   id: string; customer_id: string; card_id: string; stamps: number; points: number;
@@ -60,6 +62,7 @@ interface RedemptionRow {
 const mapCustomer = (r: CustomerRow): DbCustomer => ({
   id: r.id, name: r.name, email: r.email, phone: r.phone,
   joinDate: r.join_date, totalVisits: r.total_visits, lastVisitAt: r.last_visit_at,
+  totalSpent: Number(r.total_spent ?? 0),
 });
 const mapCard = (r: CardRow): DbCustomerCard => ({
   id: r.id, customerId: r.customer_id, cardId: r.card_id, stamps: r.stamps, points: r.points,
@@ -323,6 +326,19 @@ export async function db_addPoints(tenantId: string, customerCardId: string, poi
     .eq("id", customerCardId).select("*").maybeSingle();
   await maybeRecordVisit(cc.customer_id);
   return data ? mapCard(data as CardRow) : null;
+}
+
+// Cumule les euros réellement dépensés — sert uniquement au calcul du rang
+// (Silver/Gold/Platine) sur les cartes en mode points ; n'affecte jamais le
+// solde de points lui-même (déjà géré par db_addPoints séparément).
+export async function db_addSpend(tenantId: string, customerId: string, euros: number): Promise<void> {
+  if (!(euros > 0)) return;
+  const { data: customer } = await supabase().from("customers")
+    .select("total_spent").eq("id", customerId).eq("merchant_id", tenantId).maybeSingle();
+  if (!customer) return;
+  await supabase().from("customers")
+    .update({ total_spent: Number(customer.total_spent ?? 0) + euros })
+    .eq("id", customerId).eq("merchant_id", tenantId);
 }
 
 // Ajoute N tampons d'un coup, plafonné à stampsRequired — utilisé pour le

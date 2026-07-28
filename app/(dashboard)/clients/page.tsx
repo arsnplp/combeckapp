@@ -1078,7 +1078,7 @@ export default function ClientsPage() {
                           key={cc.id} cc={cc} card={card} rewards={rewards}
                           networkOrigin={networkOrigin} customer={selected}
                           onAddStamp={() => addStampToCard(cc.id)}
-                          onAddPoints={() => addPointsToCard(cc.id, card.pointsPerEuro * 10)}
+                          onAddPoints={() => addPointsToCard(cc.id, card.pointsPerEuro * 10, 10)}
                           onUseReward={(r) => useRewardOnCard(cc.id, r)}
                           onUnassign={clientCards.length > 1 ? () => handleUnassignCard(cc.id) : undefined}
                         />

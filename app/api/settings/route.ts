@@ -24,22 +24,27 @@ export async function POST(req: NextRequest) {
   try {
     const tenantId = session.user.id;
     const body = await req.json();
-    const { confirmedCardDeletions, ...blob } = body as {
+    const {
+      confirmedCardDeletions, deletedCardIds, deletedRewardIds, deletedProductIds, ...blob
+    } = body as {
       confirmedCardDeletions?: string[];
-      loyaltyCards?: Array<{ id: string; name?: string }>;
+      deletedCardIds?: string[];
+      deletedRewardIds?: string[];
+      deletedProductIds?: string[];
     } & Record<string, unknown>;
 
     // ── Garde-fou : suppression de carte avec des clients dessus ──────────
     // La cascade FK efface les customer_cards (tampons/points des clients).
-    // On refuse toute disparition de carte non confirmée explicitement.
-    const existing = await getTenantSettings(tenantId);
-    const incomingIds = new Set((blob.loyaltyCards ?? []).map((c) => c.id));
-    const removed = existing.loyaltyCards.filter((c) => !incomingIds.has(c.id));
-
-    if (removed.length > 0) {
-      const confirmed = new Set(confirmedCardDeletions ?? []);
+    // On se base sur la liste EXPLICITE deletedCardIds (jamais déduite en
+    // comparant à l'état existant — sinon un onglet resté périmé, qui ne
+    // connaît pas encore une carte créée ailleurs, la supprimerait par erreur
+    // au prochain autosave).
+    if (deletedCardIds?.length) {
       const sb = supabase();
-      for (const card of removed) {
+      const confirmed = new Set(confirmedCardDeletions ?? []);
+      const { data: cardsToDelete } = await sb.from("loyalty_cards")
+        .select("id, name").in("id", deletedCardIds).eq("merchant_id", tenantId);
+      for (const card of cardsToDelete ?? []) {
         const { count } = await sb.from("customer_cards")
           .select("id", { count: "exact", head: true })
           .eq("card_id", card.id).eq("merchant_id", tenantId);
@@ -55,11 +60,13 @@ export async function POST(req: NextRequest) {
       // Suppression confirmée : purger les pass wallet des clients concernés
       // AVANT la cascade (sinon pass orphelins qui reçoivent encore les pushs)
       const { data: ccs } = await sb.from("customer_cards")
-        .select("id").in("card_id", removed.map((c) => c.id)).eq("merchant_id", tenantId);
+        .select("id").in("card_id", deletedCardIds).eq("merchant_id", tenantId);
       await walletDb_deletePassesForCards((ccs ?? []).map((c) => c.id));
     }
 
-    await saveTenantSettings(tenantId, blob as Parameters<typeof saveTenantSettings>[1]);
+    await saveTenantSettings(tenantId, blob as Parameters<typeof saveTenantSettings>[1], {
+      cardIds: deletedCardIds, rewardIds: deletedRewardIds, productIds: deletedProductIds,
+    });
     // Répercuter le nouveau design/config sur les cartes wallet déjà installées
     // (fire-and-forget : la sauvegarde ne doit pas attendre les pushs)
     walletNotificationService.refreshTenantPasses(tenantId).catch(console.error);

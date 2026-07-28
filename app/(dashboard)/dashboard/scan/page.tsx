@@ -67,7 +67,7 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
   // Garde anti double-tap : un appui physique rapide (deux fois sur le même
   // bouton) avant le passage à l'écran "done" ne doit créditer qu'une fois.
   const doStamp = () => { if (submitting) return; setSubmitting(true); addStampToCard(cc.id); vibrate([30, 40, 30]); setDone("stamp"); };
-  const doPoints = () => { if (submitting || previewPts <= 0) return; setSubmitting(true); addPointsToCard(cc.id, previewPts); vibrate([30, 40, 30]); setDone("points"); };
+  const doPoints = () => { if (submitting || previewPts <= 0) return; setSubmitting(true); addPointsToCard(cc.id, previewPts, euros); vibrate([30, 40, 30]); setDone("points"); };
 
   return (
     <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-sm">

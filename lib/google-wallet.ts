@@ -1,4 +1,5 @@
 import { SignJWT, importPKCS8 } from "jose";
+import { logSystemError } from "./system-errors";
 
 export interface GoogleWalletPassInput {
   tenantId: string;
@@ -212,6 +213,7 @@ export async function addGoogleWalletMessage(
     return res.ok; // 404 = carte pas ajoutée — normal
   } catch (err) {
     console.error("[GoogleWallet] addMessage failed:", err);
+    logSystemError("google_wallet", "Échec d'envoi d'un message Google Wallet (auth ou connexion).", { error: String(err) }).catch(() => {});
     return false;
   }
 }
@@ -236,6 +238,7 @@ export async function expireGoogleWalletObject(customerCardId: string): Promise<
     if (res.ok) console.log(`[GoogleWallet] ✓ Carte expirée ${objectId}`);
   } catch (err) {
     console.error("[GoogleWallet] expire failed:", err);
+    logSystemError("google_wallet", "Échec d'expiration d'une carte Google Wallet (auth ou connexion).", { error: String(err) }).catch(() => {});
   }
 }
 
@@ -270,9 +273,11 @@ export async function updateGoogleWalletClass(
     if (!res.ok && res.status !== 404) {
       // 404 = aucune carte de ce type encore enregistrée — normal
       console.error(`[GoogleWallet] PATCH class ${classId} → ${res.status}`);
+      logSystemError("google_wallet", `Échec de mise à jour d'une classe Google Wallet (HTTP ${res.status}).`, { classId }).catch(() => {});
     }
   } catch (err) {
     console.error("[GoogleWallet] update class failed:", err);
+    logSystemError("google_wallet", "Échec de mise à jour d'une classe Google Wallet (auth ou connexion).", { error: String(err) }).catch(() => {});
   }
 }
 
@@ -345,10 +350,12 @@ export async function updateGoogleWalletObject(input: GoogleWalletUpdateInput): 
     if (!res.ok && res.status !== 404) {
       // 404 = le client n'a pas encore ajouté la carte Google Wallet — normal
       console.error(`[GoogleWallet] PATCH ${objectId} → ${res.status}`);
+      logSystemError("google_wallet", `Échec de mise à jour d'une carte Google Wallet (HTTP ${res.status}).`, { objectId }).catch(() => {});
     } else if (res.ok) {
       console.log(`[GoogleWallet] ✓ Updated ${objectId}`);
     }
   } catch (err) {
     console.error("[GoogleWallet] update failed:", err);
+    logSystemError("google_wallet", "Échec de mise à jour d'une carte Google Wallet (auth ou connexion).", { error: String(err) }).catch(() => {});
   }
 }

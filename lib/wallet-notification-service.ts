@@ -14,6 +14,7 @@ import { db_getAll, findTenantByCustomerCardId } from "./server-db";
 import { generateClientPass } from "./apple-wallet";
 import { updateGoogleWalletObject, addGoogleWalletMessage, updateGoogleWalletClass } from "./google-wallet";
 import { getTenantSettings } from "./settings-db";
+import { logSystemError } from "./system-errors";
 
 // ── Certificate cache ─────────────────────────────────────────────────────────
 
@@ -202,6 +203,20 @@ export class WalletNotificationService {
     console.log(`[Wallet] sendPassUpdate passId=${passId} devices=${devices.length}`);
     const results: PushResult[] = [];
 
+    // Vérifie le certificat une seule fois avant la boucle : s'il est cassé
+    // (expiré, mauvais mot de passe…), ça bloque TOUS les appareils — inutile
+    // de logger la même cause en boucle, une seule alerte suffit.
+    try {
+      getPemFromP12();
+    } catch (err) {
+      logSystemError(
+        "apns_certificate",
+        "Impossible d'extraire le certificat Apple Wallet (.p12) — tous les push Apple sont bloqués.",
+        { error: String(err) },
+      ).catch(() => {});
+      return devices.map((d) => ({ pushToken: d.pushToken, success: false, error: "certificat Apple indisponible", passId }));
+    }
+
     for (const device of devices) {
       try {
         await sendApnsPush(device.pushToken);
@@ -211,6 +226,17 @@ export class WalletNotificationService {
         console.error(`[Wallet] ✗ Push failed:`, String(err));
         results.push({ pushToken: device.pushToken, success: false, error: String(err), passId });
       }
+    }
+
+    // Échec sur TOUS les appareils d'un pass (≥ 2, pour éviter les faux
+    // positifs d'un device isolé hors-ligne) : probablement une panne
+    // systémique (réseau, cert non fiable côté Apple…), pas juste un device.
+    if (devices.length >= 2 && results.length > 0 && results.every((r) => !r.success)) {
+      logSystemError(
+        "apns_push_all_failed",
+        `Tous les push Apple Wallet ont échoué pour un pass (${devices.length} appareils).`,
+        { passId, lastError: results[results.length - 1]?.error },
+      ).catch(() => {});
     }
 
     return results;

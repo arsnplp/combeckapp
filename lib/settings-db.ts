@@ -142,7 +142,22 @@ export async function getTenantSettings(tenantId: string): Promise<TenantSetting
 
 // ── Écriture (reçoit le blob complet du dashboard) ────────────────────────────
 
-export async function saveTenantSettings(tenantId: string, blob: Partial<TenantSettingsBlob>): Promise<void> {
+export interface DeletionLists {
+  cardIds?: string[];
+  rewardIds?: string[];
+  productIds?: string[];
+}
+
+// `deletions` liste EXPLICITEMENT ce qui doit être supprimé — jamais déduit
+// en comparant le tableau reçu à l'état existant. Sans ça, un onglet resté
+// périmé (n'ayant pas encore vu une carte/récompense créée dans un autre
+// onglet) la ferait disparaître silencieusement au prochain autosave, en la
+// traitant à tort comme "retirée". Un tableau vide/absent ne supprime rien.
+export async function saveTenantSettings(
+  tenantId: string,
+  blob: Partial<TenantSettingsBlob>,
+  deletions: DeletionLists = {},
+): Promise<void> {
   const sb = supabase();
   const s = (blob.settings ?? {}) as Record<string, unknown>;
 
@@ -157,10 +172,9 @@ export async function saveTenantSettings(tenantId: string, blob: Partial<TenantS
     wallet_config: blob.walletConfig ?? {},
   }).eq("id", tenantId);
 
-  // Cartes : upsert celles envoyées, supprime les retirées
-  // (la suppression cascade sur customer_cards — même comportement qu'avant)
+  // Cartes : upsert celles envoyées ; seule la liste explicite deletions.cardIds
+  // est supprimée (jamais déduite du tableau — voir commentaire ci-dessus).
   if (blob.loyaltyCards) {
-    const keep = blob.loyaltyCards.filter((c) => c.id).map((c) => c.id);
     await sb.from("loyalty_cards").upsert(blob.loyaltyCards.filter((c) => c.id).map((c) => ({
       id: c.id,
       merchant_id: tenantId,
@@ -179,8 +193,9 @@ export async function saveTenantSettings(tenantId: string, blob: Partial<TenantS
       referral_bonus: c.referral?.referrerBonus ?? 1,
       referred_bonus: c.referral?.referredBonus ?? 0,
     })));
-    const del = sb.from("loyalty_cards").delete().eq("merchant_id", tenantId);
-    await (keep.length ? del.not("id", "in", `(${keep.map((id) => `"${id}"`).join(",")})`) : del);
+  }
+  if (deletions.cardIds?.length) {
+    await sb.from("loyalty_cards").delete().eq("merchant_id", tenantId).in("id", deletions.cardIds);
   }
 
   if (blob.rewards) {
@@ -188,7 +203,6 @@ export async function saveTenantSettings(tenantId: string, blob: Partial<TenantS
     // — un appel direct à l'API ne doit pas pouvoir les contourner.
     const MAX_STAMPS_COST = 20;
     const MAX_POINTS_COST = 10000;
-    const keep = blob.rewards.filter((r) => r.id).map((r) => r.id);
     await sb.from("rewards").upsert(blob.rewards.filter((r) => r.id).map((r) => {
       const mode = r.mode === "points" ? "points" : "stamps";
       const max = mode === "points" ? MAX_POINTS_COST : MAX_STAMPS_COST;
@@ -203,12 +217,12 @@ export async function saveTenantSettings(tenantId: string, blob: Partial<TenantS
         usage_count: r.usageCount ?? 0,
       };
     }));
-    const del = sb.from("rewards").delete().eq("merchant_id", tenantId);
-    await (keep.length ? del.not("id", "in", `(${keep.map((id) => `"${id}"`).join(",")})`) : del);
+  }
+  if (deletions.rewardIds?.length) {
+    await sb.from("rewards").delete().eq("merchant_id", tenantId).in("id", deletions.rewardIds);
   }
 
-  if (blob.products) {
-    const keep = blob.products.filter((p) => p.id).map((p) => p.id);
+  if (blob.products?.length) {
     await sb.from("products").upsert(blob.products.filter((p) => p.id).map((p) => ({
       id: p.id,
       merchant_id: tenantId,
@@ -219,7 +233,8 @@ export async function saveTenantSettings(tenantId: string, blob: Partial<TenantS
       active: p.active ?? true,
       points_value: p.pointsValue ?? 0,
     })));
-    const del = sb.from("products").delete().eq("merchant_id", tenantId);
-    await (keep.length ? del.not("id", "in", `(${keep.map((id) => `"${id}"`).join(",")})`) : del);
+  }
+  if (deletions.productIds?.length) {
+    await sb.from("products").delete().eq("merchant_id", tenantId).in("id", deletions.productIds);
   }
 }

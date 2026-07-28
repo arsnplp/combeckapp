@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, CreditCard, Store, Loader2, RefreshCw, Euro, LogIn, Key, Check, X, Trash2, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Users, CreditCard, Store, Loader2, RefreshCw, Euro, LogIn, Key, Check, X, Trash2, ShieldAlert, ShieldCheck, AlertTriangle } from "lucide-react";
 import { signIn } from "next-auth/react";
 import type { PlanId } from "@/types";
 
@@ -99,10 +99,22 @@ interface CertInfo {
   subject: string;
 }
 
+interface SystemErrorItem {
+  id: string;
+  source: string;
+  message: string;
+  details: Record<string, unknown> | null;
+  createdAt: string;
+  resolved: boolean;
+}
+
 export default function AdminPage() {
-  const [tab, setTab] = useState<"restaurants" | "clients">("restaurants");
+  const [tab, setTab] = useState<"restaurants" | "clients" | "errors">("restaurants");
   const [users, setUsers] = useState<TenantUser[]>([]);
   const [clients, setClients] = useState<ClientSummary[]>([]);
+  const [systemErrors, setSystemErrors] = useState<SystemErrorItem[]>([]);
+  const [loadingErrors, setLoadingErrors] = useState(false);
+  const [resolvingError, setResolvingError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingClients, setLoadingClients] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -235,9 +247,33 @@ export default function AdminPage() {
     setLoadingClients(false);
   };
 
+  const loadErrors = async () => {
+    setLoadingErrors(true);
+    try {
+      const res = await fetch("/api/admin/errors");
+      const data = await res.json();
+      setSystemErrors(data.errors ?? []);
+    } catch { /* ignore */ }
+    setLoadingErrors(false);
+  };
+
+  const handleResolveError = async (id: string) => {
+    setResolvingError(id);
+    try {
+      await fetch("/api/admin/errors", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      setSystemErrors((prev) => prev.filter((e) => e.id !== id));
+    } catch { /* ignore */ }
+    setResolvingError(null);
+  };
+
   useEffect(() => {
     load();
     fetch("/api/admin/cert-info").then(r => r.json()).then(d => { if (d.daysLeft !== undefined) setCertInfo(d); });
+    loadErrors();
   }, []);
 
   useEffect(() => {
@@ -347,6 +383,28 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* Erreurs système non résolues (push Wallet, etc.) */}
+      {systemErrors.length > 0 && (
+        <button
+          onClick={() => setTab("errors")}
+          className="flex w-full items-start gap-4 rounded-xl border border-red-500/30 bg-red-500/10 px-5 py-4 text-left transition-colors hover:bg-red-500/[0.14]"
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-semibold text-red-300">
+              ⚠️ {systemErrors.length} erreur{systemErrors.length > 1 ? "s" : ""} système non résolue{systemErrors.length > 1 ? "s" : ""}
+            </p>
+            <p className="mt-0.5 text-[11.5px] text-slate-400">
+              {systemErrors[0].message}
+              {systemErrors.length > 1 ? ` (+${systemErrors.length - 1} autre${systemErrors.length - 1 > 1 ? "s" : ""})` : ""}
+            </p>
+          </div>
+          <span className="shrink-0 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11.5px] font-medium text-slate-300">
+            Voir →
+          </span>
+        </button>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard icon={Euro}       label="MRR"              value={`${mrr} €`}      sub="Revenu mensuel récurrent" color="#34d399" />
@@ -376,6 +434,19 @@ export default function AdminPage() {
           }`}
         >
           Clients
+        </button>
+        <button
+          onClick={() => { setTab("errors"); loadErrors(); }}
+          className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-medium transition-colors ${
+            tab === "errors"
+              ? "bg-white/[0.08] text-white"
+              : "text-slate-400 hover:text-white"
+          }`}
+        >
+          Erreurs
+          {systemErrors.length > 0 && (
+            <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{systemErrors.length}</span>
+          )}
         </button>
       </div>
 
@@ -592,6 +663,58 @@ export default function AdminPage() {
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+      )}
+
+      {/* Erreurs Tab */}
+      {tab === "errors" && (
+        <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.03]">
+          <div className="border-b border-white/[0.06] px-6 py-4 flex items-center justify-between">
+            <h2 className="text-[14px] font-semibold text-white">Erreurs système</h2>
+            <span className="text-[12px] text-slate-500">
+              {systemErrors.length} non résolue{systemErrors.length > 1 ? "s" : ""}
+            </span>
+          </div>
+
+          {loadingErrors ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+            </div>
+          ) : systemErrors.length === 0 ? (
+            <div className="py-16 text-center text-[13px] text-slate-500">
+              ✓ Aucune erreur système en attente — tout fonctionne normalement
+            </div>
+          ) : (
+            <div className="divide-y divide-white/[0.04]">
+              {systemErrors.map((err) => (
+                <div key={err.id} className="flex items-start gap-4 px-6 py-4">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">
+                        {err.source}
+                      </span>
+                      <span className="text-[11px] text-slate-500">{formatDate(err.createdAt)}</span>
+                    </div>
+                    <p className="mt-1 text-[13px] text-white">{err.message}</p>
+                    {err.details && (
+                      <pre className="mt-1.5 max-w-full overflow-x-auto rounded-lg bg-black/30 px-3 py-2 text-[10.5px] text-slate-400">
+                        {JSON.stringify(err.details, null, 2)}
+                      </pre>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleResolveError(err.id)}
+                    disabled={resolvingError === err.id}
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:bg-emerald-600/20 hover:border-emerald-500/30 hover:text-emerald-300 disabled:opacity-40"
+                  >
+                    {resolvingError === err.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                    Marquer résolu
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

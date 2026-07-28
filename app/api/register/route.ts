@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  db_addCustomer, db_addPoints, db_addStamp,
+  db_addCustomer, db_addPoints, db_addStamp, db_addSpend,
   db_deleteCustomer, db_getAll, findTenantByCardId,
   db_deductReward, db_addRedemption, db_incrementRewardUsage,
   db_recordPendingReferral, db_creditPendingReferrals, db_wouldReferralSucceed,
@@ -337,7 +337,7 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { action, customerCardId, points } = body;
+    const { action, customerCardId, points, euros } = body;
     const tenantId = session.user.id;
     // Essai gratuit expiré : service suspendu
     const patchUser = await getUserById(tenantId);
@@ -376,6 +376,11 @@ export async function PATCH(req: NextRequest) {
       if (!card) return NextResponse.json({ error: "Carte introuvable — resynchronisez vos données." }, { status: 404 });
       walletNotificationService.updatePoints(customerCardId).catch(console.error);
       creditReferralsOnFirstVisit(tenantId, card.customerId);
+      // Cumule les euros réellement dépensés — sert au calcul du rang
+      // (Silver/Gold/Platine) sur les cartes en mode points.
+      if (typeof euros === "number" && euros > 0) {
+        db_addSpend(tenantId, card.customerId, euros).catch(console.error);
+      }
       return NextResponse.json({ ok: true, stamps: card.stamps, points: card.points });
     } else if (action === "reward") {
       const { rewardName, rewardEmoji, cost, costType, customerId } = body;

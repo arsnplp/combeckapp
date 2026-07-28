@@ -70,6 +70,7 @@ interface StoreCtx {
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   rewards: Reward[];
   setRewards: React.Dispatch<React.SetStateAction<Reward[]>>;
+  deleteReward: (id: string) => void;
   categories: string[];
   setCategories: React.Dispatch<React.SetStateAction<string[]>>;
   customers: Customer[];
@@ -88,7 +89,7 @@ interface StoreCtx {
   assignCard: (customerId: string, cardId: string) => CustomerCard;
   unassignCard: (customerCardId: string) => void;
   addStampToCard: (customerCardId: string) => void;
-  addPointsToCard: (customerCardId: string, amount: number) => void;
+  addPointsToCard: (customerCardId: string, amount: number, euros?: number) => void;
   useRewardOnCard: (customerCardId: string, reward: Reward) => void;
   // Rédemptions serveur (historique récompenses utilisées)
   serverRedemptions: Array<{ id: string; customerId: string; customerCardId: string; rewardName: string; rewardEmoji: string; cost: number; costType: string; redeemedAt: string }>;
@@ -134,27 +135,27 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
       let added = 0;
       const srvIds = new Set(srvC.map((c: { id: string }) => c.id));
       setCustomers((prev) => {
-        const srvMap = new Map(srvC.map((c: { id: string; totalVisits?: number; lastVisitAt?: string }) => [c.id, c]));
+        const srvMap = new Map(srvC.map((c: { id: string; totalVisits?: number; lastVisitAt?: string; totalSpent?: number }) => [c.id, c]));
         const existingIds = new Set(prev.map((c) => c.id));
         // Supprimer les clients qui n'existent plus sur le serveur
         const filtered = prev.filter((c) => srvIds.has(c.id));
-        // Mettre à jour totalVisits depuis le serveur pour les clients existants
+        // Mettre à jour totalVisits/totalSpent depuis le serveur pour les clients existants
         let changed = filtered.length !== prev.length;
         const updated = filtered.map((c) => {
-          const srv = srvMap.get(c.id) as { totalVisits?: number } | undefined;
-          if (srv && (srv.totalVisits ?? 0) !== c.totalVisits) {
+          const srv = srvMap.get(c.id) as { totalVisits?: number; totalSpent?: number } | undefined;
+          if (srv && ((srv.totalVisits ?? 0) !== c.totalVisits || (srv.totalSpent ?? 0) !== c.totalSpent)) {
             changed = true;
-            return { ...c, totalVisits: srv.totalVisits ?? c.totalVisits };
+            return { ...c, totalVisits: srv.totalVisits ?? c.totalVisits, totalSpent: srv.totalSpent ?? c.totalSpent };
           }
           return c;
         });
         const newOnes: Customer[] = srvC
           .filter((c: { id: string }) => !existingIds.has(c.id))
-          .map((c: { id: string; name: string; email: string; phone: string; joinDate: string; totalVisits?: number; lastVisitAt?: string }) => ({
+          .map((c: { id: string; name: string; email: string; phone: string; joinDate: string; totalVisits?: number; lastVisitAt?: string; totalSpent?: number }) => ({
             id: c.id, name: c.name, email: c.email ?? "", phone: c.phone ?? "",
             joinDate: c.joinDate, lastVisit: c.lastVisitAt ?? c.joinDate,
             totalVisits: c.totalVisits ?? 0, rewardsUsed: 0, status: "new" as const,
-            points: 0, stamps: 0, totalSpent: 0, notes: "", categories: [],
+            points: 0, stamps: 0, totalSpent: c.totalSpent ?? 0, notes: "", categories: [],
           }));
         added = newOnes.length;
         if (newOnes.length > 0 || changed) return [...updated, ...newOnes];
@@ -250,7 +251,12 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
     if (!serverHydrated.current) return;
     const payload = JSON.stringify({
       settings, walletConfig, loyaltyCards, products, rewards,
+      // Listes explicites de suppression — jamais déduites du tableau envoyé,
+      // pour qu'un onglet resté périmé (qui ne connaît pas encore une carte/
+      // récompense créée ailleurs) ne la supprime pas par erreur à son tour.
       confirmedCardDeletions: confirmedCardDeletions.current,
+      deletedCardIds: confirmedCardDeletions.current,
+      deletedRewardIds: deletedRewardIds.current,
     });
     pendingSavePayload.current = payload;
     const t = setTimeout(() => {
@@ -316,6 +322,14 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
     setCustomerCards((prev) => prev.filter((cc) => cc.cardId !== id));
   }, []);
 
+  // ── Reward CRUD ──────────────────────────────────────────────────────────
+  const deletedRewardIds = useRef<string[]>([]);
+
+  const deleteReward = useCallback((id: string) => {
+    deletedRewardIds.current.push(id);
+    setRewards((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+
   // ── Customer-card assignment ────────────────────────────────────────────────
 
   const assignCard = useCallback((customerId: string, cardId: string): CustomerCard => {
@@ -375,7 +389,10 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
     }).catch(() => {});
   }, [customerCards, loyaltyCards, customers, addActivity, syncFromServer]);
 
-  const addPointsToCard = useCallback((customerCardId: string, amount: number) => {
+  // `euros` = montant réellement dépensé pour ce passage (distinct des points
+  // crédités, qui peuvent inclure un bonus) — sert uniquement au calcul du
+  // rang (Silver/Gold/Platine) sur les cartes en mode points.
+  const addPointsToCard = useCallback((customerCardId: string, amount: number, euros?: number) => {
     const cc = customerCards.find((c) => c.id === customerCardId);
     if (!cc) return;
     const card = loyaltyCards.find((c) => c.id === cc.cardId);
@@ -386,13 +403,16 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
     ));
     const newVisits = (customer?.totalVisits ?? 0) + 1;
     setCustomers((prev) => prev.map((c) =>
-      c.id !== cc.customerId ? c : { ...c, totalVisits: newVisits, lastVisit: now, status: computeStatus(newVisits) }
+      c.id !== cc.customerId ? c : {
+        ...c, totalVisits: newVisits, lastVisit: now, status: computeStatus(newVisits),
+        totalSpent: c.totalSpent + (euros && euros > 0 ? euros : 0),
+      }
     ));
     if (customer) addActivity({ type: "points_added", customerId: cc.customerId, customerName: customer.name, description: `+${amount} pts — ${card?.name ?? "carte"}`, value: amount });
     fetch("/api/register", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "points", customerCardId, points: amount }),
+      body: JSON.stringify({ action: "points", customerCardId, points: amount, euros }),
     }).then((res) => {
       if (!res.ok) syncFromServer();
     }).catch(() => {});
@@ -512,7 +532,7 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
     <StoreContext.Provider value={{
       settings, updateSettings,
       products, setProducts,
-      rewards, setRewards,
+      rewards, setRewards, deleteReward,
       categories, setCategories,
       customers, setCustomers,
       walletConfig, setWalletConfig,
