@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { supabase } from "@/lib/supabase";
 import { stripePriceId, activateStarterFree } from "@/lib/plan-billing";
+import { notifyAdminEmail } from "@/lib/mailer";
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) return null;
@@ -49,7 +50,19 @@ export async function POST(req: NextRequest) {
       if (stripeForCancel && merchant.stripe_customer_id) {
         const subs = await stripeForCancel.subscriptions.list({ customer: merchant.stripe_customer_id, status: "active", limit: 10 });
         for (const s of subs.data) {
-          await stripeForCancel.subscriptions.cancel(s.id).catch((e: unknown) => console.error("[checkout] cancel sub", e));
+          try {
+            await stripeForCancel.subscriptions.cancel(s.id);
+          } catch (e) {
+            // Ne bloque pas le passage à Starter (le commerçant ne doit jamais
+            // rester coincé), mais alerte l'admin : sans annulation Stripe,
+            // l'abonnement payant continuera à être facturé en double.
+            console.error("[checkout] cancel sub", e);
+            notifyAdminEmail("⚠️ Échec annulation Stripe (downgrade Starter)", {
+              "Commerçant": merchant.email ?? merchant.id,
+              "Abonnement Stripe": s.id,
+              "Erreur": e instanceof Error ? e.message : String(e),
+            }).catch(console.error);
+          }
         }
       }
       await activateStarterFree(merchant.id);

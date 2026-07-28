@@ -94,12 +94,14 @@ export async function POST(req: NextRequest) {
       let meta = invoice.subscription_details?.metadata ?? {};
       let subPriceId: string | undefined;
       let subPeriodEnd: number | undefined;
+      let subCanceled = false;
       if (invoice.subscription) {
         try {
           const sub = await stripe.subscriptions.retrieve(invoice.subscription as string);
           if (!meta.merchantId) meta = sub.metadata ?? {};
           subPriceId = sub.items?.data?.[0]?.price?.id;
           subPeriodEnd = sub.current_period_end;
+          subCanceled = sub.status === "canceled";
         } catch { /* fallback lignes de facture */ }
       }
       const merchantId = meta.merchantId;
@@ -114,13 +116,22 @@ export async function POST(req: NextRequest) {
       const billingCycle = fromPrice?.billingCycle ?? meta.billingCycle;
 
       if (merchantId && plan) {
-        // Plan actif jusqu'à la fin de la période facturée + 3 jours de grâce
-        const periodEnd = subPeriodEnd ?? (bestLine?.period?.end as number | undefined);
-        const expiresAt = periodEnd
-          ? new Date(periodEnd * 1000 + 3 * 86400_000)
-          : new Date(Date.now() + (billingCycle === "annual" ? 365 : 30) * 86400_000);
-        await setPlanUntil(merchantId, plan as PlanId, expiresAt);
-        console.log(`[webhook] invoice.paid → ${merchantId} plan ${plan} jusqu'au ${expiresAt.toISOString().slice(0, 10)}`);
+        // Abonnement déjà annulé au moment où le webhook arrive (ex : le
+        // commerçant est repassé sur Starter juste après un renouvellement
+        // qui avait déjà été facturé) → ne PAS réactiver le plan payant en
+        // base, sinon on annule silencieusement son choix de downgrade.
+        // La commission affilié reste due (le paiement a bien eu lieu).
+        if (!subCanceled) {
+          // Plan actif jusqu'à la fin de la période facturée + 3 jours de grâce
+          const periodEnd = subPeriodEnd ?? (bestLine?.period?.end as number | undefined);
+          const expiresAt = periodEnd
+            ? new Date(periodEnd * 1000 + 3 * 86400_000)
+            : new Date(Date.now() + (billingCycle === "annual" ? 365 : 30) * 86400_000);
+          await setPlanUntil(merchantId, plan as PlanId, expiresAt);
+          console.log(`[webhook] invoice.paid → ${merchantId} plan ${plan} jusqu'au ${expiresAt.toISOString().slice(0, 10)}`);
+        } else {
+          console.log(`[webhook] invoice.paid pour ${merchantId} ignoré (abonnement déjà annulé) — commission affilié conservée`);
+        }
 
         try {
           await creditAffiliateForPayment(
