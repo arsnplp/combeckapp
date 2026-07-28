@@ -9,6 +9,8 @@ export interface JoinSuccess {
   customerId: string;
   customerCardId: string;
   clientName: string;
+  stamps: number;
+  points: number;
 }
 
 interface Props {
@@ -81,7 +83,7 @@ export default function ClientAuthPanel({ cardId, refParam, accent = "#16a34a", 
         setLoading(false);
         return;
       }
-      onJoined?.({ customerId: data.customerId, customerCardId: data.customerCardId, clientName: data.clientName ?? "" });
+      onJoined?.({ customerId: data.customerId, customerCardId: data.customerCardId, clientName: data.clientName ?? "", stamps: data.stamps ?? 0, points: data.points ?? 0 });
     } catch {
       setError("Erreur réseau.");
       setLoading(false);
@@ -107,7 +109,7 @@ export default function ClientAuthPanel({ cardId, refParam, accent = "#16a34a", 
         });
         const data = await res.json();
         if (!res.ok) { setError(data?.error ?? `Erreur serveur (${res.status})`); setLoading(false); return; }
-        onJoined?.({ customerId: data.customerId, customerCardId: data.customerCardId, clientName: data.clientName ?? email });
+        onJoined?.({ customerId: data.customerId, customerCardId: data.customerCardId, clientName: data.clientName ?? email, stamps: data.stamps ?? 0, points: data.points ?? 0 });
       } else {
         const res = await fetch("/api/client/login", {
           method: "POST",
@@ -115,7 +117,15 @@ export default function ClientAuthPanel({ cardId, refParam, accent = "#16a34a", 
           body: JSON.stringify({ email: email.trim(), password: password || undefined }),
         });
         const data = await res.json();
-        if (!res.ok) { setError(data?.error ?? "Erreur"); setLoading(false); return; }
+        if (!res.ok) {
+          if (data?.needsVerification) {
+            setError("Aucun mot de passe défini pour ce compte. Un email vous a été envoyé pour le créer — cliquez sur le lien pour accéder à vos cartes.");
+          } else {
+            setError(data?.error ?? "Erreur");
+          }
+          setLoading(false);
+          return;
+        }
         router.push("/client/cards");
       }
     } catch {
@@ -146,7 +156,7 @@ export default function ClientAuthPanel({ cardId, refParam, accent = "#16a34a", 
       });
       const data = await res.json();
       if (!res.ok) { setError(data?.error ?? `Erreur serveur (${res.status})`); setLoading(false); return; }
-      onJoined?.({ customerId: data.customerId, customerCardId: data.customerCardId, clientName: data.clientName ?? name });
+      onJoined?.({ customerId: data.customerId, customerCardId: data.customerCardId, clientName: data.clientName ?? name, stamps: data.stamps ?? 0, points: data.points ?? 0 });
     } catch (err) {
       setError(`Erreur réseau : ${String(err)}`);
       setLoading(false);

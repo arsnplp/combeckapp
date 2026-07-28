@@ -184,17 +184,25 @@ export async function saveTenantSettings(tenantId: string, blob: Partial<TenantS
   }
 
   if (blob.rewards) {
+    // Plafonds cohérents avec le formulaire du dashboard (produits/page.tsx)
+    // — un appel direct à l'API ne doit pas pouvoir les contourner.
+    const MAX_STAMPS_COST = 20;
+    const MAX_POINTS_COST = 10000;
     const keep = blob.rewards.filter((r) => r.id).map((r) => r.id);
-    await sb.from("rewards").upsert(blob.rewards.filter((r) => r.id).map((r) => ({
-      id: r.id,
-      merchant_id: tenantId,
-      name: r.name ?? "",
-      description: r.description ?? "",
-      emoji: r.emoji ?? "🎁",
-      cost: Math.max(1, r.cost ?? 1),
-      mode: r.mode === "points" ? "points" : "stamps",
-      usage_count: r.usageCount ?? 0,
-    })));
+    await sb.from("rewards").upsert(blob.rewards.filter((r) => r.id).map((r) => {
+      const mode = r.mode === "points" ? "points" : "stamps";
+      const max = mode === "points" ? MAX_POINTS_COST : MAX_STAMPS_COST;
+      return {
+        id: r.id,
+        merchant_id: tenantId,
+        name: r.name ?? "",
+        description: r.description ?? "",
+        emoji: r.emoji ?? "🎁",
+        cost: Math.min(max, Math.max(1, r.cost ?? 1)),
+        mode,
+        usage_count: r.usageCount ?? 0,
+      };
+    }));
     const del = sb.from("rewards").delete().eq("merchant_id", tenantId);
     await (keep.length ? del.not("id", "in", `(${keep.map((id) => `"${id}"`).join(",")})`) : del);
   }

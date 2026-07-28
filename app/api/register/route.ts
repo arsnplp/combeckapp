@@ -133,6 +133,10 @@ export async function POST(req: NextRequest) {
     let clientName: string;
     let clientEmail: string;
     let clientPhone: string;
+    // Par défaut on peut accorder une session — sauf cas détecté ci-dessous
+    // (mode "new" avec un email qui a déjà un historique ailleurs et aucun
+    // mot de passe pour le prouver : voir plus bas).
+    let grantSession = true;
 
     if (mode === "session") {
       // ── Client déjà connecté : le cookie de session fait foi ─────────────
@@ -193,6 +197,16 @@ export async function POST(req: NextRequest) {
       // Créer le compte si email + mot de passe fournis
       if (email && password && typeof password === "string") {
         await createClientAccount(email, password, name);
+      } else if (email) {
+        // Aucun mot de passe fourni : si cet email a déjà des cartes ailleurs
+        // (chez un autre commerce), on ne peut pas prouver que c'est bien son
+        // propriétaire qui s'inscrit ici — sinon n'importe qui pourrait
+        // rejoindre un nouveau commerce avec l'email de quelqu'un d'autre et
+        // hériter d'une session qui expose tout son historique existant.
+        // L'inscription à CE commerce reste créée normalement, seule la
+        // connexion automatique est sautée.
+        const priorCards = await findClientCards(email);
+        if (priorCards.length > 0) grantSession = false;
       }
     }
 
@@ -245,10 +259,13 @@ export async function POST(req: NextRequest) {
       sendWelcomeClient(clientEmail, clientName, storeName).catch(console.error);
     }
 
-    const res = NextResponse.json({ ok: true, customerId, customerCardId, clientName });
+    // stamps/points renvoyés pour que le premier pass Wallet téléchargé
+    // reflète bien le bonus de bienvenue/parrainage déjà crédité en base
+    // (sinon il affiche "0" même quand le filleul a reçu des tampons/points).
+    const res = NextResponse.json({ ok: true, customerId, customerCardId, clientName, stamps: initialStamps, points: initialPoints });
 
     // Auto-connecter le client avec un token de session opaque
-    if (clientEmail) {
+    if (clientEmail && grantSession) {
       const token = await createClientSession(clientEmail);
       res.cookies.set("comeback_client", token, {
         httpOnly: true,

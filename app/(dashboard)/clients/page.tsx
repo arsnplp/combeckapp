@@ -499,6 +499,36 @@ export default function ClientsPage() {
 
   const clientCards = selected ? customerCards.filter((cc) => cc.customerId === selected.id) : [];
 
+  // Assigner une carte à un client déjà existant : persiste côté serveur
+  // (sinon le QR de la carte pointe vers un customerCardId inexistant en base
+  // et échoue "Carte introuvable" au premier scan en caisse).
+  const handleAssignCard = (cardId: string) => {
+    if (!selected) return;
+    const card = loyaltyCards.find((lc) => lc.id === cardId);
+    const cc = assignCard(selected.id, cardId);
+    fetch("/api/register/assign-card", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        customerId: selected.id,
+        cardId,
+        customerCardId: cc.id,
+        stamps: cc.stamps,
+        points: card?.welcomePoints ?? 0,
+        joinDate: cc.joinDate,
+      }),
+    }).catch(() => {});
+  };
+
+  const handleUnassignCard = (customerCardId: string) => {
+    unassignCard(customerCardId);
+    fetch("/api/register/assign-card", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ customerCardId }),
+    }).catch(() => {});
+  };
+
   const handleCreateClient = () => {
     if (!newName.trim()) return;
     if (loyaltyCards.length > 0 && !newCardId) return;
@@ -917,7 +947,7 @@ export default function ClientsPage() {
       <AssignCardDialog
         open={showAssign}
         onClose={() => setShowAssign(false)}
-        onAssign={(cardId) => selected && assignCard(selected.id, cardId)}
+        onAssign={handleAssignCard}
         loyaltyCards={loyaltyCards}
         alreadyAssigned={clientCards.map((cc) => cc.cardId)}
       />
@@ -1050,7 +1080,7 @@ export default function ClientsPage() {
                           onAddStamp={() => addStampToCard(cc.id)}
                           onAddPoints={() => addPointsToCard(cc.id, card.pointsPerEuro * 10)}
                           onUseReward={(r) => useRewardOnCard(cc.id, r)}
-                          onUnassign={clientCards.length > 1 ? () => unassignCard(cc.id) : undefined}
+                          onUnassign={clientCards.length > 1 ? () => handleUnassignCard(cc.id) : undefined}
                         />
                       );
                     })}

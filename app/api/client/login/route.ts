@@ -3,6 +3,8 @@ import { findClientCards } from "@/lib/client-lookup";
 import { getClientAccount, verifyClientPassword } from "@/lib/client-accounts";
 import { checkRateLimit, getIp, tooManyRequests } from "@/lib/rate-limit";
 import { createClientSession } from "@/lib/client-sessions";
+import { createResetToken } from "@/lib/reset-tokens";
+import { sendPasswordResetClient } from "@/lib/mailer";
 import { z } from "zod";
 
 const LoginSchema = z.object({
@@ -30,20 +32,35 @@ export async function POST(req: NextRequest) {
 
   const account = await getClientAccount(normalizedEmail);
 
-  if (account) {
-    if (!password) {
-      return NextResponse.json({ error: "Mot de passe requis.", needsPassword: true }, { status: 401 });
+  if (!account) {
+    // Aucun mot de passe défini pour cet email : impossible de vérifier que
+    // la personne qui se connecte en est bien propriétaire. On envoie un
+    // lien de vérification par email (même mécanisme que "mot de passe
+    // oublié") — jamais de session accordée sans cette preuve, sinon
+    // n'importe qui pourrait se connecter en tapant l'email de quelqu'un
+    // d'autre (aucun mot de passe requis à l'inscription initiale).
+    try {
+      const resetToken = await createResetToken(normalizedEmail, "client");
+      await sendPasswordResetClient(normalizedEmail, resetToken);
+    } catch (e) {
+      console.error("[client/login] envoi email de vérification", e);
     }
-    const valid = await verifyClientPassword(normalizedEmail, password as string);
-    if (!valid) {
-      return NextResponse.json({ error: "Mot de passe incorrect." }, { status: 401 });
-    }
+    return NextResponse.json(
+      { error: "Aucun mot de passe défini pour ce compte — un email de vérification vient de vous être envoyé.", needsVerification: true },
+      { status: 401 },
+    );
   }
 
-  const firstLogin = !account;
+  if (!password) {
+    return NextResponse.json({ error: "Mot de passe requis.", needsPassword: true }, { status: 401 });
+  }
+  const valid = await verifyClientPassword(normalizedEmail, password as string);
+  if (!valid) {
+    return NextResponse.json({ error: "Mot de passe incorrect." }, { status: 401 });
+  }
 
   const token = await createClientSession(normalizedEmail);
-  const response = NextResponse.json({ ok: true, count: cards.length, firstLogin });
+  const response = NextResponse.json({ ok: true, count: cards.length });
   response.cookies.set("comeback_client", token, {
     httpOnly: true,
     sameSite: "lax",

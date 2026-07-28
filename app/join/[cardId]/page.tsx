@@ -69,9 +69,11 @@ export default function JoinPage() {
         ccId: data.customerCardId,
         name: data.clientName,
         type: card.loyaltyMode,
-        stamps: "0",
+        // Valeurs réelles persistées (incluent le bonus de bienvenue/parrainage
+        // déjà crédité) — sinon le pass Wallet téléchargé montre "0" à tort.
+        stamps: String(data.stamps ?? 0),
         required: String(card.stampsRequired),
-        points: String(card.welcomePoints ?? 0),
+        points: String(data.points ?? card.welcomePoints ?? 0),
         store: card.name,
         accent: card.accentColor,
         bg: card.backgroundColor,

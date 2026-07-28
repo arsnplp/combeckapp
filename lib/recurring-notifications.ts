@@ -157,6 +157,20 @@ export async function runDueRecurringNotifications(): Promise<RecurringRunResult
       continue;
     }
 
+    // Réclamation atomique AVANT l'envoi : si une autre exécution du cron
+    // (chevauchement, redémarrage) a déjà mis à jour last_sent_at entre notre
+    // lecture ci-dessus et cet appel, 0 ligne n'est modifiée ici — empêche le
+    // client de recevoir la même notification récurrente deux fois.
+    const claimQuery = sb.from("recurring_notifications")
+      .update({ last_sent_at: new Date().toISOString() }).eq("id", r.id);
+    const { data: claimed } = r.last_sent_at
+      ? await claimQuery.eq("last_sent_at", r.last_sent_at).select("id").maybeSingle()
+      : await claimQuery.is("last_sent_at", null).select("id").maybeSingle();
+    if (!claimed) {
+      result.skipped.push({ id: r.id, reason: "déjà réclamée par une autre exécution" });
+      continue;
+    }
+
     // Envoi ciblé aux clients de CE commerce uniquement
     const db = await db_getAll(r.merchant_id);
     if (!db.customers.length) {
@@ -168,8 +182,6 @@ export async function runDueRecurringNotifications(): Promise<RecurringRunResult
       const campaign = await walletNotificationService.sendCampaignToTenant(r.merchant_id, r.message);
       const success = campaign.clientsReached;
 
-      await sb.from("recurring_notifications")
-        .update({ last_sent_at: new Date().toISOString() }).eq("id", r.id);
       if (success > 0) await incrementNotifCount(r.merchant_id, success);
 
       // Trace dans l'historique

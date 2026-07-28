@@ -54,11 +54,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Pas assez de points (${cc.points}/${r.cost}).` }, { status: 422 });
     }
 
+    // Marque le token utilisé de façon atomique AVANT de déduire — s'il a déjà
+    // été consommé par un appel concurrent (deux scans quasi simultanés du
+    // même QR), ce call échoue ici et n'atteint jamais db_deductReward.
+    const claimed = await markUsed(tokenKey);
+    if (!claimed) {
+      return NextResponse.json({ error: "Ce QR code a déjà été utilisé." }, { status: 409 });
+    }
+
     const result = await db_deductReward(tenantId, r.customerCardId, r.costType, r.cost);
     if (!result.success) {
       return NextResponse.json({ error: result.reason ?? "Erreur lors de la déduction." }, { status: 422 });
     }
-    await markUsed(tokenKey);
     await db_incrementRewardUsage(tenantId, r.rewardName);
 
     // Notifier les wallets pour mettre à jour la carte en temps réel

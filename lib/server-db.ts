@@ -174,9 +174,15 @@ export async function db_getCustomerIdForCard(tenantId: string, customerCardId: 
 export async function db_addStamp(tenantId: string, customerCardId: string): Promise<DbCustomerCard | null> {
   const cc = await getCardInTenant(tenantId, customerCardId);
   if (!cc) return null;
+  // Plafonne au nombre de tampons requis par la carte — sans ça, un double
+  // scan/double-tap accidentel peut pousser le solde au-delà du seuil et
+  // laisser le client réclamer plus de récompenses que ce qu'il a gagné.
+  const { data: lc } = await supabase().from("loyalty_cards")
+    .select("stamps_required").eq("id", cc.card_id).maybeSingle();
+  const stampsRequired = lc?.stamps_required ?? Infinity;
   const now = new Date().toISOString();
   const { data } = await supabase().from("customer_cards")
-    .update({ stamps: cc.stamps + 1, last_activity: now })
+    .update({ stamps: Math.min(cc.stamps + 1, stampsRequired), last_activity: now })
     .eq("id", customerCardId).select("*").maybeSingle();
   await maybeRecordVisit(cc.customer_id);
   return data ? mapCard(data as CardRow) : null;
@@ -379,10 +385,15 @@ export async function db_deductReward(
   if (costType === "stamps") patch.stamps = cc.stamps - cost;
   else patch.points = cc.points - cost;
 
+  // Garde atomique côté DB : la clause .gte est réévaluée par Postgres au
+  // moment de l'écriture (verrou de ligne), pas sur notre lecture ci-dessus
+  // — si un scan concurrent a déjà consommé ce solde entre-temps, 0 ligne
+  // n'est modifiée ici, ce qui empêche une double-rédemption de récompense.
   const { data } = await supabase().from("customer_cards")
-    .update(patch).eq("id", customerCardId).select("*").maybeSingle();
+    .update(patch).eq("id", customerCardId).gte(costType, cost).select("*").maybeSingle();
+  if (!data) return { success: false, reason: "Solde insuffisant (déjà utilisé entre-temps)", card };
   await maybeRecordVisit(cc.customer_id);
-  return { success: true, card: data ? mapCard(data as CardRow) : card };
+  return { success: true, card: mapCard(data as CardRow) };
 }
 
 // ── Recherche cross-tenant (routes Apple Wallet sans session) ─────────────────

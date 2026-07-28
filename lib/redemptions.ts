@@ -41,13 +41,17 @@ export async function getRedemption(token: string): Promise<Redemption | null> {
   return { ...(data.payload as Redemption), used: data.used };
 }
 
-export async function markUsed(token: string): Promise<void> {
+// Retourne true si CE call a bien marqué le token comme utilisé — false si
+// un autre appel concurrent l'avait déjà fait entre-temps (clause .eq("used",
+// false) réévaluée par Postgres au moment de l'écriture, verrou de ligne).
+export async function markUsed(token: string): Promise<boolean> {
   const { data } = await supabase().from("redemption_tokens")
     .select("payload").eq("id", token).maybeSingle();
-  if (!data) return;
+  if (!data) return false;
   const payload = { ...(data.payload as Redemption), used: true, usedAt: new Date().toISOString() };
-  await supabase().from("redemption_tokens")
-    .update({ used: true, payload }).eq("id", token);
+  const { data: updated } = await supabase().from("redemption_tokens")
+    .update({ used: true, payload }).eq("id", token).eq("used", false).select("id").maybeSingle();
+  return !!updated;
 }
 
 export async function cancelPendingForCard(customerCardId: string): Promise<void> {

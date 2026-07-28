@@ -35,6 +35,7 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
   const customer = cc ? customers.find((c) => c.id === cc.customerId) : null;
   const [amount, setAmount] = useState("");
   const [done, setDone] = useState<"stamp" | "points" | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!cc && !syncing && !syncFailed) {
@@ -63,8 +64,10 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
   const accent = card.accentColor;
   const bg = card.backgroundColor;
 
-  const doStamp = () => { addStampToCard(cc.id); vibrate([30, 40, 30]); setDone("stamp"); };
-  const doPoints = () => { if (previewPts <= 0) return; addPointsToCard(cc.id, previewPts); vibrate([30, 40, 30]); setDone("points"); };
+  // Garde anti double-tap : un appui physique rapide (deux fois sur le même
+  // bouton) avant le passage à l'écran "done" ne doit créditer qu'une fois.
+  const doStamp = () => { if (submitting) return; setSubmitting(true); addStampToCard(cc.id); vibrate([30, 40, 30]); setDone("stamp"); };
+  const doPoints = () => { if (submitting || previewPts <= 0) return; setSubmitting(true); addPointsToCard(cc.id, previewPts); vibrate([30, 40, 30]); setDone("points"); };
 
   return (
     <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
@@ -108,8 +111,8 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
         ) : card.loyaltyMode === "stamps" ? (
           <>
             <p className="text-sm text-slate-500 mb-4">Ajouter un tampon à la carte de <strong>{customer.name.split(" ")[0]}</strong></p>
-            <button onClick={doStamp}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 font-semibold text-white text-sm"
+            <button onClick={doStamp} disabled={submitting}
+              className="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 font-semibold text-white text-sm disabled:opacity-40"
               style={{ background: accent }}>
               <Stamp className="h-4 w-4" /> +1 tampon
             </button>
@@ -130,7 +133,7 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
             {previewPts > 0 && (
               <p className="text-center text-sm text-slate-500 mb-3">= <strong style={{ color: accent }}>{previewPts} points</strong></p>
             )}
-            <button onClick={doPoints} disabled={previewPts === 0}
+            <button onClick={doPoints} disabled={submitting || previewPts === 0}
               className="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 font-semibold text-white text-sm disabled:opacity-40"
               style={{ background: accent }}>
               <Star className="h-4 w-4" /> Valider {previewPts > 0 ? `+${previewPts} pts` : ""}

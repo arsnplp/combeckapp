@@ -3,6 +3,7 @@ import { createClientAccountFromGoogle } from "@/lib/client-accounts";
 import { findTenantByCardId, db_getAll, db_addCustomer, db_recordPendingReferral, db_wouldReferralSucceed } from "@/lib/server-db";
 import { getUserById } from "@/lib/users";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
+import { isTrialExpired } from "@/lib/plan-billing";
 import { createClientSession } from "@/lib/client-sessions";
 import { getTenantSettings } from "@/lib/settings-db";
 
@@ -88,6 +89,14 @@ export async function GET(req: NextRequest) {
       const tenantId = await findTenantByCardId(cardId);
       if (tenantId) {
         const user = await getUserById(tenantId);
+        // Essai gratuit expiré : ce commerce n'accepte plus de nouvelles
+        // inscriptions — même garde que le formulaire classique (register/route.ts).
+        // On garde la session déjà posée sur `res` (vérifiée par Google) —
+        // seule l'inscription à CE commerce est refusée, pas la connexion.
+        if (isTrialExpired(user)) {
+          res.headers.set("location", `${appUrl}/client/cards?error=merchant_unavailable`);
+          return res;
+        }
         const limit = (PLAN_LIMITS[user?.plan ?? "starter"]).clients;
         const db = await db_getAll(tenantId);
         const current = db.customers.length;
@@ -106,7 +115,15 @@ export async function GET(req: NextRequest) {
             cardFrozen = !allowedIds.has(cardId);
           }
         } catch { /* fail-open */ }
-        if (!cardFrozen && !alreadyIn && (limit === Infinity || current < limit)) {
+        // Inscription bloquée (carte gelée ou limite clients atteinte) et pas déjà
+        // inscrit : on ne peut pas silencieusement rediriger vers /client/cards
+        // comme si de rien n'était — le client n'aurait alors aucune carte pour
+        // ce commerce et ne comprendrait pas pourquoi.
+        if (!alreadyIn && (cardFrozen || (limit !== Infinity && current >= limit))) {
+          res.headers.set("location", `${appUrl}/client/cards?error=registration_blocked`);
+          return res;
+        }
+        if (!alreadyIn) {
           const now = new Date().toISOString();
           const customerId = `c${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
           const customerCardId = `cc${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
