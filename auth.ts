@@ -76,7 +76,23 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user, account }) {
       if (account?.provider === "google" && user?.email) {
         // Google sign-in : trouver ou créer le compte marchand
-        const dbUser = (await getUserByEmail(user.email)) ?? (await createUserFromGoogle(user.email, user.name ?? ""));
+        const existing = await getUserByEmail(user.email);
+        const dbUser = existing ?? (await createUserFromGoogle(user.email, user.name ?? ""));
+        // Attribution affilié (cookie posé par /ref/{code}) : uniquement à la
+        // création du compte — même logique que /api/auth/signup, sinon un
+        // filleul qui s'inscrit via Google ne rapporte jamais rien à l'affilié.
+        if (!existing) {
+          try {
+            const { cookies } = await import("next/headers");
+            const affiliateCode = (await cookies()).get("comeback_ref")?.value;
+            if (affiliateCode) {
+              const { supabase } = await import("@/lib/supabase");
+              await supabase().from("merchants").update({ affiliate_code: affiliateCode }).eq("id", dbUser.id);
+            }
+          } catch (e) {
+            console.error("[auth] attribution affilié (google)", e);
+          }
+        }
         token.id = dbUser.id;
         token.isAdmin = false;
       } else if (user) {
