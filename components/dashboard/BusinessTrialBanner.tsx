@@ -29,7 +29,9 @@ export default function BusinessTrialBanner() {
 
   if (!info || hidden) return null;
   if (!info.signupChosePlan) return null;
-  if (info.plan === "business") return null;
+  // Réservé aux comptes gratuits (Starter ou essai en cours) — un abonnement
+  // Pro/Business payant ne doit jamais pouvoir être écrasé par ce bonus.
+  if (info.plan === "business" || info.plan === "pro") return null;
   if (info.businessTrialBannerDismissed) return null;
   // Le bonus déjà utilisé ne se propose plus que pendant qu'il court (plan "free")
   if (info.hasUsedBonusBusinessTrial && info.plan !== "free") return null;

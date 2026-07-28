@@ -20,8 +20,12 @@ export async function POST() {
   if (settings.hasUsedBonusBusinessTrial) {
     return NextResponse.json({ error: "Vous avez déjà utilisé votre essai Business offert." }, { status: 409 });
   }
-  if (merchant.plan === "business") {
-    return NextResponse.json({ error: "Vous êtes déjà sur le plan Business." }, { status: 409 });
+  // Réservé aux comptes gratuits (Starter ou essai en cours) : un abonnement
+  // Pro/Business payant ne doit JAMAIS être écrasé par ce bonus — sinon le
+  // commerçant continuerait à être facturé par Stripe pendant que son plan
+  // en base repasserait sur "free" (incohérence facturation/fonctionnalités).
+  if (merchant.plan === "pro" || merchant.plan === "business") {
+    return NextResponse.json({ error: "Cet essai est réservé aux comptes gratuits — vous êtes déjà sur un plan payant." }, { status: 409 });
   }
 
   const expiresAt = new Date();
