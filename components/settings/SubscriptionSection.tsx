@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, CreditCard, ExternalLink } from "lucide-react";
+import { CreditCard, ArrowRight } from "lucide-react";
 
 interface PlanInfo {
   plan: string;
@@ -12,8 +12,6 @@ interface PlanInfo {
 
 export default function SubscriptionSection() {
   const [info, setInfo] = useState<PlanInfo | null>(null);
-  const [opening, setOpening] = useState(false);
-  const [error, setError] = useState("");
 
   useEffect(() => {
     fetch("/api/plan-features")
@@ -21,21 +19,6 @@ export default function SubscriptionSection() {
       .then((d) => d && setInfo({ plan: d.plan, label: d.label, isExpired: d.isExpired, daysLeft: d.daysLeft }))
       .catch(() => {});
   }, []);
-
-  const openPortal = async () => {
-    if (opening) return;
-    setOpening(true);
-    setError("");
-    try {
-      const res = await fetch("/api/billing/portal", { method: "POST" });
-      const data = await res.json();
-      if (res.ok && data.url) { window.location.href = data.url; return; }
-      setError(data?.error ?? "Erreur.");
-    } catch {
-      setError("Erreur réseau.");
-    }
-    setOpening(false);
-  };
 
   if (!info) return null;
   const isFree = info.plan === "free";
@@ -63,23 +46,16 @@ export default function SubscriptionSection() {
             Passer à un plan payant
           </a>
         ) : (
-          <>
-            <button onClick={openPortal} disabled={opening}
-              className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-slate-800 disabled:opacity-60 transition-colors">
-              {opening ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
-              Gérer mon abonnement
-            </button>
-            <a href="/abonnement"
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-colors">
-              Changer de plan
-            </a>
-          </>
+          <a href="/abonnement"
+            className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-slate-800 transition-colors">
+            Changer de plan
+            <ArrowRight className="h-3.5 w-3.5" />
+          </a>
         )}
       </div>
       <p className="mt-2 text-[11.5px] text-slate-400">
         Factures, moyen de paiement et résiliation — géré en toute sécurité par Stripe.
       </p>
-      {error && <p className="mt-2 text-[12px] text-red-500">{error}</p>}
     </div>
   );
 }

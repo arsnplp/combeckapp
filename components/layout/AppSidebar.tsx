@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   LayoutDashboard, Gift, Users, CreditCard,
-  Bell, BarChart3, Settings, ScanLine, Gem,
+  Bell, BarChart3, Settings, ScanLine, Gem, User,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 
@@ -45,8 +46,7 @@ const navSections = [
 export default function AppSidebar() {
   const pathname = usePathname();
   const { settings } = useStore();
-  const storeName = settings.name || "Mon Établissement";
-  const initial = storeName.charAt(0).toUpperCase();
+  const { data: session } = useSession();
   const hasLogo = !!settings.logoUrl;
 
   return (
@@ -116,16 +116,16 @@ export default function AppSidebar() {
       {/* User */}
       <div className="flex-shrink-0 border-t border-slate-100 px-3 py-3">
         <div className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-slate-50 transition-colors">
-          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md overflow-hidden bg-green-600">
-            {hasLogo ? (
+          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full overflow-hidden bg-slate-100">
+            {session?.user?.image ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={`/api/settings/logo?t=${settings.logoUrl}`} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <img src={session.user.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             ) : (
-              <span className="text-[11px] font-bold text-white">{initial}</span>
+              <User className="h-3.5 w-3.5 text-slate-400" />
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-medium leading-tight text-slate-900">{storeName}</p>
+            <p className="truncate text-[13px] font-medium leading-tight text-slate-900">{session?.user?.email}</p>
             <p className="text-[11px] leading-tight text-slate-400">{settings.city || "Pro"}</p>
           </div>
         </div>
