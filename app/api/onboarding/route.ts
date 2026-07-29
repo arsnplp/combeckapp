@@ -10,14 +10,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
-  const { storeName, city, phone } = await req.json();
+  const { storeName, city, phone, password } = await req.json();
   if (!storeName || typeof storeName !== "string" || !storeName.trim()) {
     return NextResponse.json({ error: "Le nom du commerce est requis." }, { status: 400 });
   }
   if (!phone || typeof phone !== "string" || !PHONE_RE.test(phone.trim())) {
     return NextResponse.json({ error: "Numéro de téléphone invalide." }, { status: 400 });
   }
+  if (!password || typeof password !== "string" || password.length < 8) {
+    return NextResponse.json({ error: "Le mot de passe doit faire au moins 8 caractères." }, { status: 400 });
+  }
+  if (password.length > 128) {
+    return NextResponse.json({ error: "Mot de passe trop long." }, { status: 400 });
+  }
 
-  await completeOnboarding(session.user.id, storeName, city, phone);
+  await completeOnboarding(session.user.id, storeName, city, phone, password);
   return NextResponse.json({ ok: true });
 }

@@ -129,11 +129,18 @@ export async function createUserFromGoogle(email: string, name: string): Promise
   return user;
 }
 
-export async function completeOnboarding(id: string, storeName: string, city?: string, phone?: string): Promise<void> {
+export async function completeOnboarding(
+  id: string,
+  storeName: string,
+  city?: string,
+  phone?: string,
+  password?: string,
+): Promise<void> {
   await supabase().from("merchants").update({
     store_name: storeName.trim(),
     ...(city?.trim() ? { city: city.trim() } : {}),
     ...(phone?.trim() ? { phone: phone.trim() } : {}),
+    ...(password ? { password_hash: await bcrypt.hash(password, 12) } : {}),
     onboarding_needed: false,
   }).eq("id", id);
 }
