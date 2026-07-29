@@ -3,7 +3,8 @@ import { createUser, setEmailVerified } from "@/lib/users";
 import type { PlanId } from "@/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const MAX = { storeName: 80, city: 60, email: 254, password: 128 };
+const PHONE_RE = /^[+\d][\d\s().-]{7,}$/;
+const MAX = { storeName: 80, city: 60, email: 254, password: 128, phone: 20 };
 const VALID_PLANS: PlanId[] = ["starter", "pro", "business"];
 
 export async function POST(req: NextRequest) {
@@ -13,9 +14,10 @@ export async function POST(req: NextRequest) {
     const password: string  = body.password ?? "";
     const storeName: string = (body.storeName ?? "").trim().slice(0, MAX.storeName);
     const city: string      = (body.city ?? "").trim().slice(0, MAX.city);
+    const phone: string     = (body.phone ?? "").trim().slice(0, MAX.phone);
     const plan: PlanId      = VALID_PLANS.includes(body.plan) ? body.plan : "starter";
 
-    if (!email || !password || !storeName) {
+    if (!email || !password || !storeName || !phone) {
       return NextResponse.json({ error: "Champs requis manquants." }, { status: 400 });
     }
     if (email.length > MAX.email || !EMAIL_RE.test(email)) {
@@ -30,8 +32,11 @@ export async function POST(req: NextRequest) {
     if (storeName.length < 2) {
       return NextResponse.json({ error: "Le nom de l'établissement est trop court." }, { status: 400 });
     }
+    if (!PHONE_RE.test(phone)) {
+      return NextResponse.json({ error: "Numéro de téléphone invalide." }, { status: 400 });
+    }
 
-    const user = await createUser(email, password, storeName, plan, city || undefined);
+    const user = await createUser(email, password, storeName, plan, city || undefined, phone);
 
     // Vérification email désactivée pour l'instant : sans ça, la connexion
     // automatique post-inscription (et donc le paiement) serait bloquée

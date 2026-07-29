@@ -28,6 +28,7 @@ function SignupForm() {
 
   const [storeName, setStoreName] = useState("");
   const [city, setCity]           = useState("");
+  const [phone, setPhone]         = useState("");
   const [email, setEmail]         = useState("");
   const [password, setPassword]   = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -44,15 +45,18 @@ function SignupForm() {
   const strengthColor = ["", "#ef4444", "#f59e0b", "#22c55e"][passwordStrength];
   const strengthLabel = ["", "Trop court", "Moyen", "Bon"][passwordStrength];
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  const PHONE_RE = /^[+\d][\d\s().-]{7,}$/;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     const trimmedEmail = email.trim().toLowerCase();
     const trimmedStore = storeName.trim();
+    const trimmedPhone = phone.trim();
     if (trimmedStore.length < 2) { setError("Le nom de l'établissement est trop court."); return; }
     if (!EMAIL_RE.test(trimmedEmail)) { setError("Adresse email invalide."); return; }
     if (password.length < 8) { setError("Le mot de passe doit faire au moins 8 caractères."); return; }
+    if (!PHONE_RE.test(trimmedPhone)) { setError("Numéro de téléphone invalide."); return; }
     setLoading(true);
     try {
       // Essai gratuit → route dédiée (30 jours d'expiration) ; payant → signup classique
@@ -60,7 +64,7 @@ function SignupForm() {
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmedEmail, password, storeName: trimmedStore, city: city.trim(), plan }),
+        body: JSON.stringify({ email: trimmedEmail, password, storeName: trimmedStore, city: city.trim(), phone: trimmedPhone, plan }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Erreur lors de la création du compte."); setLoading(false); return; }
@@ -201,6 +205,12 @@ function SignupForm() {
             <div className="space-y-1.5">
               <label className="block text-[12px] font-semibold uppercase tracking-[0.07em] text-slate-500">Email *</label>
               <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="vous@exemple.com"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-[14px] text-slate-900 outline-none placeholder:text-slate-300 focus:border-green-400 focus:bg-white focus:ring-2 focus:ring-green-100 transition-all" />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[12px] font-semibold uppercase tracking-[0.07em] text-slate-500">Téléphone *</label>
+              <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="06 12 34 56 78"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-[14px] text-slate-900 outline-none placeholder:text-slate-300 focus:border-green-400 focus:bg-white focus:ring-2 focus:ring-green-100 transition-all" />
             </div>
 

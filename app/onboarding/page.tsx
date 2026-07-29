@@ -7,19 +7,22 @@ import { Loader2, Zap } from "lucide-react";
 export default function OnboardingPage() {
   const [storeName, setStoreName] = useState("");
   const [city, setCity] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const PHONE_RE = /^[+\d][\d\s().-]{7,}$/;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!storeName.trim()) { setError("Le nom du commerce est requis."); return; }
+    if (!PHONE_RE.test(phone.trim())) { setError("Numéro de téléphone invalide."); return; }
     setLoading(true);
     setError("");
     const res = await fetch("/api/onboarding", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ storeName: storeName.trim(), city: city.trim() }),
+      body: JSON.stringify({ storeName: storeName.trim(), city: city.trim(), phone: phone.trim() }),
     });
     if (!res.ok) {
       const d = await res.json();
@@ -71,6 +74,20 @@ export default function OnboardingPage() {
               value={city}
               onChange={(e) => setCity(e.target.value)}
               placeholder="Ex : Paris"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] text-slate-900 outline-none placeholder:text-slate-300 focus:border-green-400 focus:ring-2 focus:ring-green-100 transition-all"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-[12px] font-semibold uppercase tracking-[0.07em] text-slate-500">
+              Téléphone *
+            </label>
+            <input
+              type="tel"
+              required
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="06 12 34 56 78"
               className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] text-slate-900 outline-none placeholder:text-slate-300 focus:border-green-400 focus:ring-2 focus:ring-green-100 transition-all"
             />
           </div>

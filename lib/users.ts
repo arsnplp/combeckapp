@@ -9,6 +9,7 @@ export interface DbUser {
   passwordHash: string;
   storeName: string;
   city?: string;
+  phone?: string;
   plan: PlanId;
   planExpiresAt?: string | null;
   createdAt: string;
@@ -24,6 +25,7 @@ interface MerchantRow {
   password_hash: string;
   store_name: string;
   city: string;
+  phone: string | null;
   plan: string;
   plan_expires_at?: string | null;
   created_at: string;
@@ -40,6 +42,7 @@ function mapUser(r: MerchantRow): DbUser {
     passwordHash: r.password_hash,
     storeName: r.store_name,
     city: r.city || undefined,
+    phone: r.phone || undefined,
     plan: r.plan as PlanId,
     planExpiresAt: r.plan_expires_at ?? undefined,
     createdAt: r.created_at,
@@ -50,7 +53,7 @@ function mapUser(r: MerchantRow): DbUser {
   };
 }
 
-const COLS = "id, email, password_hash, store_name, city, plan, plan_expires_at, created_at, email_verified, email_verification_token, google_id, onboarding_needed";
+const COLS = "id, email, password_hash, store_name, city, phone, plan, plan_expires_at, created_at, email_verified, email_verification_token, google_id, onboarding_needed";
 
 export async function getUserByEmail(email: string): Promise<DbUser | null> {
   const { data } = await supabase().from("merchants").select(COLS)
@@ -126,10 +129,11 @@ export async function createUserFromGoogle(email: string, name: string): Promise
   return user;
 }
 
-export async function completeOnboarding(id: string, storeName: string, city?: string): Promise<void> {
+export async function completeOnboarding(id: string, storeName: string, city?: string, phone?: string): Promise<void> {
   await supabase().from("merchants").update({
     store_name: storeName.trim(),
     ...(city?.trim() ? { city: city.trim() } : {}),
+    ...(phone?.trim() ? { phone: phone.trim() } : {}),
     onboarding_needed: false,
   }).eq("id", id);
 }
@@ -140,6 +144,7 @@ export async function createUser(
   storeName: string,
   _plan: PlanId = "free", // le plan payant n'est JAMAIS attribué ici : seul le
   city?: string,          // webhook Stripe le fait, après un vrai paiement
+  phone?: string,
 ): Promise<DbUser> {
   const normalized = email.toLowerCase().trim();
   if (await getUserByEmail(normalized)) throw new Error("EMAIL_EXISTS");
@@ -153,6 +158,7 @@ export async function createUser(
     passwordHash,
     storeName: storeName.trim(),
     city: city?.trim(),
+    phone: phone?.trim(),
     plan: "free",
     planExpiresAt: trialEnd.toISOString(),
     createdAt: new Date().toISOString(),
@@ -165,6 +171,7 @@ export async function createUser(
     password_hash: passwordHash,
     store_name: user.storeName,
     city: user.city ?? "",
+    phone: user.phone ?? "",
     plan: "free",
     plan_expires_at: user.planExpiresAt,
     created_at: user.createdAt,

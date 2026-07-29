@@ -36,6 +36,7 @@ export async function GET() {
       email: u.email,
       storeName: u.storeName,
       city: u.city ?? "",
+      phone: u.phone ?? "",
       plan: u.plan,
       monthlyRevenue: PLAN_PRICES[u.plan] ?? 0,
       createdAt: u.createdAt,

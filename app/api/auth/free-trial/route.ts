@@ -5,10 +5,11 @@ import { createFreeTrial } from "@/lib/plan-billing";
 import { randomBytes } from "crypto";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const PHONE_RE = /^[+\d][\d\s().-]{7,}$/;
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, storeName, city } = await req.json();
+    const { email, password, storeName, city, phone } = await req.json();
 
     if (!email || !EMAIL_RE.test(email)) {
       return NextResponse.json({ error: "Email invalide." }, { status: 400 });
@@ -18,6 +19,9 @@ export async function POST(req: NextRequest) {
     }
     if (!storeName || !storeName.trim()) {
       return NextResponse.json({ error: "Nom de commerce requis." }, { status: 400 });
+    }
+    if (!phone || !PHONE_RE.test(String(phone).trim())) {
+      return NextResponse.json({ error: "Numéro de téléphone invalide." }, { status: 400 });
     }
 
     const normalized = email.toLowerCase().trim();
@@ -43,6 +47,7 @@ export async function POST(req: NextRequest) {
       password_hash: passwordHash,
       store_name: storeName.trim(),
       city: city?.trim() ?? "",
+      phone: String(phone).trim(),
       plan: "free",
       plan_expires_at,
       created_at: new Date().toISOString(),

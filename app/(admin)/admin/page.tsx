@@ -12,6 +12,7 @@ interface TenantUser {
   email: string;
   storeName: string;
   city: string;
+  phone: string;
   plan: PlanId;
   monthlyRevenue: number;
   createdAt: string;
@@ -468,7 +469,7 @@ export default function AdminPage() {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b border-white/[0.05]">
-                  {["Établissement", "Email", "Ville", "Plan", "€/mois", "Clients", "Cartes", "Inscrit le", ""].map((h) => (
+                  {["Établissement", "Email", "Téléphone", "Ville", "Plan", "€/mois", "Clients", "Cartes", "Inscrit le", ""].map((h) => (
                     <th key={h} className="px-5 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.12em] text-slate-500">{h}</th>
                   ))}
                 </tr>
@@ -488,6 +489,7 @@ export default function AdminPage() {
                         </div>
                       </td>
                       <td className="px-5 py-3.5 text-[13px] text-slate-400">{u.email}</td>
+                      <td className="px-5 py-3.5 text-[13px] text-slate-400">{u.phone || "—"}</td>
                       <td className="px-5 py-3.5 text-[13px] text-slate-400">{u.city || "—"}</td>
                       <td className="px-5 py-3.5">
                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${planStyle.class}`}>
@@ -558,7 +560,7 @@ export default function AdminPage() {
               {/* Total row */}
               <tfoot>
                 <tr className="border-t border-white/[0.08] bg-white/[0.02]">
-                  <td colSpan={4} className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total</td>
+                  <td colSpan={5} className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total</td>
                   <td className="px-5 py-3 text-[13px] font-bold text-green-400">{mrr} €</td>
                   <td className="px-5 py-3 text-[13px] font-bold text-white">{totalClients}</td>
                   <td className="px-5 py-3 text-[13px] font-bold text-white">{totalCards}</td>
