@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Store, Moon, CheckCircle, Zap, Upload, Image as ImageIcon, Trash2, AlertTriangle, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Store, Moon, CheckCircle, Zap, Trash2, AlertTriangle, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -16,9 +15,6 @@ import CurrentPlanCard from "@/components/settings/CurrentPlanCard";
 export default function ParametresPage() {
   const { settings, updateSettings } = useStore();
   const { dark, toggle: toggleDark } = useDarkMode();
-  const [logoPreview, setLogoPreview] = useState<string>("");
-  const [logoUploading, setLogoUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   // Suppression de compte
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -41,108 +37,14 @@ export default function ParametresPage() {
     }
   };
 
-  useEffect(() => {
-    if (settings.logoUrl) {
-      setLogoPreview(`/api/settings/logo?t=${Date.now()}`);
-    }
-  }, [settings.logoUrl]);
-
   const update = (key: keyof typeof settings, value: string | number) => {
     updateSettings({ [key]: value } as Parameters<typeof updateSettings>[0]);
-  };
-
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setLogoUploading(true);
-
-    const objectUrl = URL.createObjectURL(file);
-    const img = new window.Image();
-    img.onload = async () => {
-      URL.revokeObjectURL(objectUrl);
-      // Resize to 256×256 on canvas — keeps upload tiny regardless of original size
-      const canvas = document.createElement("canvas");
-      canvas.width = 256;
-      canvas.height = 256;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0, 256, 256);
-      const data = canvas.toDataURL("image/png");
-
-      setLogoPreview(data);
-      try {
-        const res = await fetch("/api/settings/logo", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data }),
-        });
-        const json = await res.json();
-        if (json.url) {
-          updateSettings({ logoUrl: json.url });
-        } else {
-          alert("Erreur upload logo : " + (json.error ?? "inconnu"));
-        }
-      } catch (err) {
-        alert("Erreur réseau lors de l'upload : " + String(err));
-      } finally {
-        setLogoUploading(false);
-      }
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      setLogoUploading(false);
-      alert("Impossible de lire l'image.");
-    };
-    img.src = objectUrl;
   };
 
   return (
     <div className="space-y-10 max-w-4xl">
       {/* Abonnement */}
       <SubscriptionSection />
-
-      {/* Logo */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ImageIcon className="h-4 w-4 text-amber-400" />
-            Logo de l'établissement
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-slate-500 mb-4">
-            Ce logo apparaît sur votre carte Apple Wallet et dans les notifications push.
-          </p>
-          {!logoPreview && (
-            <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3">
-              <span className="text-[16px] leading-none">⚠️</span>
-              <p className="text-[12.5px] leading-relaxed text-amber-800">
-                <strong>Ajoutez votre logo</strong> — c&apos;est ce que vos clients verront en premier
-                sur leur carte de fidélité. Une carte sans logo fait beaucoup moins pro.
-              </p>
-            </div>
-          )}
-          <div className="flex items-center gap-4">
-            <div
-              onClick={() => fileRef.current?.click()}
-              style={{ width: 64, height: 64, borderRadius: 14, overflow: "hidden", flexShrink: 0, cursor: "pointer", border: "2px dashed #e2e8f0", background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center" }}
-            >
-              {logoPreview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoPreview} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-              ) : (
-                <Upload className="h-5 w-5 text-slate-300" />
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={logoUploading}>
-                {logoUploading ? "Envoi…" : logoPreview ? "Changer" : "Choisir un logo"}
-              </Button>
-              <p className="text-xs text-slate-400">PNG, JPG · Carré recommandé</p>
-            </div>
-          </div>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
-        </CardContent>
-      </Card>
 
       {/* Store info */}
       <Card>

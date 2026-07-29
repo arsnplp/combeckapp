@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { Plus, Pencil, Trash2, CreditCard, Check, Lock, Download, Printer, QrCode } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { Plus, Pencil, Trash2, CreditCard, Check, Lock, Download, Printer, QrCode, Upload } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,7 +82,7 @@ function buildPassUrl(origin: string, card: LoyaltyCard): string {
 void buildPassUrl;
 
 export default function CartePage() {
-  const { loyaltyCards, addLoyaltyCard, updateLoyaltyCard, deleteLoyaltyCard, customerCards, settings } = useStore();
+  const { loyaltyCards, addLoyaltyCard, updateLoyaltyCard, deleteLoyaltyCard, customerCards, settings, updateSettings } = useStore();
   const networkOrigin = useNetworkOrigin();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -93,6 +93,57 @@ export default function CartePage() {
   const [saved, setSaved]           = useState(false);
   const [limitError, setLimitError] = useState("");
   const [maxCards, setMaxCards]     = useState(Infinity);
+  const [logoPreview, setLogoPreview] = useState<string>("");
+  const [logoUploading, setLogoUploading] = useState(false);
+  const logoFileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (settings.logoUrl) setLogoPreview(`/api/settings/logo?t=${Date.now()}`);
+  }, [settings.logoUrl]);
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoUploading(true);
+
+    const objectUrl = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = async () => {
+      URL.revokeObjectURL(objectUrl);
+      // Resize to 256×256 on canvas — keeps upload tiny regardless of original size
+      const canvas = document.createElement("canvas");
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, 256, 256);
+      const data = canvas.toDataURL("image/png");
+
+      setLogoPreview(data);
+      try {
+        const res = await fetch("/api/settings/logo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data }),
+        });
+        const json = await res.json();
+        if (json.url) {
+          updateSettings({ logoUrl: json.url });
+        } else {
+          alert("Erreur upload logo : " + (json.error ?? "inconnu"));
+        }
+      } catch (err) {
+        alert("Erreur réseau lors de l'upload : " + String(err));
+      } finally {
+        setLogoUploading(false);
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      setLogoUploading(false);
+      alert("Impossible de lire l'image.");
+    };
+    img.src = objectUrl;
+  };
   const [deleteTarget, setDeleteTarget] = useState<LoyaltyCard | null>(null);
 
   const selected = loyaltyCards.find((c) => c.id === selectedId) ?? loyaltyCards[0] ?? null;
@@ -221,7 +272,7 @@ export default function CartePage() {
   };
 
   const handleSave = () => {
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || !settings.logoUrl) return;
     if (editingId) {
       updateLoyaltyCard(editingId, formToCard(form));
       setSaved(true);
@@ -460,6 +511,32 @@ export default function CartePage() {
 
           <div className="max-h-[65vh] overflow-y-auto px-7 py-6 space-y-6">
             <div className="space-y-2">
+              <label className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-slate-400">Logo de l'établissement *</label>
+              <p className="text-[11.5px] text-slate-400">Requis — c'est ce que vos clients verront en premier sur leur carte.</p>
+              <div className="flex items-center gap-4">
+                <div
+                  onClick={() => logoFileRef.current?.click()}
+                  className="flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center"
+                  style={{ width: 56, height: 56 }}
+                >
+                  {logoPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logoPreview} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  ) : (
+                    <Upload className="h-5 w-5 text-slate-300" />
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Button variant="outline" size="sm" onClick={() => logoFileRef.current?.click()} disabled={logoUploading}>
+                    {logoUploading ? "Envoi…" : logoPreview ? "Changer le logo" : "Choisir un logo"}
+                  </Button>
+                  <p className="text-[10.5px] text-slate-400">PNG, JPG · Carré recommandé</p>
+                </div>
+              </div>
+              <input ref={logoFileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+            </div>
+
+            <div className="space-y-2">
               <label className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-slate-400">Nom de la carte</label>
               <input className="h-[44px] w-full rounded-xl border border-slate-300 bg-white px-4 text-[14px] text-slate-900 shadow-sm placeholder:text-slate-400 outline-none transition focus:border-green-500 focus:ring-[3px] focus:ring-green-500/10"
                 placeholder="ex: Carte Café, VIP Club..." value={form.name} onChange={(e) => patch({ name: e.target.value })} autoFocus />
@@ -690,7 +767,7 @@ export default function CartePage() {
           <div className="h-px bg-slate-100" />
           <div className="flex justify-end gap-2 px-7 py-5">
             <Button variant="secondary" onClick={() => { setShowCreate(false); setEditingId(null); }}>Annuler</Button>
-            <Button onClick={handleSave} disabled={!form.name.trim()}>
+            <Button onClick={handleSave} disabled={!form.name.trim() || !settings.logoUrl}>
               {saved ? <><Check className="mr-1.5 h-4 w-4" />Sauvegardé</> : editingId ? "Sauvegarder" : "Créer la carte"}
             </Button>
           </div>
