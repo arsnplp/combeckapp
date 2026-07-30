@@ -7,7 +7,7 @@ import {
   X, Phone, Mail, Star, Gift, Calendar, Stamp, UserPlus, Users,
   CreditCard, Clock, TrendingUp, UserCheck, ChevronDown, ChevronUp,
   Plus, Pencil, Trash2, RefreshCw, FolderPlus, Folder, FolderOpen,
-  MoveRight, CheckSquare, Download,
+  MoveRight, CheckSquare, Download, Loader2,
 } from "lucide-react";
 import CustomerTable, { type EnrichedCustomer } from "@/components/clients/CustomerTable";
 import { computeRank } from "@/lib/rank";
@@ -465,10 +465,38 @@ export default function ClientsPage() {
 
   const [showAssign, setShowAssign] = useState(false);
   const [maxClients, setMaxClients] = useState<number | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   useEffect(() => {
     fetchPlanFeatures().then((f) => setMaxClients(f?.maxClients ?? null));
   }, []);
+
+  const handleExportCsv = async () => {
+    if (exporting) return;
+    setExporting(true);
+    setExportError("");
+    try {
+      const res = await fetch("/api/register/export");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setExportError(data?.error ?? "Export impossible pour le moment.");
+        return;
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? "clients.csv";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError("Erreur réseau. Réessayez.");
+    }
+    setExporting(false);
+  };
 
   const [showEdit, setShowEdit] = useState(false);
   const [editName, setEditName] = useState("");
@@ -647,10 +675,11 @@ export default function ClientsPage() {
             )}
           </button>
           <button
-            onClick={() => window.open("/api/register/export", "_blank")}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+            onClick={handleExportCsv}
+            disabled={exporting}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] font-medium text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
           >
-            <Download className="h-3.5 w-3.5" />
+            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             Exporter CSV
           </button>
           <Button
@@ -662,6 +691,19 @@ export default function ClientsPage() {
           </Button>
         </div>
       </div>
+
+      {exportError && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3">
+          <span className="text-[18px]">⚠️</span>
+          <p className="min-w-0 flex-1 text-[13px] text-amber-800">{exportError}</p>
+          <a href="/abonnement" className="flex-shrink-0 text-[12.5px] font-semibold text-amber-700 underline hover:text-amber-900">
+            Voir les plans
+          </a>
+          <button onClick={() => setExportError("")} className="flex-shrink-0 text-amber-400 hover:text-amber-600 transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Selection action bar */}
       <AnimatePresence>
