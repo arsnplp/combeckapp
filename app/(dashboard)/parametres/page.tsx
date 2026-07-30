@@ -11,6 +11,7 @@ import { useDarkMode } from "@/lib/use-dark-mode";
 import { signOut, useSession } from "next-auth/react";
 import SubscriptionSection from "@/components/settings/SubscriptionSection";
 import CurrentPlanCard from "@/components/settings/CurrentPlanCard";
+import PasswordSection from "@/components/settings/PasswordSection";
 
 export default function ParametresPage() {
   const { settings, updateSettings } = useStore();
@@ -64,6 +65,7 @@ export default function ParametresPage() {
             </div>
             <p className="text-[14px] font-medium text-slate-900">{session?.user?.email}</p>
           </div>
+          <PasswordSection />
         </CardContent>
       </Card>
 
