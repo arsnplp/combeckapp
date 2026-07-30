@@ -13,14 +13,14 @@ import { useStore } from "@/lib/store-context";
 
 const tabs = [
   { href: "/dashboard", label: "Accueil", icon: LayoutDashboard, exact: true, scanner: false },
-  { href: "/clients", label: "Clients", icon: Users, exact: false, scanner: false },
-  { href: "/dashboard/scan", label: "Scanner", icon: ScanLine, exact: false, scanner: true },
-  { href: "/carte", label: "Cartes", icon: CreditCard, exact: false, scanner: false },
+  { href: "/clients", label: "Clients", icon: Users, exact: false, scanner: false, tourId: "clients" },
+  { href: "/dashboard/scan", label: "Scanner", icon: ScanLine, exact: false, scanner: true, tourId: "scanner" },
+  { href: "/carte", label: "Cartes", icon: CreditCard, exact: false, scanner: false, tourId: "cartes" },
 ];
 
 const menuItems = [
   { href: "/produits", label: "Récompenses", icon: Gift },
-  { href: "/notifications", label: "Notifications", icon: Bell },
+  { href: "/notifications", label: "Notifications", icon: Bell, tourId: "notifications" },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/parametres", label: "Paramètres", icon: Settings },
 ];
@@ -54,7 +54,7 @@ export default function MobileNav() {
             // Bouton Scanner central, mis en avant (l'action n°1 en boutique)
             if (tab.scanner) {
               return (
-                <Link key={tab.href} href={tab.href} className="relative flex items-end justify-center pb-1.5">
+                <Link key={tab.href} href={tab.href} data-tour={tab.tourId} className="relative flex items-end justify-center pb-1.5">
                   <span
                     className={`absolute -top-5 flex h-[54px] w-[54px] items-center justify-center rounded-full shadow-lg transition-all active:scale-95 ${
                       active
@@ -74,6 +74,7 @@ export default function MobileNav() {
               <Link
                 key={tab.href}
                 href={tab.href}
+                data-tour={tab.tourId}
                 className="flex flex-col items-center justify-center gap-1 transition-colors active:bg-slate-50"
               >
                 <Icon className={`h-[21px] w-[21px] ${active ? "text-green-600" : "text-slate-400"}`} />
@@ -85,6 +86,7 @@ export default function MobileNav() {
           })}
           <button
             onClick={() => setMenuOpen(true)}
+            data-tour="mobile-menu-button"
             className="flex flex-col items-center justify-center gap-1 transition-colors active:bg-slate-50"
           >
             <Menu className={`h-[21px] w-[21px] ${menuActive ? "text-green-600" : "text-slate-400"}`} />
@@ -140,6 +142,7 @@ export default function MobileNav() {
                     <Link
                       key={item.href}
                       href={item.href}
+                      data-tour={item.tourId}
                       onClick={() => setMenuOpen(false)}
                       className={`flex items-center gap-3.5 rounded-2xl px-4 py-3.5 text-[15px] font-medium transition-colors ${
                         active ? "bg-green-50 text-green-700" : "text-slate-700 active:bg-slate-50"

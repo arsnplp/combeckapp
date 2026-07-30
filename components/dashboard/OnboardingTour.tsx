@@ -45,6 +45,18 @@ const STEPS: Step[] = [
 
 type Rect = { top: number; left: number; width: number; height: number };
 
+// Certains éléments existent deux fois dans le DOM (version sidebar desktop +
+// version barre du bas mobile), l'une des deux étant cachée en CSS selon la
+// largeur d'écran. On choisit la première qui a une taille réelle (visible).
+function findVisibleTarget(tourId: string): Element | null {
+  const candidates = document.querySelectorAll(`[data-tour="${tourId}"]`);
+  for (const el of candidates) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) return el;
+  }
+  return null;
+}
+
 export default function OnboardingTour() {
   const { loyaltyCards, settingsReady } = useStore();
   const { data: session } = useSession();
@@ -53,6 +65,7 @@ export default function OnboardingTour() {
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState(0); // 0 = bienvenue, 1..5 = STEPS[step-1]
   const [rect, setRect] = useState<Rect | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Clé propre à chaque compte : un compte supprimé puis recréé (même
   // navigateur) doit revoir le tour, il ne doit pas hériter du choix d'un
@@ -65,8 +78,6 @@ export default function OnboardingTour() {
     if (!storageKey) return; // attend que la session soit résolue
     if (loyaltyCards.length > 0) return;
     if (pathname !== "/dashboard") return; // déclenché uniquement à l'arrivée sur le dashboard vide
-    if (typeof window === "undefined") return;
-    if (window.innerWidth < 1024) return; // tour pensé pour la sidebar desktop
     if (localStorage.getItem(storageKey) === "1") return;
     setVisible(true);
   }, [settingsReady, loyaltyCards.length, pathname, storageKey]);
@@ -79,20 +90,34 @@ export default function OnboardingTour() {
   };
 
   const updateRect = useCallback(() => {
+    setIsMobile(window.innerWidth < 1024);
     if (step === 0) { setRect(null); return; }
     const tourId = STEPS[step - 1].tourId;
-    const el = document.querySelector(`[data-tour="${tourId}"]`);
+    const el = findVisibleTarget(tourId);
     if (!el) { setRect(null); return; }
     const r = el.getBoundingClientRect();
     setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
   }, [step]);
 
   useEffect(() => {
+    if (!visible || step === 0) return;
+    // Mobile : "Notifications" est caché dans le tiroir "Menu" tant qu'il
+    // n'est pas ouvert -> on l'ouvre automatiquement s'il n'est pas visible.
+    const tourId = STEPS[step - 1].tourId;
+    if (!findVisibleTarget(tourId)) {
+      (document.querySelector('[data-tour="mobile-menu-button"]') as HTMLElement | null)?.click();
+    }
+  }, [visible, step]);
+
+  useEffect(() => {
     if (!visible) return;
     updateRect();
+    // Laisse l'animation d'ouverture du tiroir mobile se terminer avant de remesurer
+    const t = setTimeout(updateRect, 380);
     window.addEventListener("resize", updateRect);
     window.addEventListener("scroll", updateRect, true);
     return () => {
+      clearTimeout(t);
       window.removeEventListener("resize", updateRect);
       window.removeEventListener("scroll", updateRect, true);
     };
@@ -119,12 +144,18 @@ export default function OnboardingTour() {
     height: rect.height + padding * 2,
   } : null;
 
-  // Bulle positionnée à droite de l'élément ciblé, centrée verticalement dessus
+  // Desktop : bulle à droite de l'élément ciblé, centrée verticalement dessus.
+  // Mobile : bulle ancrée au-dessus de la barre de navigation du bas, pleine largeur.
   const bubbleWidth = 320;
   const bubbleTop = spotlight
-    ? Math.min(Math.max(spotlight.top + spotlight.height / 2 - 70, 16), window.innerHeight - 220)
+    ? isMobile
+      ? undefined
+      : Math.min(Math.max(spotlight.top + spotlight.height / 2 - 70, 16), window.innerHeight - 220)
     : 0;
-  const bubbleLeft = spotlight ? spotlight.left + spotlight.width + 18 : 0;
+  const bubbleBottom = spotlight && isMobile
+    ? Math.max(window.innerHeight - spotlight.top + 14, 84)
+    : undefined;
+  const bubbleLeft = spotlight && !isMobile ? spotlight.left + spotlight.width + 18 : undefined;
 
   return (
     <div className="fixed inset-0 z-[100]">
@@ -192,15 +223,21 @@ export default function OnboardingTour() {
           spotlight && (
             <motion.div
               key={`bubble-${step}`}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0, top: bubbleTop, left: bubbleLeft }}
+              initial={{ opacity: 0, y: isMobile ? 8 : 0, x: isMobile ? 0 : -8 }}
+              animate={
+                isMobile
+                  ? { opacity: 1, y: 0, bottom: bubbleBottom, left: 16, right: 16 }
+                  : { opacity: 1, x: 0, top: bubbleTop, left: bubbleLeft }
+              }
               exit={{ opacity: 0 }}
               transition={{ duration: 0.22 }}
               className="absolute rounded-2xl bg-white p-5 shadow-2xl"
-              style={{ width: bubbleWidth }}
+              style={isMobile ? undefined : { width: bubbleWidth }}
             >
-              {/* Petite flèche pointant vers l'élément ciblé */}
-              <div className="absolute -left-[7px] top-[26px] h-3.5 w-3.5 rotate-45 bg-white" />
+              {/* Petite flèche pointant vers l'élément ciblé (desktop uniquement) */}
+              {!isMobile && (
+                <div className="absolute -left-[7px] top-[26px] h-3.5 w-3.5 rotate-45 bg-white" />
+              )}
 
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-green-600">
