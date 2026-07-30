@@ -91,6 +91,7 @@ export default function CartePage() {
   const [editingId, setEditingId]   = useState<string | null>(null);
   const [form, setForm]             = useState<CardForm>(defaultForm());
   const [qrDataUrl, setQrDataUrl]   = useState<string>("");
+  const [previewQrDataUrl, setPreviewQrDataUrl] = useState<string>("");
   const [saved, setSaved]           = useState(false);
   const [limitError, setLimitError] = useState("");
   const [maxCards, setMaxCards]     = useState(Infinity);
@@ -178,6 +179,14 @@ export default function CartePage() {
     QRCode.toDataURL(joinUrl, { width: 120, margin: 1, color: { dark: "#0f172a", light: "#ffffff" } })
       .then(setQrDataUrl).catch(() => setQrDataUrl(""));
   }, [joinUrl]);
+
+  // QR factice pour l'aperçu carte (ne pointe vers rien) — évite de dupliquer
+  // le vrai QR d'inscription dans le mockup, où il pourrait être confondu
+  // avec celui à imprimer juste à côté.
+  useEffect(() => {
+    QRCode.toDataURL("APERCU-COMEBACK", { width: 120, margin: 1, color: { dark: "#0f172a", light: "#ffffff" } })
+      .then(setPreviewQrDataUrl).catch(() => setPreviewQrDataUrl(""));
+  }, []);
 
   // Nom de fichier propre : "qr-ma-carte.png"
   const slugify = (t: string) =>
@@ -456,7 +465,7 @@ export default function CartePage() {
           <div className="flex w-full flex-col items-center gap-6 lg:flex-row lg:items-start lg:justify-center lg:gap-8">
             <div className="flex flex-col items-center gap-6">
               <p className="text-[12px] text-slate-400">Aperçu de la carte</p>
-              <WalletPreview card={selected} currentStamps={3} points={120} clientName="Marie Dupont" qrDataUrl={qrDataUrl} />
+              <WalletPreview card={selected} currentStamps={3} points={120} clientName="Marie Dupont" qrDataUrl={previewQrDataUrl} />
             </div>
             {qrDataUrl && (
               <div className="flex w-full flex-col items-center gap-4 sm:w-56 lg:mt-8">

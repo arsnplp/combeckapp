@@ -151,12 +151,21 @@ export default function WalletPreview({
             <span style={{ fontSize: 12, color: `${accent}50`, flexShrink: 0 }}>›</span>
           </div>
 
-          {/* ── QR code ── */}
+          {/* ── QR code (factice — ne pointe vers rien, pour ne pas être confondu
+               avec le vrai QR d'inscription à imprimer, affiché à côté) ── */}
           <div style={{ padding: "4px 14px 6px", display: "flex", justifyContent: "center" }}>
             {qrDataUrl ? (
-              <div style={{ width: 110, height: 110, borderRadius: 10, background: "#fff", padding: 5 }}>
+              <div style={{ width: 110, height: 110, borderRadius: 10, background: "#fff", padding: 5, position: "relative", overflow: "hidden" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={qrDataUrl} alt="QR" width={100} height={100} style={{ display: "block", borderRadius: 6 }} />
+                <img src={qrDataUrl} alt="Exemple — pas un vrai QR" width={100} height={100} style={{ display: "block", borderRadius: 6, opacity: 0.35 }} />
+                <div style={{
+                  position: "absolute", top: "42%", left: "-12%", width: "124%",
+                  background: "#dc2626", color: "#fff", fontSize: 10, fontWeight: 800,
+                  letterSpacing: "0.06em", textAlign: "center", padding: "3px 0",
+                  transform: "rotate(-14deg)", boxShadow: "0 2px 6px rgba(0,0,0,0.35)",
+                }}>
+                  APERÇU
+                </div>
               </div>
             ) : (
               <div style={{ width: 110, height: 110, borderRadius: 10, background: "rgba(255,255,255,0.06)", border: `1px dashed ${accent}35`, display: "flex", alignItems: "center", justifyContent: "center" }}>
