@@ -18,21 +18,21 @@ const navSections = [
   {
     label: "Fidélité",
     items: [
-      { href: "/carte", label: "Cartes Wallet", icon: CreditCard },
-      { href: "/clients", label: "Clients", icon: Users },
+      { href: "/carte", label: "Cartes Wallet", icon: CreditCard, tourId: "cartes" },
+      { href: "/clients", label: "Clients", icon: Users, tourId: "clients" },
       { href: "/produits", label: "Récompenses", icon: Gift },
     ],
   },
   {
     label: "Clients",
     items: [
-      { href: "/dashboard/scan", label: "Scanner QR", icon: ScanLine },
+      { href: "/dashboard/scan", label: "Scanner QR", icon: ScanLine, tourId: "scanner" },
     ],
   },
   {
     label: "Outils",
     items: [
-      { href: "/notifications", label: "Notifications", icon: Bell },
+      { href: "/notifications", label: "Notifications", icon: Bell, tourId: "notifications" },
       { href: "/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/parametres", label: "Paramètres", icon: Settings },
     ],
@@ -98,6 +98,7 @@ export default function AppSidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    data-tour={"tourId" in item ? item.tourId : undefined}
                     className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13px] font-medium transition-colors ${
                       isActive ? "bg-green-50 text-green-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                     }`}

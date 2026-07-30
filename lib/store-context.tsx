@@ -93,6 +93,8 @@ interface StoreCtx {
   useRewardOnCard: (customerCardId: string, reward: Reward) => void;
   // Rédemptions serveur (historique récompenses utilisées)
   serverRedemptions: Array<{ id: string; customerId: string; customerCardId: string; rewardName: string; rewardEmoji: string; cost: number; costType: string; redeemedAt: string }>;
+  // true une fois les données serveur chargées (évite d'agir sur un état par défaut vide et transitoire)
+  settingsReady: boolean;
   // Legacy customer actions (global, uses settings)
   syncFromServer: () => Promise<number>;
   addCustomer: (data: { name: string; email: string; phone: string }) => Customer;
@@ -124,6 +126,7 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
   const [serverRedemptions, setServerRedemptions] = useState<ServerRedemption[]>([]);
   // Blocks server save until initial hydration is complete (prevents overwriting server data with defaults)
   const serverHydrated = useRef(false);
+  const [settingsReady, setSettingsReady] = useState(false);
 
   // Sync new registrations from server into local state — returns count of new clients added
   const syncFromServer = useCallback(async (): Promise<number> => {
@@ -227,6 +230,7 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
       .catch(() => {})
       .finally(() => {
         serverHydrated.current = true;
+        setSettingsReady(true);
       });
 
     syncFromServer();
@@ -542,6 +546,7 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
       addStampToCard, addPointsToCard, useRewardOnCard,
       syncFromServer,
       serverRedemptions,
+      settingsReady,
       addCustomer, updateCustomer, deleteCustomer,
       addStamp, addPoints, useReward,
     }}>

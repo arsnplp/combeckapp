@@ -7,6 +7,7 @@ import { StoreProvider } from "@/lib/store-context";
 import { auth } from "@/auth";
 import ImpersonationBanner from "@/components/layout/ImpersonationBanner";
 import PlanExpirationBanner from "@/components/dashboard/PlanExpirationBanner";
+import OnboardingTour from "@/components/dashboard/OnboardingTour";
 import { getUserById } from "@/lib/users";
 import { getPlanInfo } from "@/lib/plan-billing";
 
@@ -44,6 +45,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           </div>
         </div>
         <MobileNav />
+        <OnboardingTour />
       </div>
     </StoreProvider>
   );

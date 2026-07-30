@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Plus, Pencil, Trash2, CreditCard, Check, Lock, Download, Printer, QrCode, Upload } from "lucide-react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -256,6 +257,17 @@ export default function CartePage() {
     setEditingId(null);
     setShowCreate(true);
   };
+
+  // Arrivée depuis le tour de bienvenue (?create=1) : ouvre directement la création
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("create") === "1") {
+      openCreate();
+      router.replace("/carte");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openEdit = (card: LoyaltyCard) => {
     setLimitError("");
