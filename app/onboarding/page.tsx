@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Eye, EyeOff } from "lucide-react";
+import { isValidPhone } from "@/lib/validation";
 
 export default function OnboardingPage() {
   const [storeName, setStoreName] = useState("");
@@ -14,12 +15,11 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
-  const PHONE_RE = /^[+\d][\d\s().-]{7,}$/;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!storeName.trim()) { setError("Le nom du commerce est requis."); return; }
-    if (!PHONE_RE.test(phone.trim())) { setError("Numéro de téléphone invalide."); return; }
+    if (!isValidPhone(phone.trim())) { setError("Numéro de téléphone invalide."); return; }
     if (password.length < 8) { setError("Le mot de passe doit faire au moins 8 caractères."); return; }
     if (password !== confirmPassword) { setError("Les mots de passe ne correspondent pas."); return; }
     setLoading(true);

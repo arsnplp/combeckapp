@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Loader2, Eye, EyeOff, Check, Star, ArrowLeft } from "lucide-react";
+import { isValidPhone } from "@/lib/validation";
 import type { PlanId } from "@/types";
 
 const PLAN_INFO: Record<PlanId, { label: string; price: number; color: string }> = {
@@ -45,7 +46,6 @@ function SignupForm() {
   const strengthColor = ["", "#ef4444", "#f59e0b", "#22c55e"][passwordStrength];
   const strengthLabel = ["", "Trop court", "Moyen", "Bon"][passwordStrength];
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-  const PHONE_RE = /^[+\d][\d\s().-]{7,}$/;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +56,7 @@ function SignupForm() {
     if (trimmedStore.length < 2) { setError("Le nom de l'établissement est trop court."); return; }
     if (!EMAIL_RE.test(trimmedEmail)) { setError("Adresse email invalide."); return; }
     if (password.length < 8) { setError("Le mot de passe doit faire au moins 8 caractères."); return; }
-    if (!PHONE_RE.test(trimmedPhone)) { setError("Numéro de téléphone invalide."); return; }
+    if (!isValidPhone(trimmedPhone)) { setError("Numéro de téléphone invalide."); return; }
     setLoading(true);
     try {
       // Essai gratuit → route dédiée (30 jours d'expiration) ; payant → signup classique

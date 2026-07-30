@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createUser, setEmailVerified } from "@/lib/users";
+import { isValidPhone } from "@/lib/validation";
 import type { PlanId } from "@/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const PHONE_RE = /^[+\d][\d\s().-]{7,}$/;
 const MAX = { storeName: 80, city: 60, email: 254, password: 128, phone: 20 };
 const VALID_PLANS: PlanId[] = ["starter", "pro", "business"];
 
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     if (storeName.length < 2) {
       return NextResponse.json({ error: "Le nom de l'établissement est trop court." }, { status: 400 });
     }
-    if (!PHONE_RE.test(phone)) {
+    if (!isValidPhone(phone)) {
       return NextResponse.json({ error: "Numéro de téléphone invalide." }, { status: 400 });
     }
 

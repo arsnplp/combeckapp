@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
 import { createFreeTrial } from "@/lib/plan-billing";
+import { isValidPhone } from "@/lib/validation";
 import { randomBytes } from "crypto";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const PHONE_RE = /^[+\d][\d\s().-]{7,}$/;
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     if (!storeName || !storeName.trim()) {
       return NextResponse.json({ error: "Nom de commerce requis." }, { status: 400 });
     }
-    if (!phone || !PHONE_RE.test(String(phone).trim())) {
+    if (!phone || !isValidPhone(String(phone).trim())) {
       return NextResponse.json({ error: "Numéro de téléphone invalide." }, { status: 400 });
     }
 
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     // Attribution affilié : cookie posé par /ref/{code}
     const affiliateCode = req.cookies.get("comeback_ref")?.value ?? null;
 
-    await sb.from("merchants").insert({
+    const { error: insertError } = await sb.from("merchants").insert({
       id,
       email: normalized,
       password_hash: passwordHash,
@@ -55,6 +55,14 @@ export async function POST(req: NextRequest) {
       is_admin: false,
       affiliate_code: affiliateCode,
     });
+    if (insertError) {
+      // Contrainte unique sur l'email (course entre deux requêtes simultanées) —
+      // le check ci-dessus (ligne 31) ne suffit pas seul à s'en protéger.
+      if (insertError.message.includes("merchants_email_key")) {
+        return NextResponse.json({ error: "Cet email est déjà utilisé." }, { status: 409 });
+      }
+      throw new Error(insertError.message);
+    }
 
     // Créer une session JWT manuelle (backend auth)
     return NextResponse.json({

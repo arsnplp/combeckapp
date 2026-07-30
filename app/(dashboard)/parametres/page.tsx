@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useStore } from "@/lib/store-context";
 import { useDarkMode } from "@/lib/use-dark-mode";
+import { isValidPhone } from "@/lib/validation";
 import { signOut, useSession } from "next-auth/react";
 import SubscriptionSection from "@/components/settings/SubscriptionSection";
 import CurrentPlanCard from "@/components/settings/CurrentPlanCard";
@@ -97,6 +98,9 @@ export default function ParametresPage() {
             <div className="space-y-2">
               <Label>Téléphone</Label>
               <Input value={settings.phone} onChange={(e) => update("phone", e.target.value)} />
+              {settings.phone.trim() && !isValidPhone(settings.phone) && (
+                <p className="text-[12px] text-red-500">Numéro invalide — non enregistré tant qu'il n'est pas corrigé.</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Email</Label>

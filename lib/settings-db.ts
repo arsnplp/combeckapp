@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { isValidPhone } from "./validation";
 
 // ── Formes identiques à l'ancien settings.json (compat frontend) ──────────────
 
@@ -160,12 +161,17 @@ export async function saveTenantSettings(
 ): Promise<void> {
   const sb = supabase();
   const s = (blob.settings ?? {}) as Record<string, unknown>;
+  // Un numéro invalide en cours de frappe ne doit pas être persisté (le champ
+  // reste tel qu'il était en base) — le retour visuel se fait côté UI, pas en
+  // rejetant toute la sauvegarde automatique (qui couvre aussi le reste du blob).
+  const rawPhone = (s.phone as string) ?? "";
+  const phoneToSave = !rawPhone.trim() || isValidPhone(rawPhone) ? rawPhone : undefined;
 
   await sb.from("merchants").update({
     store_name: (s.storeName as string) || (s.name as string) || undefined,
     city: (s.city as string) ?? (s.storeCity as string) ?? undefined,
     address: (s.address as string) ?? undefined,
-    phone: (s.phone as string) ?? undefined,
+    phone: phoneToSave,
     website: (s.website as string) ?? undefined,
     logo_url: (s.logoUrl as string) ?? undefined,
     settings: s,

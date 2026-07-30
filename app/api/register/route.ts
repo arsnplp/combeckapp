@@ -18,6 +18,7 @@ import { createClientSession, resolveClientSession } from "@/lib/client-sessions
 import { findClientCards } from "@/lib/client-lookup";
 import { z } from "zod";
 import { getTenantSettings } from "@/lib/settings-db";
+import { isValidPhone } from "@/lib/validation";
 
 const RegisterSchema = z.discriminatedUnion("mode", [
   z.object({
@@ -25,7 +26,9 @@ const RegisterSchema = z.discriminatedUnion("mode", [
     cardId: z.string().min(1),
     name: z.string().min(1).max(100),
     email: z.string().email().optional().or(z.literal("")),
-    phone: z.string().max(30).optional(),
+    phone: z.string().max(30).optional().refine((v) => !v || !v.trim() || isValidPhone(v), {
+      message: "Numéro de téléphone invalide.",
+    }),
     password: z.string().min(6).max(128).optional(),
     ref: z.string().optional(),
   }),

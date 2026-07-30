@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { completeOnboarding } from "@/lib/users";
-
-const PHONE_RE = /^[+\d][\d\s().-]{7,}$/;
+import { isValidPhone } from "@/lib/validation";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -14,7 +13,7 @@ export async function POST(req: NextRequest) {
   if (!storeName || typeof storeName !== "string" || !storeName.trim()) {
     return NextResponse.json({ error: "Le nom du commerce est requis." }, { status: 400 });
   }
-  if (!phone || typeof phone !== "string" || !PHONE_RE.test(phone.trim())) {
+  if (!phone || typeof phone !== "string" || !isValidPhone(phone.trim())) {
     return NextResponse.json({ error: "Numéro de téléphone invalide." }, { status: 400 });
   }
   if (!password || typeof password !== "string" || password.length < 8) {

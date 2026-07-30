@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, User, Phone, ArrowRight, Loader2, ChevronLeft, UserPlus, LogIn, CheckCircle } from "lucide-react";
+import { isValidPhone } from "@/lib/validation";
 
 export interface JoinSuccess {
   customerId: string;
@@ -138,6 +139,7 @@ export default function ClientAuthPanel({ cardId, refParam, accent = "#16a34a", 
     e.preventDefault();
     if (loading) return;
     if (!name.trim()) { setError("Le nom est requis."); return; }
+    if (phone.trim() && !isValidPhone(phone)) { setError("Numéro de téléphone invalide."); return; }
     if (email.trim()) {
       if (password.length < 6) { setError("Le mot de passe doit faire au moins 6 caractères."); return; }
       if (password !== confirmPassword) { setError("Les mots de passe ne correspondent pas."); return; }

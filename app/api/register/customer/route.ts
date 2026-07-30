@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { db_addCustomer, db_getAll } from "@/lib/server-db";
 import { getUserById } from "@/lib/users";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
+import { isValidPhone } from "@/lib/validation";
 
 // POST — création de client depuis le dashboard restaurant (authentifié)
 export async function POST(req: NextRequest) {
@@ -18,6 +19,9 @@ export async function POST(req: NextRequest) {
 
     if (!customerId || !name || !cardId || !customerCardId) {
       return NextResponse.json({ error: "Champs manquants" }, { status: 400 });
+    }
+    if (phone && String(phone).trim() && !isValidPhone(String(phone))) {
+      return NextResponse.json({ error: "Numéro de téléphone invalide." }, { status: 400 });
     }
 
     // Vérifier la limite du plan

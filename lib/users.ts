@@ -113,7 +113,7 @@ export async function createUserFromGoogle(email: string, name: string): Promise
     googleId: normalized,
     onboardingNeeded: true,
   };
-  await supabase().from("merchants").insert({
+  const { error } = await supabase().from("merchants").insert({
     id: user.id,
     email: user.email,
     password_hash: "",
@@ -126,6 +126,17 @@ export async function createUserFromGoogle(email: string, name: string): Promise
     onboarding_needed: true,
     is_admin: false,
   });
+  if (error) {
+    // Course avec une autre requête simultanée pour le même email : quelqu'un
+    // vient de créer le compte entre notre check et notre insert — on
+    // récupère la vraie ligne plutôt que de renvoyer un objet qui n'existe
+    // pas en base (sinon la session pointe vers un id fantôme).
+    if (error.message.includes("merchants_email_key")) {
+      const created = await getUserByEmail(normalized);
+      if (created) return created;
+    }
+    throw new Error(error.message);
+  }
   return user;
 }
 

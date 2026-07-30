@@ -63,10 +63,19 @@ export async function createClientAccount(
       password_hash: passwordHash, password_plain: null, name, created_at: account.createdAt,
     }).eq("id", existing.id);
   } else {
-    await sb.from("clients").insert({
+    const { error } = await sb.from("clients").insert({
       id: clientId(normalized), email: normalized,
       password_hash: passwordHash, name, created_at: account.createdAt,
     });
+    if (error) {
+      // Course avec un autre appel simultané pour le même email : la ligne
+      // vient d'être créée entre notre check et notre insert — on bascule sur
+      // la mise à jour au lieu d'échouer en silence (le mot de passe fourni
+      // ici doit rester celui qui prévaut).
+      await sb.from("clients").update({
+        password_hash: passwordHash, password_plain: null, name, created_at: account.createdAt,
+      }).ilike("email", normalized);
+    }
   }
   return account;
 }
@@ -85,11 +94,15 @@ export async function resetClientPassword(email: string, newPassword: string): P
   if (existing) {
     await sb.from("clients").update({ password_hash: passwordHash, password_plain: null }).eq("id", existing.id);
   } else {
-    await sb.from("clients").insert({
+    const { error } = await sb.from("clients").insert({
       id: clientId(normalized), email: normalized,
       password_hash: passwordHash,
       name: normalized, created_at: new Date().toISOString(),
     });
+    if (error) {
+      // Course avec un autre appel simultané — bascule sur la mise à jour.
+      await sb.from("clients").update({ password_hash: passwordHash, password_plain: null }).ilike("email", normalized);
+    }
   }
 }
 
@@ -111,10 +124,16 @@ export async function createClientAccountFromGoogle(email: string, name: string)
     createdAt: new Date().toISOString(),
     googleId: normalized,
   };
-  await sb.from("clients").insert({
+  const { error } = await sb.from("clients").insert({
     id: clientId(normalized), email: normalized, password_hash: "",
     name: account.name, google_id: normalized, created_at: account.createdAt,
   });
+  if (error) {
+    // Course avec un autre appel simultané pour le même email — récupère la
+    // vraie ligne plutôt que de renvoyer un compte qui n'existe pas en base.
+    const created = await getClientAccount(normalized);
+    if (created) return created;
+  }
   return account;
 }
 
