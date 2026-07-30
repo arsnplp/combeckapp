@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, X, CreditCard } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 
-const STORAGE_KEY = "comeback_tour_done";
+const STORAGE_PREFIX = "comeback_tour_done_";
 
 interface Step {
   tourId: string;
@@ -46,21 +47,29 @@ type Rect = { top: number; left: number; width: number; height: number };
 
 export default function OnboardingTour() {
   const { loyaltyCards, settingsReady } = useStore();
+  const { data: session } = useSession();
   const router = useRouter();
   const pathname = usePathname();
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState(0); // 0 = bienvenue, 1..5 = STEPS[step-1]
   const [rect, setRect] = useState<Rect | null>(null);
 
+  // Clé propre à chaque compte : un compte supprimé puis recréé (même
+  // navigateur) doit revoir le tour, il ne doit pas hériter du choix d'un
+  // ancien compte qui partageait juste le même appareil.
+  const userId = session?.user?.id;
+  const storageKey = userId ? `${STORAGE_PREFIX}${userId}` : null;
+
   useEffect(() => {
     if (!settingsReady) return;
+    if (!storageKey) return; // attend que la session soit résolue
     if (loyaltyCards.length > 0) return;
     if (pathname !== "/dashboard") return; // déclenché uniquement à l'arrivée sur le dashboard vide
     if (typeof window === "undefined") return;
     if (window.innerWidth < 1024) return; // tour pensé pour la sidebar desktop
-    if (localStorage.getItem(STORAGE_KEY) === "1") return;
+    if (localStorage.getItem(storageKey) === "1") return;
     setVisible(true);
-  }, [settingsReady, loyaltyCards.length, pathname]);
+  }, [settingsReady, loyaltyCards.length, pathname, storageKey]);
 
   // Avance à l'étape n et navigue réellement sur la page concernée, pour que
   // le commerçant voie la vraie page derrière la bulle (pas juste le menu).
@@ -90,12 +99,12 @@ export default function OnboardingTour() {
   }, [visible, updateRect]);
 
   const dismiss = () => {
-    localStorage.setItem(STORAGE_KEY, "1");
+    if (storageKey) localStorage.setItem(storageKey, "1");
     setVisible(false);
   };
 
   const finish = () => {
-    localStorage.setItem(STORAGE_KEY, "1");
+    if (storageKey) localStorage.setItem(storageKey, "1");
     setVisible(false);
     router.push("/carte?create=1");
   };
