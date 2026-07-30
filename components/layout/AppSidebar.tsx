@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -8,6 +9,7 @@ import {
   Bell, BarChart3, Settings, ScanLine, Gem, User,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
+import { fetchPlanFeatures } from "@/lib/plan-features";
 
 const navSections = [
   {
@@ -48,6 +50,11 @@ export default function AppSidebar() {
   const { settings } = useStore();
   const { data: session } = useSession();
   const hasLogo = !!settings.logoUrl;
+  const [planLabel, setPlanLabel] = useState("");
+
+  useEffect(() => {
+    fetchPlanFeatures().then((f) => f && setPlanLabel(f.label));
+  }, []);
 
   return (
     <aside className="sticky top-0 z-40 flex h-screen w-full flex-col border-r border-slate-200 bg-white">
@@ -115,7 +122,7 @@ export default function AppSidebar() {
 
       {/* User */}
       <div className="flex-shrink-0 border-t border-slate-100 px-3 py-3">
-        <div className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-slate-50 transition-colors">
+        <Link href="/parametres" className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-slate-50 transition-colors">
           <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full overflow-hidden bg-slate-100">
             {session?.user?.image ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -126,9 +133,9 @@ export default function AppSidebar() {
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-medium leading-tight text-slate-900">{session?.user?.email}</p>
-            <p className="text-[11px] leading-tight text-slate-400">{settings.city || "Pro"}</p>
+            <p className="text-[11px] leading-tight text-slate-400">{planLabel}</p>
           </div>
-        </div>
+        </Link>
       </div>
     </aside>
   );

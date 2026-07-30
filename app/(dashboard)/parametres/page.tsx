@@ -1,20 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { Store, Moon, CheckCircle, Zap, Trash2, AlertTriangle, Loader2 } from "lucide-react";
+import { Store, Moon, CheckCircle, Zap, Trash2, AlertTriangle, Loader2, UserCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useStore } from "@/lib/store-context";
 import { useDarkMode } from "@/lib/use-dark-mode";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import SubscriptionSection from "@/components/settings/SubscriptionSection";
 import CurrentPlanCard from "@/components/settings/CurrentPlanCard";
 
 export default function ParametresPage() {
   const { settings, updateSettings } = useStore();
   const { dark, toggle: toggleDark } = useDarkMode();
+  const { data: session } = useSession();
 
   // Suppression de compte
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -43,6 +44,29 @@ export default function ParametresPage() {
 
   return (
     <div className="space-y-10 max-w-4xl">
+      {/* Profil */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserCircle className="h-4 w-4 text-amber-400" />
+            Profil
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full overflow-hidden bg-slate-100">
+              {session?.user?.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={session.user.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                <UserCircle className="h-7 w-7 text-slate-300" />
+              )}
+            </div>
+            <p className="text-[14px] font-medium text-slate-900">{session?.user?.email}</p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Abonnement */}
       <SubscriptionSection />
 
