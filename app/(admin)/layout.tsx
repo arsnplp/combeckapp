@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import Link from "next/link";
-import { Zap, Shield, LogOut } from "lucide-react";
+import { Shield, LogOut } from "lucide-react";
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const session = await auth();
@@ -21,10 +21,8 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       {/* Admin topbar */}
       <header className="flex h-12 items-center justify-between border-b border-white/10 bg-slate-900 px-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-green-600">
-            <Zap className="h-3 w-3 text-white" fill="currentColor" />
-          </div>
-          <span className="text-[13px] font-bold text-white">Comeback</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Comeback" className="h-5 w-auto object-contain brightness-0 invert" />
           <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-400">
             <Shield className="h-2.5 w-2.5" /> Super Admin
           </span>

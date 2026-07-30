@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Zap, Star, Gift, Loader2 } from "lucide-react";
+import { Check, Star, Gift, Loader2 } from "lucide-react";
 
 const PLANS = [
   {
@@ -104,10 +104,8 @@ export default function TarifsPage() {
       {/* Header */}
       <header className="flex h-14 items-center justify-between border-b border-slate-100 px-6">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-green-600">
-            <Zap className="h-3.5 w-3.5 text-white" fill="currentColor" />
-          </div>
-          <span className="text-[15px] font-bold text-slate-900">Comeback</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Comeback" className="h-7 w-auto object-contain" />
         </div>
         {loggedIn ? (
           <Link href="/login" className="text-[13px] font-medium text-slate-500 hover:text-slate-800 transition-colors">

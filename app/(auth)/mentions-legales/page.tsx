@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Zap } from "lucide-react";
 
 export default function MentionsLegalesPage() {
   return (
@@ -8,10 +7,8 @@ export default function MentionsLegalesPage() {
         {/* Header */}
         <div className="mb-10 flex items-center gap-2.5">
           <Link href="/login" className="flex items-center gap-2.5 text-slate-900 hover:opacity-80 transition-opacity">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-green-600">
-              <Zap className="h-3.5 w-3.5 text-white" fill="currentColor" />
-            </div>
-            <span className="text-[15px] font-bold">Comeback</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Comeback" className="h-7 w-auto object-contain" />
           </Link>
         </div>
 

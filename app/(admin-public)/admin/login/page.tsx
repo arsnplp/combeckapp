@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Zap, Shield, Loader2, Eye, EyeOff } from "lucide-react";
+import { Shield, Loader2, Eye, EyeOff } from "lucide-react";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -34,11 +34,9 @@ export default function AdminLoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6">
       <div className="w-full max-w-[360px]">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-green-600">
-            <Zap className="h-6 w-6 text-white" fill="currentColor" />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Comeback" className="h-9 w-auto object-contain brightness-0 invert" />
           <div>
-            <p className="text-[18px] font-bold text-white">Comeback</p>
             <div className="mt-1 flex items-center justify-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1">
               <Shield className="h-3 w-3 text-amber-400" />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-400">Accès Super Admin</span>

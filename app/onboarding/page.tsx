@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Zap, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 
 export default function OnboardingPage() {
   const [storeName, setStoreName] = useState("");
@@ -43,10 +43,8 @@ export default function OnboardingPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
       <div className="w-full max-w-[420px]">
         <div className="mb-8 flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-green-600">
-            <Zap className="h-4 w-4 text-white" fill="currentColor" />
-          </div>
-          <span className="text-[17px] font-bold text-slate-900">Comeback</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Comeback" className="h-8 w-auto object-contain" />
         </div>
 
         <h1 className="text-[22px] font-bold text-slate-900">Bienvenue !</h1>
