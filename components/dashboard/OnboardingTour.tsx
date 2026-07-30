@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, X, CreditCard } from "lucide-react";
 import { useStore } from "@/lib/store-context";
@@ -10,28 +10,34 @@ const STORAGE_KEY = "comeback_tour_done";
 
 interface Step {
   tourId: string;
+  href: string;
   text: string;
 }
 
 const STEPS: Step[] = [
   {
     tourId: "cartes",
+    href: "/carte",
     text: "Commencez ici : créez votre carte de fidélité. Nom, couleurs, points de bienvenue — en 2 minutes c'est prêt.",
   },
   {
     tourId: "cartes",
+    href: "/carte",
     text: "Une fois la carte créée, imprimez le QR code associé et posez-le sur votre comptoir : vos clients le scannent pour recevoir leur carte.",
   },
   {
     tourId: "clients",
+    href: "/clients",
     text: "Chaque client qui s'inscrit apparaît ici. Vous voyez enfin qui sont vos habitués.",
   },
   {
     tourId: "scanner",
+    href: "/dashboard/scan",
     text: "En caisse, scannez la carte du client pour ajouter un point ou débloquer sa récompense.",
   },
   {
     tourId: "notifications",
+    href: "/notifications",
     text: "Et le plus puissant : envoyez une notif à vos clients — une offre, une nouveauté, un rappel. C'est ce qui les fait revenir.",
   },
 ];
@@ -41,6 +47,7 @@ type Rect = { top: number; left: number; width: number; height: number };
 export default function OnboardingTour() {
   const { loyaltyCards, settingsReady } = useStore();
   const router = useRouter();
+  const pathname = usePathname();
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState(0); // 0 = bienvenue, 1..5 = STEPS[step-1]
   const [rect, setRect] = useState<Rect | null>(null);
@@ -48,11 +55,19 @@ export default function OnboardingTour() {
   useEffect(() => {
     if (!settingsReady) return;
     if (loyaltyCards.length > 0) return;
+    if (pathname !== "/dashboard") return; // déclenché uniquement à l'arrivée sur le dashboard vide
     if (typeof window === "undefined") return;
     if (window.innerWidth < 1024) return; // tour pensé pour la sidebar desktop
     if (localStorage.getItem(STORAGE_KEY) === "1") return;
     setVisible(true);
-  }, [settingsReady, loyaltyCards.length]);
+  }, [settingsReady, loyaltyCards.length, pathname]);
+
+  // Avance à l'étape n et navigue réellement sur la page concernée, pour que
+  // le commerçant voie la vraie page derrière la bulle (pas juste le menu).
+  const goToStep = (n: number) => {
+    setStep(n);
+    if (n >= 1) router.push(STEPS[n - 1].href);
+  };
 
   const updateRect = useCallback(() => {
     if (step === 0) { setRect(null); return; }
@@ -150,7 +165,7 @@ export default function OnboardingTour() {
                 En 5 étapes, on vous montre comment lancer votre programme de fidélité.
               </p>
               <button
-                onClick={() => setStep(1)}
+                onClick={() => goToStep(1)}
                 className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl bg-green-600 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-green-700 active:scale-[0.98]"
               >
                 C&apos;est parti
@@ -193,7 +208,7 @@ export default function OnboardingTour() {
 
               {step < STEPS.length ? (
                 <button
-                  onClick={() => setStep(step + 1)}
+                  onClick={() => goToStep(step + 1)}
                   className="mt-5 flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-900 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-slate-800 active:scale-[0.98]"
                 >
                   Suivant
