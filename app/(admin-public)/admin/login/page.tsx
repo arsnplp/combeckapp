@@ -35,7 +35,7 @@ export default function AdminLoginPage() {
       <div className="w-full max-w-[360px]">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Comeback" className="h-9 w-auto object-contain brightness-0 invert" />
+          <img src="/logo-dark.png" alt="Comeback" className="h-9 w-auto object-contain" />
           <div>
             <div className="mt-1 flex items-center justify-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1">
               <Shield className="h-3 w-3 text-amber-400" />

@@ -64,7 +64,7 @@ function LoginForm() {
         {/* Logo */}
         <div className="relative">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Comeback" className="h-8 w-auto object-contain brightness-0 invert" />
+          <img src="/logo-dark.png" alt="Comeback" className="h-8 w-auto object-contain" />
         </div>
 
         {/* Hero */}

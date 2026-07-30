@@ -106,7 +106,7 @@ function SignupForm() {
         <div className="absolute -top-32 -right-32 h-96 w-96 rounded-full bg-green-600/10 blur-3xl" />
         <div className="relative">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Comeback" className="h-8 w-auto object-contain brightness-0 invert" />
+          <img src="/logo-dark.png" alt="Comeback" className="h-8 w-auto object-contain" />
         </div>
         <div className="relative space-y-6">
           <div>
