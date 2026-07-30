@@ -10,6 +10,9 @@ interface WalletPreviewProps {
   clientName?: string;
   qrDataUrl?: string;
   campaignMessage?: string;
+  // Si fourni, le QR (factice) devient cliquable et ouvre la vraie page
+  // d'inscription — pour que le commerçant voie exactement ce que voit son client.
+  onQrClick?: () => void;
 }
 
 // Faithful replica of Apple Wallet generic pass layout
@@ -20,6 +23,7 @@ export default function WalletPreview({
   clientName = "Ehjejenn",
   qrDataUrl,
   campaignMessage,
+  onQrClick,
 }: WalletPreviewProps) {
   const { settings } = useStore();
   const bg = card.backgroundColor || "#1a0a00";
@@ -152,10 +156,18 @@ export default function WalletPreview({
           </div>
 
           {/* ── QR code (factice — ne pointe vers rien, pour ne pas être confondu
-               avec le vrai QR d'inscription à imprimer, affiché à côté) ── */}
+               avec le vrai QR d'inscription à imprimer, affiché à côté).
+               Cliquable : ouvre la vraie page d'inscription du client. ── */}
           <div style={{ padding: "4px 14px 6px", display: "flex", justifyContent: "center" }}>
             {qrDataUrl ? (
-              <div style={{ width: 110, height: 110, borderRadius: 10, background: "#fff", padding: 5, position: "relative", overflow: "hidden" }}>
+              <div
+                onClick={onQrClick}
+                title={onQrClick ? "Voir la page d'inscription du client" : undefined}
+                style={{
+                  width: 110, height: 110, borderRadius: 10, background: "#fff", padding: 5,
+                  position: "relative", overflow: "hidden", cursor: onQrClick ? "pointer" : undefined,
+                }}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={qrDataUrl} alt="Exemple — pas un vrai QR" width={100} height={100} style={{ display: "block", borderRadius: 6, opacity: 0.35 }} />
                 <div style={{
@@ -194,6 +206,19 @@ export default function WalletPreview({
       </div>
 
       <p style={{ fontSize: 10, color: "#64748b" }}>Aperçu fidèle Apple Wallet</p>
+
+      {onQrClick && (
+        <button
+          onClick={onQrClick}
+          style={{
+            display: "flex", alignItems: "center", gap: 6, background: "transparent",
+            border: "none", color: "#16a34a", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+            padding: 0,
+          }}
+        >
+          👀 Voir ce que voit votre client →
+        </button>
+      )}
     </div>
   );
 }

@@ -465,7 +465,11 @@ export default function CartePage() {
           <div className="flex w-full flex-col items-center gap-6 lg:flex-row lg:items-start lg:justify-center lg:gap-8">
             <div className="flex flex-col items-center gap-6">
               <p className="text-[12px] text-slate-400">Aperçu de la carte</p>
-              <WalletPreview card={selected} currentStamps={3} points={120} clientName="Marie Dupont" qrDataUrl={previewQrDataUrl} />
+              <WalletPreview
+                card={selected} currentStamps={3} points={120} clientName="Marie Dupont"
+                qrDataUrl={previewQrDataUrl}
+                onQrClick={joinUrl ? () => window.open(joinUrl, "_blank") : undefined}
+              />
             </div>
             {qrDataUrl && (
               <div className="flex w-full flex-col items-center gap-4 sm:w-56 lg:mt-8">
