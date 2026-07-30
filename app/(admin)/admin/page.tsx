@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, CreditCard, Store, Loader2, RefreshCw, Euro, LogIn, Key, Check, X, Trash2, ShieldAlert, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Users, CreditCard, Store, Loader2, RefreshCw, Euro, LogIn, Key, Check, X, Trash2, ShieldAlert, ShieldCheck, AlertTriangle, Search, ArrowUpDown, Send, MessageCircle } from "lucide-react";
 import { signIn } from "next-auth/react";
 import type { PlanId } from "@/types";
 
@@ -109,8 +109,28 @@ interface SystemErrorItem {
   resolved: boolean;
 }
 
+interface ConversationSummary {
+  merchantId: string;
+  storeName: string;
+  email: string;
+  lastMessage: string;
+  lastMessageAt: string;
+  unreadForAdmin: number;
+}
+
+interface SupportMsg {
+  id: string;
+  sender: "merchant" | "admin";
+  body: string;
+  createdAt: string;
+}
+
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
 export default function AdminPage() {
-  const [tab, setTab] = useState<"restaurants" | "clients" | "errors">("restaurants");
+  const [tab, setTab] = useState<"restaurants" | "clients" | "errors" | "messages">("restaurants");
   const [users, setUsers] = useState<TenantUser[]>([]);
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [systemErrors, setSystemErrors] = useState<SystemErrorItem[]>([]);
@@ -126,6 +146,17 @@ export default function AdminPage() {
   const [deletingClient, setDeletingClient] = useState<string | null>(null);
   const [certInfo, setCertInfo] = useState<CertInfo | null>(null);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+
+  // Messages support
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [loadingConvos, setLoadingConvos] = useState(false);
+  const [selectedMerchant, setSelectedMerchant] = useState<string | null>(null);
+  const [thread, setThread] = useState<SupportMsg[]>([]);
+  const [loadingThread, setLoadingThread] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortDesc, setSortDesc] = useState(true);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
 
   const QUICK_LINKS = [
     { emoji: "🌐", label: "Site vitrine", url: "https://getcomeback.fr", desc: "Landing publique" },
@@ -271,22 +302,109 @@ export default function AdminPage() {
     setResolvingError(null);
   };
 
+  const loadConversations = async () => {
+    setLoadingConvos(true);
+    try {
+      const res = await fetch("/api/admin/support");
+      const data = await res.json();
+      setConversations(data.conversations ?? []);
+    } catch { /* ignore */ }
+    setLoadingConvos(false);
+  };
+
+  const loadThread = async (merchantId: string) => {
+    setLoadingThread(true);
+    try {
+      const res = await fetch(`/api/admin/support/${merchantId}`);
+      const data = await res.json();
+      setThread(data.messages ?? []);
+      setConversations((prev) => prev.map((c) => c.merchantId === merchantId ? { ...c, unreadForAdmin: 0 } : c));
+    } catch { /* ignore */ }
+    setLoadingThread(false);
+  };
+
+  const selectConversation = (merchantId: string) => {
+    setSelectedMerchant(merchantId);
+    loadThread(merchantId);
+  };
+
+  const sendReply = async () => {
+    const body = replyText.trim();
+    if (!selectedMerchant || !body || sendingReply) return;
+    setSendingReply(true);
+    setReplyText("");
+    try {
+      const res = await fetch(`/api/admin/support/${selectedMerchant}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      const data = await res.json();
+      if (res.ok && data.message) {
+        setThread((prev) => [...prev, data.message]);
+        setConversations((prev) => prev.map((c) =>
+          c.merchantId === selectedMerchant ? { ...c, lastMessage: data.message.body, lastMessageAt: data.message.createdAt } : c
+        ));
+      } else {
+        alert(data.error ?? "Erreur");
+        setReplyText(body);
+      }
+    } catch {
+      alert("Erreur réseau");
+      setReplyText(body);
+    }
+    setSendingReply(false);
+  };
+
   useEffect(() => {
     load();
     fetch("/api/admin/cert-info").then(r => r.json()).then(d => { if (d.daysLeft !== undefined) setCertInfo(d); });
     loadErrors();
+    loadConversations(); // pour le badge de messages non lus, même sans avoir ouvert l'onglet
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (tab === "clients" && clients.length === 0) {
       loadClients();
     }
+    if (tab === "messages" && conversations.length === 0) {
+      loadConversations();
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  // Rafraîchit la liste des conversations pendant que l'onglet est ouvert
+  useEffect(() => {
+    if (tab !== "messages") return;
+    const t = setInterval(loadConversations, 15000);
+    return () => clearInterval(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  // Rafraîchit le fil ouvert (réponses du commerçant en quasi temps réel)
+  useEffect(() => {
+    if (tab !== "messages" || !selectedMerchant) return;
+    const t = setInterval(() => loadThread(selectedMerchant), 5000);
+    return () => clearInterval(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, selectedMerchant]);
 
   const mrr          = users.reduce((s, u) => s + u.monthlyRevenue, 0);
   const totalClients = users.reduce((s, u) => s + u.clients, 0);
   const totalCards   = users.reduce((s, u) => s + u.loyaltyCards, 0);
+
+  const totalUnreadMessages = conversations.reduce((s, c) => s + c.unreadForAdmin, 0);
+  const filteredConversations = conversations
+    .filter((c) =>
+      c.storeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.email.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      const diff = new Date(a.lastMessageAt).getTime() - new Date(b.lastMessageAt).getTime();
+      return sortDesc ? -diff : diff;
+    });
+  const selectedConversation = conversations.find((c) => c.merchantId === selectedMerchant) ?? null;
 
   return (
     <div className="space-y-8">
@@ -447,6 +565,19 @@ export default function AdminPage() {
           Erreurs
           {systemErrors.length > 0 && (
             <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{systemErrors.length}</span>
+          )}
+        </button>
+        <button
+          onClick={() => setTab("messages")}
+          className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-medium transition-colors ${
+            tab === "messages"
+              ? "bg-white/[0.08] text-white"
+              : "text-slate-400 hover:text-white"
+          }`}
+        >
+          Messages
+          {totalUnreadMessages > 0 && (
+            <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{totalUnreadMessages}</span>
           )}
         </button>
       </div>
@@ -718,6 +849,119 @@ export default function AdminPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Messages Tab */}
+      {tab === "messages" && (
+        <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
+          {/* Liste des conversations */}
+          <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.03]">
+            <div className="space-y-2.5 border-b border-white/[0.06] p-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Rechercher un commerçant…"
+                  className="w-full rounded-lg border border-white/10 bg-white/[0.05] py-2 pl-8 pr-3 text-[12.5px] text-white placeholder-slate-500 outline-none focus:border-green-500/40"
+                />
+              </div>
+              <button
+                onClick={() => setSortDesc((v) => !v)}
+                className="flex items-center gap-1.5 text-[11px] text-slate-400 transition-colors hover:text-white"
+              >
+                <ArrowUpDown className="h-3 w-3" />
+                {sortDesc ? "Plus récent d'abord" : "Plus ancien d'abord"}
+              </button>
+            </div>
+            <div className="max-h-[560px] divide-y divide-white/[0.04] overflow-y-auto">
+              {loadingConvos ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
+                </div>
+              ) : filteredConversations.length === 0 ? (
+                <div className="py-12 text-center text-[12.5px] text-slate-500">
+                  {conversations.length === 0 ? "Aucun message pour l'instant" : "Aucun résultat"}
+                </div>
+              ) : (
+                filteredConversations.map((c) => (
+                  <button
+                    key={c.merchantId}
+                    onClick={() => selectConversation(c.merchantId)}
+                    className={`flex w-full flex-col gap-0.5 px-4 py-3 text-left transition-colors ${
+                      selectedMerchant === c.merchantId ? "bg-white/[0.07]" : "hover:bg-white/[0.03]"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-[13px] font-medium text-white">{c.storeName}</span>
+                      {c.unreadForAdmin > 0 && (
+                        <span className="flex-shrink-0 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                          {c.unreadForAdmin}
+                        </span>
+                      )}
+                    </div>
+                    <p className="truncate text-[11.5px] text-slate-500">{c.lastMessage}</p>
+                    <p className="text-[10px] text-slate-600">{formatDateTime(c.lastMessageAt)}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Fil de discussion */}
+          <div className="flex h-[640px] flex-col overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.03]">
+            {!selectedMerchant || !selectedConversation ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-slate-500">
+                <MessageCircle className="h-8 w-8 text-slate-700" />
+                <p className="text-[13px]">Sélectionnez une conversation</p>
+              </div>
+            ) : (
+              <>
+                <div className="border-b border-white/[0.06] px-5 py-3.5">
+                  <p className="text-[13.5px] font-semibold text-white">{selectedConversation.storeName}</p>
+                  <p className="text-[11.5px] text-slate-500">{selectedConversation.email}</p>
+                </div>
+                <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+                  {loadingThread ? (
+                    <div className="flex h-full items-center justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
+                    </div>
+                  ) : (
+                    thread.map((m) => (
+                      <div key={m.id} className={`flex ${m.sender === "admin" ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[70%] rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed ${
+                          m.sender === "admin" ? "bg-green-600 text-white" : "bg-white/[0.08] text-white"
+                        }`}>
+                          <p className="whitespace-pre-wrap">{m.body}</p>
+                          <p className={`mt-1 text-[10px] ${m.sender === "admin" ? "text-green-100/70" : "text-slate-500"}`}>
+                            {formatDateTime(m.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="flex items-end gap-2 border-t border-white/[0.06] p-3.5">
+                  <textarea
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
+                    placeholder="Répondre…"
+                    rows={1}
+                    className="max-h-24 flex-1 resize-none rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-[13px] text-white placeholder-slate-500 outline-none focus:border-green-500/40"
+                  />
+                  <button
+                    onClick={sendReply}
+                    disabled={!replyText.trim() || sendingReply}
+                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-green-600 text-white transition-colors hover:bg-green-700 disabled:opacity-40"
+                  >
+                    {sendingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
