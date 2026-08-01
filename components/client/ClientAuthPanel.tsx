@@ -79,7 +79,14 @@ export default function ClientAuthPanel({ cardId, refParam, accent = "#16a34a", 
       const data = await res.json();
       if (!res.ok) {
         if (res.status === 401) { setSession(null); setError(""); }
-        else if (data?.alreadyExists) { router.push("/client/cards"); return; }
+        else if (data?.alreadyExists) {
+          // Pas une vraie erreur : on explique avant de rediriger, sinon le
+          // saut silencieux vers /client/cards donne l'impression que l'ajout
+          // a échoué au lieu de montrer que la carte existe déjà.
+          setError("Vous êtes déjà inscrit(e) chez ce commerçant — direction votre carte.");
+          setTimeout(() => router.push("/client/cards"), 1400);
+          return;
+        }
         else setError(data?.error ?? `Erreur serveur (${res.status})`);
         setLoading(false);
         return;
