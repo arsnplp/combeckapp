@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   let accentColor = "#2563eb";
   let bgColor = "#1e293b";
   let cardName = "Carte fidélité";
+  let stripPreset: string | undefined;
 
   try {
     const settings = await getTenantSettings(tenantId);
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
       accentColor = loyaltyCard.accentColor ?? accentColor;
       bgColor = loyaltyCard.backgroundColor ?? bgColor;
       cardName = loyaltyCard.name ?? cardName;
+      stripPreset = loyaltyCard.stripPreset;
     }
   } catch { /* settings manquants */ }
 
@@ -49,6 +51,7 @@ export async function GET(req: NextRequest) {
     store: cardName,
     accent: accentColor,
     bg: bgColor,
+    ...(stripPreset ? { stripPreset } : {}),
   });
 
   // Rediriger vers la génération du pass — base publique obligatoire :

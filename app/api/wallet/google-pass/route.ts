@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
   let bgColor = "#1e293b";
   let cardName = "Carte fidélité";
   let nextReward: string | undefined;
+  let stripPreset: string | undefined;
 
   try {
     const settings = await getTenantSettings(tenantId);
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest) {
       accentColor = loyaltyCard.accentColor ?? accentColor;
       bgColor = loyaltyCard.backgroundColor ?? bgColor;
       cardName = loyaltyCard.name ?? cardName;
+      stripPreset = loyaltyCard.stripPreset;
     }
     nextReward = settings.rewards
       .filter((r) => r.mode === loyaltyMode)
@@ -56,6 +58,7 @@ export async function GET(req: NextRequest) {
       totalVisits: customer.totalVisits ?? 0,
       bgColor,
       accentColor,
+      stripPreset,
       nextReward,
       referralCount: (cc as { referralCount?: number }).referralCount ?? 0,
     });

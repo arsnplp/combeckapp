@@ -11,7 +11,7 @@ import WalletPreview from "@/components/carte/WalletPreview";
 import { useStore } from "@/lib/store-context";
 import { useNetworkOrigin } from "@/lib/use-network-origin";
 import { fetchPlanFeatures } from "@/lib/plan-features";
-import type { LoyaltyCard, LoyaltyMode, RankThresholds } from "@/types";
+import type { LoyaltyCard, LoyaltyMode, RankThresholds, StripPresetId } from "@/types";
 import QRCode from "qrcode";
 
 interface CardForm {
@@ -26,6 +26,7 @@ interface CardForm {
   rankThresholds: RankThresholds;
   // referrerBonus/referredBonus s'interprètent en tampons ou points selon loyaltyMode
   referral: { enabled: boolean; referrerBonus: number; referredBonus: number };
+  stripPreset?: string;
 }
 
 const defaultForm = (): CardForm => ({
@@ -39,7 +40,15 @@ const defaultForm = (): CardForm => ({
   welcomePoints: 0,
   rankThresholds: { silver: 2, gold: 5, platine: 10 },
   referral: { enabled: false, referrerBonus: 1, referredBonus: 1 },
+  stripPreset: undefined,
 });
+
+const stripImages: { id: StripPresetId; name: string; file: string }[] = [
+  { id: "salon",    name: "Salon / Beauté",     file: "/card-strips/salon.jpg" },
+  { id: "cafe",     name: "Café / Boulangerie", file: "/card-strips/cafe.jpg" },
+  { id: "bureau",   name: "Bureau / Équipe",    file: "/card-strips/bureau.jpg" },
+  { id: "boutique", name: "Boutique / Mode",    file: "/card-strips/boutique.jpg" },
+];
 
 const colorPresets = [
   { name: "Bordeaux",        bg: "#5E2327", accent: "#E3B988" },
@@ -161,6 +170,7 @@ export default function CartePage() {
       textColor: selected.textColor, loyaltyMode: selected.loyaltyMode,
       stampsRequired: selected.stampsRequired, pointsPerEuro: selected.pointsPerEuro,
       welcomePoints: selected.welcomePoints,
+      ...(selected.stripPreset ? { stripPreset: selected.stripPreset } : {}),
     });
     const utf8Bytes = new TextEncoder().encode(json);
     let binary = "";
@@ -281,6 +291,7 @@ export default function CartePage() {
       pointsPerEuro: card.pointsPerEuro, welcomePoints: card.welcomePoints,
       rankThresholds: card.rankThresholds ?? { silver: 2, gold: 5, platine: 10 },
       referral: card.referral ?? { enabled: false, referrerBonus: 1, referredBonus: 1 },
+      stripPreset: card.stripPreset,
     });
     setEditingId(card.id);
     setShowCreate(true);
@@ -709,8 +720,18 @@ export default function CartePage() {
               <div className="flex justify-center py-1">
                 <div className="relative w-[260px] h-[150px] rounded-2xl overflow-hidden shadow-xl select-none"
                   style={{ background: form.backgroundColor }}>
-                  <div className="absolute inset-0 opacity-5"
-                    style={{ backgroundImage: "radial-gradient(circle at 70% 30%, white 0%, transparent 60%)" }} />
+                  {form.stripPreset && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={stripImages.find((s) => s.id === form.stripPreset)?.file}
+                      alt=""
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                  )}
+                  <div className="absolute inset-0"
+                    style={form.stripPreset
+                      ? { background: `linear-gradient(to top, ${form.backgroundColor}f2, ${form.backgroundColor}55 45%, ${form.backgroundColor}88)` }
+                      : { backgroundImage: "radial-gradient(circle at 70% 30%, white 0%, transparent 60%)", opacity: 0.05 }} />
                   <div className="absolute top-4 left-4 right-4 flex items-start justify-between">
                     <div>
                       <p className="text-[9px] font-semibold uppercase tracking-widest opacity-60" style={{ color: form.accentColor }}>Fidélité</p>
@@ -736,6 +757,39 @@ export default function CartePage() {
                       <p className="text-[9px] opacity-50 text-white">points cumulés</p>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Image de bannière (optionnel) */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] text-slate-400">Image de la carte (optionnel)</p>
+                <div className="grid grid-cols-5 gap-1.5">
+                  <button type="button"
+                    onClick={() => patch({ stripPreset: undefined })}
+                    title="Aucune — dégradé dynamique"
+                    className="relative flex flex-col items-center gap-1 rounded-xl overflow-hidden transition-all"
+                    style={{ outline: !form.stripPreset ? "2px solid #16a34a" : "2px solid transparent", outlineOffset: "1px" }}>
+                    <div className="w-full h-11 flex items-center justify-center bg-slate-100">
+                      <span className="text-[9px] text-slate-400">Aucune</span>
+                    </div>
+                    <span className="text-[8px] text-slate-400 pb-0.5 leading-none">Dynamique</span>
+                  </button>
+                  {stripImages.map((img) => {
+                    const selected = form.stripPreset === img.id;
+                    return (
+                      <button key={img.id} type="button"
+                        onClick={() => patch({ stripPreset: img.id })}
+                        title={img.name}
+                        className="relative flex flex-col items-center gap-1 rounded-xl overflow-hidden transition-all"
+                        style={{ outline: selected ? "2px solid #16a34a" : "2px solid transparent", outlineOffset: "1px" }}>
+                        <div className="w-full h-11 relative overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={img.file} alt={img.name} className="h-full w-full object-cover" />
+                        </div>
+                        <span className="text-[8px] text-slate-400 pb-0.5 leading-none text-center px-0.5">{img.name}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

@@ -19,6 +19,7 @@ export interface WalletPass {
     storeName: string;
     accentColor: string;
     bgColor: string;
+    stripPreset?: string;
     passOrigin: string;
   };
 }

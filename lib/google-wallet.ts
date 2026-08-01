@@ -15,8 +15,25 @@ export interface GoogleWalletPassInput {
   totalVisits: number;
   bgColor: string;
   accentColor: string;
+  stripPreset?: string;      // image de bannière prédéfinie (heroImage) — sinon aucune
   nextReward?: string;
   referralCount?: number;
+}
+
+const STRIP_PRESET_FILES: Record<string, string> = {
+  salon: "salon.jpg",
+  cafe: "cafe.jpg",
+  bureau: "bureau.jpg",
+  boutique: "boutique.jpg",
+};
+
+function heroImageFor(stripPreset: string | undefined, storeName: string): { sourceUri: { uri: string }; contentDescription: { defaultValue: { language: string; value: string } } } | undefined {
+  if (!stripPreset || !STRIP_PRESET_FILES[stripPreset]) return undefined;
+  const appUrl = process.env.AUTH_URL ?? "https://app.getcomeback.fr";
+  return {
+    sourceUri: { uri: `${appUrl}/card-strips/${STRIP_PRESET_FILES[stripPreset]}` },
+    contentDescription: { defaultValue: { language: "fr-FR", value: storeName } },
+  };
 }
 
 function buildTextModules(opts: {
@@ -126,6 +143,7 @@ export async function buildGoogleWalletUrl(input: GoogleWalletPassInput): Promis
       sourceUri: { uri: `${process.env.AUTH_URL ?? "https://app.getcomeback.fr"}/api/settings/logo?tenantId=${input.tenantId}` },
       contentDescription: { defaultValue: { language: "fr-FR", value: input.storeName } },
     },
+    ...(heroImageFor(input.stripPreset, input.storeName) ? { heroImage: heroImageFor(input.stripPreset, input.storeName) } : {}),
   };
 
   const appUrl = process.env.AUTH_URL ?? "https://app.getcomeback.fr";
@@ -251,13 +269,14 @@ export async function expireGoogleWalletObject(customerCardId: string): Promise<
 export async function updateGoogleWalletClass(
   tenantId: string,
   cardId: string,
-  opts: { storeName: string; cardName: string; bgColor: string },
+  opts: { storeName: string; cardName: string; bgColor: string; stripPreset?: string },
 ): Promise<void> {
   if (!isConfigured()) return;
   const issuerId = process.env.GOOGLE_WALLET_ISSUER_ID!;
   const classId = `${issuerId}.comeback_${sanitizeId(tenantId)}_${sanitizeId(cardId)}`;
   try {
     const accessToken = await getAccessToken();
+    const hero = heroImageFor(opts.stripPreset, opts.storeName);
     const res = await fetch(
       `https://walletobjects.googleapis.com/walletobjects/v1/loyaltyClass/${encodeURIComponent(classId)}`,
       {
@@ -267,6 +286,9 @@ export async function updateGoogleWalletClass(
           issuerName: opts.storeName,
           programName: opts.cardName,
           hexBackgroundColor: opts.bgColor,
+          // Toujours envoyé (même null) : un PATCH qui omet le champ ne l'efface
+          // pas côté Google si le commerçant retire son image plus tard.
+          heroImage: hero ?? null,
         }),
       },
     );

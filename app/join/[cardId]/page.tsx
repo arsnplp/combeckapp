@@ -16,6 +16,7 @@ interface CardMeta {
   stampsRequired: number;
   pointsPerEuro: number;
   welcomePoints: number;
+  stripPreset?: string;
 }
 
 export default function JoinPage() {
@@ -77,6 +78,7 @@ export default function JoinPage() {
         store: card.name,
         accent: card.accentColor,
         bg: card.backgroundColor,
+        ...(card.stripPreset ? { stripPreset: card.stripPreset } : {}),
       });
       setWalletUrl(`/api/wallet/pass?${params.toString()}`);
     }

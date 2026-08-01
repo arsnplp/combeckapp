@@ -18,6 +18,7 @@ export interface TenantLoyaltyCard {
   active: boolean;
   // referrerBonus/referredBonus s'interprètent en tampons ou points selon loyaltyMode
   referral?: { enabled: boolean; referrerBonus: number; referredBonus: number };
+  stripPreset?: string;
 }
 
 export interface TenantReward {
@@ -56,6 +57,7 @@ interface CardRow {
   accent_color: string; text_color: string; loyalty_mode: string; stamps_required: number;
   points_per_euro: number; welcome_points: number; rank_thresholds: { silver: number; gold: number; platine: number };
   active: boolean; referral_enabled: boolean; referral_bonus: number; referred_bonus: number;
+  strip_preset: string | null;
 }
 
 function mapCard(r: CardRow): TenantLoyaltyCard {
@@ -77,6 +79,7 @@ function mapCard(r: CardRow): TenantLoyaltyCard {
       referrerBonus: r.referral_bonus,
       referredBonus: r.referred_bonus ?? 0,
     },
+    stripPreset: r.strip_preset ?? undefined,
   };
 }
 
@@ -198,6 +201,7 @@ export async function saveTenantSettings(
       referral_enabled: c.referral?.enabled ?? false,
       referral_bonus: c.referral?.referrerBonus ?? 1,
       referred_bonus: c.referral?.referredBonus ?? 0,
+      strip_preset: c.stripPreset ?? null,
     })));
   }
   if (deletions.cardIds?.length) {

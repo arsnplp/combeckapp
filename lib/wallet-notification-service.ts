@@ -137,6 +137,7 @@ export async function regeneratePass(passId: string): Promise<Buffer | null> {
   let stampsRequired = opts.stampsRequired;
   let accentColor = opts.accentColor;
   let bgColor = opts.bgColor;
+  let stripPreset = opts.stripPreset;
   let storeName = opts.storeName;
   const nextReward = opts.nextReward;
   if (found) {
@@ -147,6 +148,7 @@ export async function regeneratePass(passId: string): Promise<Buffer | null> {
         stampsRequired = lc.stampsRequired ?? stampsRequired;
         accentColor = lc.accentColor ?? accentColor;
         bgColor = lc.backgroundColor ?? bgColor;
+        stripPreset = lc.stripPreset;
       }
       storeName = (settings.settings.storeName as string) || storeName;
     } catch { /* garde les valeurs sauvegardées */ }
@@ -166,6 +168,7 @@ export async function regeneratePass(passId: string): Promise<Buffer | null> {
     storeName,
     accentColor,
     bgColor,
+    stripPreset,
     serialNumber: walletPass.serialNumber,
     authenticationToken: walletPass.authenticationToken,
     webServiceURL: process.env.WALLET_WEB_SERVICE_URL,
@@ -386,6 +389,7 @@ export class WalletNotificationService {
           storeName,
           cardName: lc.name,
           bgColor: lc.backgroundColor ?? "#1e293b",
+          stripPreset: lc.stripPreset,
         }),
       ));
     } catch (err) {

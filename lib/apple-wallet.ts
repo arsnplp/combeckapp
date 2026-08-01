@@ -5,7 +5,28 @@ import path from "path";
 import { createHash } from "crypto";
 import { deflateSync } from "zlib";
 import sharp from "sharp";
+import { readFile } from "fs/promises";
 import { supabase } from "./supabase";
+
+// ── Images de bannière prédéfinies (strip Apple / heroImage Google) ───────────
+
+const STRIP_PRESET_FILES: Record<string, string> = {
+  salon: "salon.jpg",
+  cafe: "cafe.jpg",
+  bureau: "bureau.jpg",
+  boutique: "boutique.jpg",
+};
+
+async function loadStripPresetImage(stripPreset: string | undefined, width: number, height: number): Promise<Buffer | null> {
+  if (!stripPreset || !STRIP_PRESET_FILES[stripPreset]) return null;
+  try {
+    const filePath = path.join(process.cwd(), "public", "card-strips", STRIP_PRESET_FILES[stripPreset]);
+    const raw = await readFile(filePath);
+    return sharp(raw).resize(width, height, { fit: "cover", position: "center" }).png().toBuffer();
+  } catch {
+    return null;
+  }
+}
 
 // ── Minimal solid-colour PNG ──────────────────────────────────────────────────
 
@@ -177,6 +198,7 @@ export interface ClientPassOptions {
   storeName: string;
   accentColor?: string;
   bgColor?: string;
+  stripPreset?: string;      // image de bannière prédéfinie — sinon dégradé dynamique
   // Apple Wallet Web Service (push updates)
   serialNumber?: string;
   authenticationToken?: string;
@@ -263,7 +285,12 @@ function buildPassJSON(opts: ClientPassOptions): object {
       ...base,
       storeCard: {
         headerFields: campaignHeaderField,
-        primaryFields: [{ key: "stamps", label: "", value: " " }],
+        // Avec une image de bannière statique (stripPreset), la progression n'est plus
+        // dessinée dans le strip — elle doit apparaître ici. Sans preset, le strip
+        // dynamique l'affiche déjà : on laisse ce champ vide pour ne pas la doubler.
+        primaryFields: opts.stripPreset
+          ? [{ key: "stamps", label: "TAMPONS", value: `${opts.stamps} / ${opts.stampsRequired}` }]
+          : [{ key: "stamps", label: "", value: " " }],
         secondaryFields: [{ key: "client", label: "CLIENT", value: opts.clientName }],
         ...(auxiliaryFields.length > 0 ? { auxiliaryFields } : {}),
         backFields: [
@@ -291,7 +318,9 @@ function buildPassJSON(opts: ClientPassOptions): object {
     ...base,
     storeCard: {
       headerFields: campaignHeaderField,
-      primaryFields: [{ key: "points", label: "", value: " " }],
+      primaryFields: opts.stripPreset
+        ? [{ key: "points", label: "POINTS", value: opts.points.toLocaleString("fr-FR") }]
+        : [{ key: "points", label: "", value: " " }],
       secondaryFields: [{ key: "client", label: "CLIENT", value: opts.clientName }],
       ...(auxiliaryFields.length > 0 ? { auxiliaryFields } : {}),
       backFields: [
@@ -407,7 +436,9 @@ async function buildPkpass(passJson: object, stripImage: Buffer | undefined, log
 export async function generateClientPass(opts: ClientPassOptions): Promise<Buffer> {
   const [passJson, stripImage, logoBuffer] = await Promise.all([
     Promise.resolve(buildPassJSON(opts)),
-    generateStripImage(opts).catch(() => undefined),
+    opts.stripPreset
+      ? loadStripPresetImage(opts.stripPreset, 750, 246).then((img) => img ?? undefined)
+      : generateStripImage(opts).catch(() => undefined),
     fetchTenantLogo(opts.tenantId),
   ]);
   return buildPkpass(passJson, stripImage, logoBuffer);

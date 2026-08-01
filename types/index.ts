@@ -93,7 +93,13 @@ export interface LoyaltyCard {
   rankThresholds?: RankThresholds;
   // referrerBonus/referredBonus s'interprètent en tampons ou points selon loyaltyMode
   referral?: { enabled: boolean; referrerBonus: number; referredBonus: number };
+  // Image de bannière prédéfinie (strip Apple Wallet / heroImage Google Wallet) —
+  // absent = pas d'image, la bannière affiche la progression dynamique (comportement historique).
+  stripPreset?: string;
 }
+
+export const STRIP_PRESET_IDS = ["salon", "cafe", "bureau", "boutique"] as const;
+export type StripPresetId = typeof STRIP_PRESET_IDS[number];
 
 export type PlanId = "free" | "starter" | "pro" | "business";
 

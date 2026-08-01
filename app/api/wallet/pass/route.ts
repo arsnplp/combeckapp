@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
   const storeName    = decodeURIComponent(p.get("store") ?? "ComeBack");
   const accentColor  = p.get("accent") ?? "#f59e0b";
   const bgColor      = p.get("bg") ?? "#1a0a00";
+  const stripPreset  = p.get("stripPreset") ?? undefined;
   const passOrigin   = req.nextUrl.origin;
 
   // Stable pass identity — reuse existing serial if the same ccId is re-downloaded
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
   try {
     const buffer = await generateClientPass({
       tenantId, type, clientName, clientId, customerCardId, passOrigin,
-      stamps, stampsRequired, points, nextReward, storeName, accentColor, bgColor,
+      stamps, stampsRequired, points, nextReward, storeName, accentColor, bgColor, stripPreset,
       serialNumber, authenticationToken, webServiceURL,
     });
 
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
         updatedAt: new Date().toISOString(),
         passData: {
           type, clientName, clientId: clientId, stampsRequired,
-          nextReward, storeName, accentColor, bgColor, passOrigin,
+          nextReward, storeName, accentColor, bgColor, stripPreset, passOrigin,
         },
       });
     }
