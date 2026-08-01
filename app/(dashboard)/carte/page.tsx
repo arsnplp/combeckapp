@@ -31,8 +31,8 @@ interface CardForm {
 const defaultForm = (): CardForm => ({
   name: "",
   welcomeMessage: "Merci de votre fidélité !",
-  backgroundColor: "#1a0a00",
-  accentColor: "#f59e0b",
+  backgroundColor: "#5E2327",
+  accentColor: "#E3B988",
   loyaltyMode: "stamps",
   stampsRequired: 8,
   pointsPerEuro: 10,
@@ -42,24 +42,18 @@ const defaultForm = (): CardForm => ({
 });
 
 const colorPresets = [
-  { name: "Espresso",   bg: "#1a0a00", accent: "#f59e0b" },
-  { name: "Ardoise",    bg: "#0f172a", accent: "#818cf8" },
-  { name: "Forêt",      bg: "#052e16", accent: "#4ade80" },
-  { name: "Bordeaux",   bg: "#3b0a0a", accent: "#fca5a5" },
-  { name: "Océan",      bg: "#082f49", accent: "#38bdf8" },
-  { name: "Aubergine",  bg: "#2d0a4e", accent: "#d946ef" },
-  { name: "Charcoal",   bg: "#18181b", accent: "#e4e4e7" },
-  { name: "Minuit",     bg: "#0c0a3e", accent: "#a78bfa" },
-  { name: "Nuit Rose",  bg: "#1a0a14", accent: "#f472b6" },
-  { name: "Cuivre",     bg: "#1c0a00", accent: "#fb923c" },
-  { name: "Sapin",      bg: "#0a1f0f", accent: "#86efac" },
-  { name: "Saphir",     bg: "#0a0f2e", accent: "#60a5fa" },
-  { name: "Or Noir",    bg: "#0f0f00", accent: "#eab308" },
-  { name: "Rubis",      bg: "#200010", accent: "#fb7185" },
-  { name: "Teal",       bg: "#042f2e", accent: "#2dd4bf" },
-  { name: "Brun Doux",  bg: "#292524", accent: "#d6d3d1" },
-  { name: "Glacier",    bg: "#0c1a2e", accent: "#7dd3fc" },
-  { name: "Corail",     bg: "#2d1000", accent: "#fdba74" },
+  { name: "Bordeaux",        bg: "#5E2327", accent: "#E3B988" },
+  { name: "Rouge grenat",    bg: "#6E2A35", accent: "#E8A9A0" },
+  { name: "Chocolat",        bg: "#4B3129", accent: "#D3A66B" },
+  { name: "Café expresso",   bg: "#3F312C", accent: "#E3B25E" },
+  { name: "Vert forêt",      bg: "#28463C", accent: "#B7D28E" },
+  { name: "Vert sauge",      bg: "#3B5A4A", accent: "#CBD9A0" },
+  { name: "Bleu pétrole",    bg: "#27495A", accent: "#8FC7D9" },
+  { name: "Bleu nuit",       bg: "#233A5A", accent: "#9FB4E8" },
+  { name: "Prune",           bg: "#4D315A", accent: "#D8A8E0" },
+  { name: "Anthracite",      bg: "#32363D", accent: "#C7CDD6" },
+  { name: "Noir graphite",   bg: "#26282C", accent: "#E3C878" },
+  { name: "Bronze",          bg: "#6B4A33", accent: "#E8CBA0" },
 ];
 
 function formToCard(form: CardForm): Omit<LoyaltyCard, "id" | "createdAt"> {
