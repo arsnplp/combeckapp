@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClientAccountFromGoogle } from "@/lib/client-accounts";
-import { findTenantByCardId, db_getAll, db_addCustomer, db_recordPendingReferral, db_wouldReferralSucceed } from "@/lib/server-db";
+import { findTenantByCardId, db_getAll, db_addCustomer, db_addCustomerCard, db_recordPendingReferral, db_wouldReferralSucceed } from "@/lib/server-db";
 import { getUserById } from "@/lib/users";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { isTrialExpired } from "@/lib/plan-billing";
@@ -100,8 +100,14 @@ export async function GET(req: NextRequest) {
         const limit = (PLAN_LIMITS[user?.plan ?? "starter"]).clients;
         const db = await db_getAll(tenantId);
         const current = db.customers.length;
-        const alreadyIn = db.customers.find(
+        // Identité déjà connue de ce commerce (fiche `customers`) — mais ça ne
+        // veut pas dire qu'il a CETTE carte précise : son ancienne carte a pu
+        // être supprimée par le commerçant puis remplacée par une nouvelle.
+        const existingCustomer = db.customers.find(
           (c) => c.email.toLowerCase() === email.toLowerCase(),
+        );
+        const alreadyHasThisCard = !!existingCustomer && db.customerCards.some(
+          (cc) => cc.customerId === existingCustomer.id && cc.cardId === cardId,
         );
         // Carte gelée (au-delà de la limite du plan) → pas de nouvelle inscription
         let cardFrozen = false;
@@ -119,13 +125,13 @@ export async function GET(req: NextRequest) {
         // inscrit : on ne peut pas silencieusement rediriger vers /client/cards
         // comme si de rien n'était — le client n'aurait alors aucune carte pour
         // ce commerce et ne comprendrait pas pourquoi.
-        if (!alreadyIn && (cardFrozen || (limit !== Infinity && current >= limit))) {
+        if (!alreadyHasThisCard && (cardFrozen || (limit !== Infinity && current >= limit))) {
           res.headers.set("location", `${appUrl}/client/cards?error=registration_blocked`);
           return res;
         }
-        if (!alreadyIn) {
+        if (!alreadyHasThisCard) {
           const now = new Date().toISOString();
-          const customerId = `c${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
+          const customerId = existingCustomer?.id ?? `c${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
           const customerCardId = `cc${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
           // Config carte (points de bienvenue + parrainage) lue côté serveur, pas depuis le cookie
           let welcomePoints = 0;
@@ -153,11 +159,18 @@ export async function GET(req: NextRequest) {
             else initialPoints += cardReferral.referredBonus;
           }
 
-          await db_addCustomer(
-            tenantId,
-            { id: customerId, name, email: clientEmail, phone: "", joinDate: now, totalVisits: 0, lastVisitAt: null },
-            { id: customerCardId, customerId, cardId, stamps: initialStamps, points: initialPoints, referralCount: 0, joinDate: now, lastActivity: now },
-          );
+          if (existingCustomer) {
+            await db_addCustomerCard(
+              tenantId,
+              { id: customerCardId, customerId, cardId, stamps: initialStamps, points: initialPoints, referralCount: 0, joinDate: now, lastActivity: now },
+            );
+          } else {
+            await db_addCustomer(
+              tenantId,
+              { id: customerId, name, email: clientEmail, phone: "", joinDate: now, totalVisits: 0, lastVisitAt: null },
+              { id: customerCardId, customerId, cardId, stamps: initialStamps, points: initialPoints, referralCount: 0, joinDate: now, lastActivity: now },
+            );
+          }
           // Parrainage : enregistré en attente — le parrain sera crédité à la première visite réelle
           if (referralWillApply) {
             try {

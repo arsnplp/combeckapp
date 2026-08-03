@@ -162,6 +162,26 @@ export async function db_addCustomer(
   if (e2) throw new Error(e2.message);
 }
 
+// Rattache une nouvelle carte fidélité à un client déjà connu de ce commerce
+// (identité `customers` existante — ex: son ancienne carte a été supprimée
+// par le commerçant puis remplacée par une nouvelle) — pas de nouvelle fiche
+// `customers` dupliquée, seulement le lien `customer_cards`.
+export async function db_addCustomerCard(tenantId: string, customerCard: DbCustomerCard): Promise<void> {
+  const { error } = await supabase().from("customer_cards").insert({
+    id: customerCard.id,
+    merchant_id: tenantId,
+    customer_id: customerCard.customerId,
+    card_id: customerCard.cardId,
+    stamps: customerCard.stamps ?? 0,
+    points: customerCard.points ?? 0,
+    referral_count: customerCard.referralCount ?? 0,
+    referral_points: 0,
+    join_date: customerCard.joinDate,
+    last_activity: customerCard.lastActivity,
+  });
+  if (error) throw new Error(error.message);
+}
+
 async function getCardInTenant(tenantId: string, customerCardId: string): Promise<CardRow | null> {
   const { data } = await supabase().from("customer_cards").select("*")
     .eq("id", customerCardId).eq("merchant_id", tenantId).maybeSingle();

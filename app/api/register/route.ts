@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  db_addCustomer, db_addPoints, db_addStamp, db_addSpend,
+  db_addCustomer, db_addCustomerCard, db_addPoints, db_addStamp, db_addSpend,
   db_deleteCustomer, db_getAll, findTenantByCardId,
   db_deductReward, db_addRedemption, db_incrementRewardUsage,
   db_recordPendingReferral, db_creditPendingReferrals, db_wouldReferralSucceed,
@@ -213,18 +213,28 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Empêcher la double inscription au même restaurant
+    // Empêcher la double inscription à CETTE carte précise — pas au commerce en
+    // général : un client déjà connu de ce commerce (fiche `customers`
+    // existante, ex. son ancienne carte a été supprimée par le commerçant puis
+    // remplacée par une nouvelle) doit pouvoir rejoindre la nouvelle carte au
+    // lieu d'être bloqué comme "déjà inscrit" alors qu'il n'a plus aucune carte.
+    let existingCustomerId: string | null = null;
     if (clientEmail) {
-      const alreadyIn = (await db_getAll(tenantId)).customers.find(
-        (c) => c.email.toLowerCase() === clientEmail,
-      );
-      if (alreadyIn) {
-        return NextResponse.json({ error: "Vous êtes déjà inscrit dans ce commerce.", alreadyExists: true }, { status: 409 });
+      const db = await db_getAll(tenantId);
+      const existingCustomer = db.customers.find((c) => c.email.toLowerCase() === clientEmail);
+      if (existingCustomer) {
+        const alreadyHasThisCard = db.customerCards.some(
+          (cc) => cc.customerId === existingCustomer.id && cc.cardId === cardId,
+        );
+        if (alreadyHasThisCard) {
+          return NextResponse.json({ error: "Vous êtes déjà inscrit à cette carte.", alreadyExists: true }, { status: 409 });
+        }
+        existingCustomerId = existingCustomer.id;
       }
     }
 
     const now = new Date().toISOString();
-    const customerId = `c${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
+    const customerId = existingCustomerId ?? `c${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
     const customerCardId = `cc${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
 
     // Parrainage : le FILLEUL reçoit son bonus dès l'inscription (même
@@ -244,10 +254,18 @@ export async function POST(req: NextRequest) {
       else initialPoints += cardReferral.referredBonus;
     }
 
-    await db_addCustomer(tenantId,
-      { id: customerId, name: clientName, email: clientEmail, phone: clientPhone, joinDate: now, totalVisits: 0, lastVisitAt: null },
-      { id: customerCardId, customerId, cardId, stamps: initialStamps, points: initialPoints, referralCount: 0, joinDate: now, lastActivity: now }
-    );
+    if (existingCustomerId) {
+      // Identité déjà connue de ce commerce — on ne recrée pas la fiche
+      // customers, juste le lien vers cette nouvelle carte.
+      await db_addCustomerCard(tenantId,
+        { id: customerCardId, customerId, cardId, stamps: initialStamps, points: initialPoints, referralCount: 0, joinDate: now, lastActivity: now }
+      );
+    } else {
+      await db_addCustomer(tenantId,
+        { id: customerId, name: clientName, email: clientEmail, phone: clientPhone, joinDate: now, totalVisits: 0, lastVisitAt: null },
+        { id: customerCardId, customerId, cardId, stamps: initialStamps, points: initialPoints, referralCount: 0, joinDate: now, lastActivity: now }
+      );
+    }
 
     if (referralWillApply) {
       try {
