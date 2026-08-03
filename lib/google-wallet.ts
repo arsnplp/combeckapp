@@ -286,16 +286,25 @@ export async function updateGoogleWalletClass(
           issuerName: opts.storeName,
           programName: opts.cardName,
           hexBackgroundColor: opts.bgColor,
-          // Toujours envoyé (même null) : un PATCH qui omet le champ ne l'efface
-          // pas côté Google si le commerçant retire son image plus tard.
-          heroImage: hero ?? null,
+          // heroImage est un champ objet typé côté Google : lui envoyer `null`
+          // pour "effacer" fait échouer le PATCH (400, schéma invalide). On ne
+          // l'inclut donc que quand une image est réellement définie — un
+          // commerçant qui retire son image garde l'ancienne côté Google tant
+          // qu'il n'en choisit pas une nouvelle (dégradé, pas de crash).
+          ...(hero ? { heroImage: hero } : {}),
+          // Une classe déjà approuvée par Google refuse tout PATCH qui ne
+          // réaffirme pas explicitement ce statut (sinon 400 "Invalid review
+          // status APPROVED, use UNDER_REVIEW instead") — Google la repasse
+          // en revue à chaque modification, ce qui est son fonctionnement normal.
+          reviewStatus: "UNDER_REVIEW",
         }),
       },
     );
     if (!res.ok && res.status !== 404) {
       // 404 = aucune carte de ce type encore enregistrée — normal
-      console.error(`[GoogleWallet] PATCH class ${classId} → ${res.status}`);
-      logSystemError("google_wallet", `Échec de mise à jour d'une classe Google Wallet (HTTP ${res.status}).`, { classId }).catch(() => {});
+      const bodyText = await res.text().catch(() => "");
+      console.error(`[GoogleWallet] PATCH class ${classId} → ${res.status}: ${bodyText}`);
+      logSystemError("google_wallet", `Échec de mise à jour d'une classe Google Wallet (HTTP ${res.status}).`, { classId, response: bodyText.slice(0, 500) }).catch(() => {});
     }
   } catch (err) {
     console.error("[GoogleWallet] update class failed:", err);
