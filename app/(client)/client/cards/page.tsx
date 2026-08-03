@@ -5,7 +5,6 @@ import { findClientCards } from "@/lib/client-lookup";
 import { resolveClientSession } from "@/lib/client-sessions";
 import { ChevronRight, Stamp, Star } from "lucide-react";
 import LogoutButton from "./LogoutButton";
-import RefreshButton from "./RefreshButton";
 import GdprSection from "./GdprSection";
 import AddToHomeScreen from "./AddToHomeScreen";
 import AutoRefresh from "./AutoRefresh";
@@ -43,10 +42,7 @@ export default async function CardsPage() {
       <div className="mb-6">
         <p className="text-[13px] text-gray-400 font-medium">Bonjour 👋</p>
         <h1 className="text-[22px] font-bold text-gray-900 mt-0.5">{clientName}</h1>
-        <div className="flex items-center justify-between mt-0.5">
-          <p className="text-[13px] text-gray-500">{cards.length} carte{cards.length > 1 ? "s" : ""} de fidélité</p>
-          <RefreshButton />
-        </div>
+        <p className="text-[13px] text-gray-500 mt-0.5">{cards.length} carte{cards.length > 1 ? "s" : ""} de fidélité</p>
       </div>
 
       <div className="space-y-3">
