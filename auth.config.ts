@@ -66,7 +66,7 @@ export const authConfig = {
         pathname.startsWith("/affilies") ||
         pathname.startsWith("/api/affiliates") ||
         pathname.startsWith("/ref/") ||
-        pathname === "/manifest.webmanifest" ||
+        pathname.endsWith(".webmanifest") ||
         pathname === "/";
 
       if (isPublic) return true;

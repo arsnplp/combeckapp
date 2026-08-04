@@ -15,6 +15,11 @@ export const metadata: Metadata = {
   icons: {
     apple: "/apple-touch-icon.png",
   },
+  // Remplace le manifeste commerçant (par défaut sur tout le site, voir
+  // app/layout.tsx) par celui de l'espace client — sinon un client qui
+  // s'ajoute à l'écran d'accueil récupère par erreur le raccourci
+  // de connexion commerçant.
+  manifest: "/manifest.webmanifest",
 };
 
 export default async function ClientLayout({ children }: { children: ReactNode }) {

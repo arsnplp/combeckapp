@@ -11,6 +11,11 @@ export const metadata: Metadata = {
     icon: "/icon-192.png",
     apple: "/apple-touch-icon.png",
   },
+  // Manifeste par défaut = espace commerçant (raccourci écran d'accueil →
+  // dashboard). L'espace client (app/(client)/layout.tsx) le remplace par
+  // le sien — sinon un commerçant qui s'ajoute à l'écran d'accueil depuis
+  // son dashboard récupère par erreur le raccourci de connexion client.
+  manifest: "/manifest-merchant.webmanifest",
 };
 
 export const viewport: Viewport = {
