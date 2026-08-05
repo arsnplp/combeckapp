@@ -1,7 +1,18 @@
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Partenaires — ComeBack" };
+export const metadata: Metadata = {
+  title: "Partenaires — ComeBack",
+  // Manifeste + titre dédiés : sinon un partenaire qui s'ajoute à l'écran
+  // d'accueil depuis son espace affilié récupère par erreur le raccourci
+  // commerçant (celui du site entier par défaut, voir app/layout.tsx).
+  manifest: "/manifest-affilie.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Partenaires",
+    statusBarStyle: "default",
+  },
+};
 
 // Espace partenaires/affiliés — totalement séparé du SaaS commerçant
 export default function AffiliateLayout({ children }: { children: ReactNode }) {

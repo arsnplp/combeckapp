@@ -12,10 +12,18 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   // Manifeste par défaut = espace commerçant (raccourci écran d'accueil →
-  // dashboard). L'espace client (app/(client)/layout.tsx) le remplace par
-  // le sien — sinon un commerçant qui s'ajoute à l'écran d'accueil depuis
-  // son dashboard récupère par erreur le raccourci de connexion client.
+  // dashboard). L'espace client (app/(client)/layout.tsx) et l'espace
+  // partenaires (app/affilies/layout.tsx) le remplacent chacun par le
+  // leur — sinon tout le monde récupère par erreur le raccourci commerçant.
   manifest: "/manifest-merchant.webmanifest",
+  // iOS utilise ce titre pour le nom sous l'icône (pas le short_name du
+  // manifeste) — sans ça, il reprend le <title> de la page affichée au
+  // moment du tap, ce qui donne un nom différent selon où on se trouvait.
+  appleWebApp: {
+    capable: true,
+    title: "ComeBack Pro",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
