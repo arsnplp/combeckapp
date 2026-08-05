@@ -110,6 +110,11 @@ export async function POST(req: NextRequest) {
       locale: "fr",
       line_items: [{ price: priceId, quantity: 1 }],
       allow_promotion_codes: true,
+      // Ne demande une carte que si elle sera vraiment nécessaire : Stripe
+      // évalue si l'abonnement restera à 0€ sur toute sa durée (donc un code
+      // promo -100% "à vie" saute l'étape carte, mais un code temporaire ou
+      // partiel continue de la demander puisqu'un futur prélèvement existe).
+      payment_method_collection: "if_required",
       subscription_data: { metadata },
       metadata,
       success_url: `${appUrl}/dashboard?billing=success`,
