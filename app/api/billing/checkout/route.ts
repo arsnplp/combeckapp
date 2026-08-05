@@ -6,8 +6,12 @@ import { notifyAdminEmail } from "@/lib/mailer";
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) return null;
+  // Version épinglée : les codes promo créés par app/api/admin/promos/route.ts
+  // (qui épingle la même version pour la même raison) ne sont pas reconnus
+  // par une session Checkout créée sous une version d'API différente —
+  // "Ce code n'est pas valide" alors que le code est bien actif côté Stripe.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require("stripe")(process.env.STRIPE_SECRET_KEY);
+  return require("stripe")(process.env.STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" });
 }
 
 export async function POST(req: NextRequest) {
