@@ -23,7 +23,6 @@ export async function GET(req: NextRequest) {
   let stampsRequired = 8;
   let accentColor = "#2563eb";
   let bgColor = "#1e293b";
-  let cardName = "Carte fidélité";
   let stripPreset: string | undefined;
 
   try {
@@ -35,7 +34,6 @@ export async function GET(req: NextRequest) {
       stampsRequired = loyaltyCard.stampsRequired ?? 8;
       accentColor = loyaltyCard.accentColor ?? accentColor;
       bgColor = loyaltyCard.backgroundColor ?? bgColor;
-      cardName = loyaltyCard.name ?? cardName;
       stripPreset = loyaltyCard.stripPreset;
     }
   } catch { /* settings manquants */ }
@@ -48,7 +46,9 @@ export async function GET(req: NextRequest) {
     stamps: String(cc.stamps),
     required: String(stampsRequired),
     points: String(cc.points),
-    store: cardName,
+    // Nom du commerce (pas celui de la carte) : organizationName sur le pass
+    // Apple Wallet — cardName n'est utilisé nulle part dans le pass lui-même.
+    store: storeName,
     accent: accentColor,
     bg: bgColor,
     ...(stripPreset ? { stripPreset } : {}),

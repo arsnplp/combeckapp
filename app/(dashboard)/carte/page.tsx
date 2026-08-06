@@ -170,6 +170,10 @@ export default function CartePage() {
       textColor: selected.textColor, loyaltyMode: selected.loyaltyMode,
       stampsRequired: selected.stampsRequired, pointsPerEuro: selected.pointsPerEuro,
       welcomePoints: selected.welcomePoints,
+      // Nom du commerce (pas celui de la carte) : utilisé pour organizationName
+      // sur le pass Apple Wallet — sans ça, le pass affiche le nom de la carte
+      // à la place du nom du commerce.
+      storeName: settings.name || selected.name,
       ...(selected.stripPreset ? { stripPreset: selected.stripPreset } : {}),
     });
     const utf8Bytes = new TextEncoder().encode(json);

@@ -58,13 +58,19 @@ function EmojiPickerButton({ value, onChange }: { value: string; onChange: (emoj
 }
 
 export default function ProduitsPage() {
-  const { rewards, setRewards, deleteReward } = useStore();
+  const { rewards, setRewards, deleteReward, loyaltyCards } = useStore();
+  // Une récompense n'apparaît côté client que si son mode (tampons/points)
+  // correspond à celui de la carte — sans carte de référence, le toggle
+  // défautait toujours sur "tampons" : un commerçant dont la carte est en
+  // mode points qui ne pensait pas à cliquer "Points" créait une récompense
+  // qui n'apparaissait jamais nulle part, sans aucun message d'erreur.
+  const defaultRewardMode = (): "stamps" | "points" => loyaltyCards[0]?.loyaltyMode ?? "stamps";
 
   // Add reward dialog
   const [showAddReward, setShowAddReward] = useState(false);
   const [newRewardName, setNewRewardName] = useState("");
   const [newRewardCost, setNewRewardCost] = useState("");
-  const [newRewardMode, setNewRewardMode] = useState<"stamps" | "points">("stamps");
+  const [newRewardMode, setNewRewardMode] = useState<"stamps" | "points">(defaultRewardMode());
   const [newRewardEmoji, setNewRewardEmoji] = useState("🎁");
 
   // Edit reward dialog
@@ -120,13 +126,21 @@ export default function ProduitsPage() {
     setNewRewardEmoji("🎁");
   };
 
+  const openAddReward = () => {
+    // Recalculé à chaque ouverture (pas seulement au montage) : les cartes
+    // peuvent avoir fini de charger entre-temps, ou le commerçant peut avoir
+    // changé le mode de sa carte depuis la dernière ouverture du formulaire.
+    setNewRewardMode(defaultRewardMode());
+    setShowAddReward(true);
+  };
+
   return (
     <div className="max-w-5xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[13px] text-slate-500">
           {rewards.length} récompense{rewards.length > 1 ? "s" : ""} configurée{rewards.length > 1 ? "s" : ""}
         </p>
-        <Button className="gap-2" onClick={() => setShowAddReward(true)}>
+        <Button className="gap-2" onClick={openAddReward}>
           <Plus className="h-4 w-4" />
           Ajouter une récompense
         </Button>
@@ -141,7 +155,7 @@ export default function ProduitsPage() {
             <p className="text-[14px] font-semibold text-slate-700">Aucune récompense</p>
             <p className="mt-1 text-[12.5px] text-slate-400">Définissez ce que vos clients peuvent échanger.</p>
           </div>
-          <Button size="sm" onClick={() => setShowAddReward(true)}>Ajouter une récompense</Button>
+          <Button size="sm" onClick={openAddReward}>Ajouter une récompense</Button>
         </div>
       ) : (
         <div className="space-y-6">
@@ -188,7 +202,6 @@ export default function ProduitsPage() {
                   placeholder="ex: Café offert"
                   value={newRewardName}
                   onChange={(e) => setNewRewardName(e.target.value)}
-                  autoFocus
                   className="flex-1"
                 />
               </div>
@@ -213,6 +226,9 @@ export default function ProduitsPage() {
                   </button>
                 ))}
               </div>
+              <p className="text-[11.5px] text-slate-400">
+                Choisissez le mode utilisé par votre carte — une récompense n&apos;apparaît chez vos clients que si son mode correspond à celui de leur carte.
+              </p>
             </div>
 
             {/* ── Coût ── */}
@@ -265,7 +281,6 @@ export default function ProduitsPage() {
                   placeholder="ex: Café offert"
                   value={editRewardName}
                   onChange={(e) => setEditRewardName(e.target.value)}
-                  autoFocus
                   className="flex-1"
                 />
               </div>

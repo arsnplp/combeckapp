@@ -17,6 +17,7 @@ interface CardMeta {
   pointsPerEuro: number;
   welcomePoints: number;
   stripPreset?: string;
+  storeName?: string; // absent sur les anciens QR imprimés avant ce champ
 }
 
 export default function JoinPage() {
@@ -75,7 +76,9 @@ export default function JoinPage() {
         stamps: String(data.stamps ?? 0),
         required: String(card.stampsRequired),
         points: String(data.points ?? card.welcomePoints ?? 0),
-        store: card.name,
+        // Nom du commerce si présent dans le QR (ajouté récemment) — sinon
+        // repli sur le nom de la carte pour les QR déjà imprimés/partagés.
+        store: card.storeName || card.name,
         accent: card.accentColor,
         bg: card.backgroundColor,
         ...(card.stripPreset ? { stripPreset: card.stripPreset } : {}),
