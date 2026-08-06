@@ -573,7 +573,7 @@ export default function CartePage() {
             <div className="space-y-2">
               <label className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-slate-400">Nom de la carte</label>
               <input className="h-[44px] w-full rounded-xl border border-slate-300 bg-white px-4 text-[14px] text-slate-900 shadow-sm placeholder:text-slate-400 outline-none transition focus:border-green-500 focus:ring-[3px] focus:ring-green-500/10"
-                placeholder="ex: Carte Café, VIP Club..." value={form.name} onChange={(e) => patch({ name: e.target.value })} autoFocus />
+                placeholder="ex: Carte Café, VIP Club..." value={form.name} onChange={(e) => patch({ name: e.target.value })} />
             </div>
 
             <div className="space-y-2">

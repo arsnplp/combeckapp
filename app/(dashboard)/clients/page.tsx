@@ -924,7 +924,7 @@ export default function ClientsPage() {
           <div className="px-7 py-6 space-y-5">
             <div className="space-y-2">
               <label className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-slate-400">Nom complet *</label>
-              <Input placeholder="ex: Marie Dupont" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreateClient()} autoFocus />
+              <Input placeholder="ex: Marie Dupont" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreateClient()} />
             </div>
             <div className="space-y-2">
               <label className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-slate-400">Email</label>
@@ -967,7 +967,7 @@ export default function ClientsPage() {
           <div className="px-7 py-6 space-y-5">
             <div className="space-y-2">
               <label className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-slate-400">Nom complet *</label>
-              <Input placeholder="ex: Marie Dupont" value={editName} onChange={(e) => setEditName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleEditSave()} autoFocus />
+              <Input placeholder="ex: Marie Dupont" value={editName} onChange={(e) => setEditName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleEditSave()} />
             </div>
             <div className="space-y-2">
               <label className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-slate-400">Email</label>
