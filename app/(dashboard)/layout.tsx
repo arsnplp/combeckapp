@@ -6,6 +6,7 @@ import Topbar from "@/components/layout/Topbar";
 import { StoreProvider } from "@/lib/store-context";
 import { auth } from "@/auth";
 import ImpersonationBanner from "@/components/layout/ImpersonationBanner";
+import AdminOwnTenantBanner from "@/components/layout/AdminOwnTenantBanner";
 import PlanExpirationBanner from "@/components/dashboard/PlanExpirationBanner";
 import OnboardingTour from "@/components/dashboard/OnboardingTour";
 import SupportChat from "@/components/dashboard/SupportChat";
@@ -33,6 +34,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         {session.user.impersonatedBy && (
           <ImpersonationBanner storeName={session.user.name ?? session.user.id} />
         )}
+        {session.user.isAdmin && !session.user.impersonatedBy && <AdminOwnTenantBanner />}
         <div className="flex min-h-screen">
           <div className="hidden lg:block lg:w-[236px] lg:flex-shrink-0">
             <AppSidebar />
