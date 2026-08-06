@@ -211,23 +211,44 @@ export default function ProduitsPage() {
             <div className="space-y-2">
               <Label>Type de programme</Label>
               <div className="grid grid-cols-2 gap-2">
-                {(["stamps", "points"] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setNewRewardMode(m)}
-                    className={`rounded-lg border py-2.5 text-[13px] font-medium transition-colors ${
-                      newRewardMode === m
-                        ? "border-green-200 bg-green-50 text-green-700"
-                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
-                    }`}
-                  >
-                    {m === "stamps" ? "🎫 Tampons" : "⭐ Points"}
-                  </button>
-                ))}
+                {(["stamps", "points"] as const).map((m) => {
+                  const cardsForMode = loyaltyCards.filter((c) => c.loyaltyMode === m);
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setNewRewardMode(m)}
+                      className={`rounded-lg border px-2 py-2.5 text-[13px] font-medium transition-colors ${
+                        newRewardMode === m
+                          ? "border-green-200 bg-green-50 text-green-700"
+                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                      }`}
+                    >
+                      <span className="block">{m === "stamps" ? "🎫 Tampons" : "⭐ Points"}</span>
+                      {/* Sur un compte avec plusieurs cartes (plan Pro/Business), montre
+                          explicitement à quelle(s) carte(s) ce mode correspond — sinon rien
+                          n'indique qu'une carte en points ne recevra jamais une récompense
+                          "tampons" créée par erreur. */}
+                      {cardsForMode.length > 0 && (
+                        <span className="mt-0.5 block truncate text-[10.5px] font-normal opacity-70">
+                          {cardsForMode.map((c) => c.name).join(", ")}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
               <p className="text-[11.5px] text-slate-400">
-                Choisissez le mode utilisé par votre carte — une récompense n&apos;apparaît chez vos clients que si son mode correspond à celui de leur carte.
+                {(() => {
+                  const matching = loyaltyCards.filter((c) => c.loyaltyMode === newRewardMode);
+                  if (loyaltyCards.length === 0) {
+                    return "Une récompense n'apparaît chez vos clients que si son mode correspond à celui de leur carte.";
+                  }
+                  if (matching.length === 0) {
+                    return "Aucune de vos cartes n'utilise ce mode pour l'instant — cette récompense n'apparaîtra nulle part.";
+                  }
+                  return `Visible sur : ${matching.map((c) => c.name).join(", ")}.`;
+                })()}
               </p>
             </div>
 
