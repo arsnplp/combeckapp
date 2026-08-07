@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import QRCode from "qrcode";
 
 type Platform = "ios" | "android" | "other";
 
@@ -17,10 +18,23 @@ export default function WalletButton({ ccId, walletAdded = false }: { ccId: stri
   const [platform, setPlatform] = useState<Platform>("other");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState("");
 
   useEffect(() => {
     setPlatform(detectPlatform());
   }, []);
+
+  // Apple/Google Wallet n'existent que sur téléphone : sur ordinateur, les
+  // boutons ci-dessous mènent à une impasse (un .pkpass téléchargé sur PC
+  // n'ouvre rien). On affiche à la place un QR à scanner avec son téléphone,
+  // qui pointe vers une page publique équivalente sans besoin de connexion.
+  useEffect(() => {
+    if (platform !== "other") return;
+    const url = `${window.location.origin}/wallet-add/${ccId}`;
+    QRCode.toDataURL(url, { width: 160, margin: 1, color: { dark: "#0f172a", light: "#ffffff" } })
+      .then(setQrDataUrl)
+      .catch(() => {});
+  }, [platform, ccId]);
 
   const handleApple = async () => {
     setLoading(true);
@@ -54,6 +68,7 @@ export default function WalletButton({ ccId, walletAdded = false }: { ccId: stri
     setLoading(false);
   };
 
+  const isDesktop = platform === "other";
   // Affiche les deux boutons sur desktop, uniquement le pertinent sur mobile
   const showApple = platform === "ios" || platform === "other";
   const showGoogle = platform === "android" || platform === "other";
@@ -66,21 +81,51 @@ export default function WalletButton({ ccId, walletAdded = false }: { ccId: stri
           <span className="text-[13px] font-semibold text-emerald-700">✓ Carte dans votre Wallet</span>
           <span className="text-[11.5px] text-emerald-600/70">· mise à jour automatique</span>
         </div>
-        <div className="mt-1.5 text-center">
-          <button
-            onClick={showApple ? handleApple : handleGoogle}
-            disabled={loading}
-            className="text-[11px] text-gray-400 underline hover:text-gray-600 disabled:opacity-50"
-          >
-            {loading ? "Génération…" : "Retélécharger la carte"}
-          </button>
-        </div>
+        {isDesktop ? (
+          qrDataUrl && (
+            <div className="mt-2.5 flex flex-col items-center gap-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qrDataUrl} alt="QR pour retélécharger la carte" className="h-20 w-20 rounded-lg border border-slate-100" />
+              <p className="text-[10.5px] text-gray-400">Scannez pour retélécharger depuis votre téléphone</p>
+            </div>
+          )
+        ) : (
+          <div className="mt-1.5 text-center">
+            <button
+              onClick={showApple ? handleApple : handleGoogle}
+              disabled={loading}
+              className="text-[11px] text-gray-400 underline hover:text-gray-600 disabled:opacity-50"
+            >
+              {loading ? "Génération…" : "Retélécharger la carte"}
+            </button>
+          </div>
+        )}
         {error && <p className="mt-1 text-center text-[11px] text-red-500">{error}</p>}
       </div>
     );
   }
 
-  // Pas encore ajoutée : boutons mis en avant
+  // Sur ordinateur : Apple/Google Wallet n'existe pas — un QR à scanner avec
+  // son téléphone remplace les boutons, qui n'aboutiraient à rien ici.
+  if (isDesktop) {
+    return (
+      <div className="mt-4 flex flex-col items-center gap-2 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-4">
+        <p className="text-center text-[12px] font-medium text-amber-700">
+          📲 Scannez ce code avec votre téléphone pour ajouter la carte à votre Wallet
+        </p>
+        {qrDataUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={qrDataUrl} alt="QR pour ajouter la carte au Wallet" className="h-36 w-36 rounded-lg border border-white bg-white p-1.5" />
+        ) : (
+          <div className="flex h-36 w-36 items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-amber-400" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Pas encore ajoutée, sur mobile : bouton mis en avant
   return (
     <div className="mt-4 space-y-2">
       <p className="text-center text-[12px] font-medium text-amber-600">

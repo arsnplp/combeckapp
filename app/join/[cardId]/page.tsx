@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { CheckCircle, Loader2 } from "lucide-react";
+import QRCode from "qrcode";
 import ClientAuthPanel, { type JoinSuccess } from "@/components/client/ClientAuthPanel";
 
 interface CardMeta {
@@ -34,6 +35,7 @@ export default function JoinPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState("");
 
   useEffect(() => {
     // Disable zoom on this page
@@ -61,6 +63,18 @@ export default function JoinPage() {
     } catch { /* ignore */ }
     fetch("/api/wallet/pass?warm=1").catch(() => {});
   }, []);
+
+  // Sur ordinateur, un client scanne rarement ce QR depuis son propre poste —
+  // mais s'il arrive ici via un lien partagé, Apple/Google Wallet n'existe
+  // pas sur PC : le .pkpass téléchargé n'ouvre rien. On propose un second QR
+  // à scanner avec son téléphone plutôt que des boutons qui n'aboutissent à rien.
+  useEffect(() => {
+    if (isIOS || isAndroid || !ccId) return;
+    const url = `${window.location.origin}/wallet-add/${ccId}`;
+    QRCode.toDataURL(url, { width: 180, margin: 1, color: { dark: "#0f172a", light: "#ffffff" } })
+      .then(setQrDataUrl)
+      .catch(() => {});
+  }, [isIOS, isAndroid, ccId]);
 
   const handleJoined = useCallback((data: JoinSuccess) => {
     setDoneClientName(data.clientName);
@@ -184,7 +198,25 @@ export default function JoinPage() {
                 <span className="block mt-1 font-semibold text-green-600">{card.welcomePoints} points de bienvenue ajoutés 🎁</span>
               )}
             </p>
-            {walletUrl && (
+            {walletUrl && !isIOS && !isAndroid && (
+              // Ordinateur : Apple/Google Wallet n'existe pas ici — un .pkpass
+              // téléchargé sur PC n'ouvre rien. On propose de scanner avec son
+              // téléphone plutôt que des boutons qui mèneraient à une impasse.
+              <div className="mt-2 w-full flex flex-col items-center gap-2 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-4">
+                <p className="text-center text-[12.5px] font-medium text-amber-700">
+                  📲 Scannez ce code avec votre téléphone pour ajouter la carte à votre Wallet
+                </p>
+                {qrDataUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={qrDataUrl} alt="QR pour ajouter la carte au Wallet" className="h-36 w-36 rounded-lg border border-white bg-white p-1.5" />
+                ) : (
+                  <div className="flex h-36 w-36 items-center justify-center">
+                    <Loader2 className="h-5 w-5 animate-spin text-amber-400" />
+                  </div>
+                )}
+              </div>
+            )}
+            {walletUrl && (isIOS || isAndroid) && (
               <div className="mt-2 w-full space-y-2">
                 {!isAndroid && (
                   <button

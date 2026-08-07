@@ -41,6 +41,7 @@ export const authConfig = {
         pathname.startsWith("/cgu") ||
         pathname.startsWith("/politique-de-confidentialite") ||
         pathname.startsWith("/join/") ||
+        pathname.startsWith("/wallet-add/") ||
         pathname.startsWith("/client") ||
         pathname.startsWith("/api/auth") ||
         pathname.startsWith("/api/register") ||
