@@ -24,6 +24,14 @@ export const metadata: Metadata = {
     title: "ComeBack Pro",
     statusBarStyle: "default",
   },
+  // Empêche Chrome de proposer/appliquer une traduction automatique de la
+  // page : Google Translate réécrit le DOM par-dessus React, ce qui peut
+  // rendre les champs de saisie totalement muets (on tape, rien ne s'affiche
+  // ou ça se vide aussitôt) dès que le navigateur d'un utilisateur n'est pas
+  // en français — un classique bien documenté des apps React/SPA.
+  other: {
+    google: "notranslate",
+  },
 };
 
 export const viewport: Viewport = {
@@ -42,7 +50,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+    <html lang="fr" translate="no" className={`${GeistSans.variable} ${GeistMono.variable} notranslate`} suppressHydrationWarning>
       <body className="antialiased" suppressHydrationWarning>
         <SessionProvider>
           {children}
