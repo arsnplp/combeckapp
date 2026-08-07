@@ -179,7 +179,12 @@ export default function CartePage() {
     const utf8Bytes = new TextEncoder().encode(json);
     let binary = "";
     utf8Bytes.forEach((b) => { binary += String.fromCharCode(b); });
-    return `${networkOrigin}/join/${selected.id}?d=${btoa(binary)}`;
+    // encodeURIComponent est indispensable : le base64 contient souvent des "+"
+    // (fréquent avec des emoji/accents dans le nom/message), et un "+" brut
+    // dans une query string est lu comme un espace par URLSearchParams côté
+    // page /join — le payload est alors corrompu et "QR invalide ou expiré"
+    // s'affiche, systématiquement, pour toute carte dont le base64 en contient un.
+    return `${networkOrigin}/join/${selected.id}?d=${encodeURIComponent(btoa(binary))}`;
   }, [selected, networkOrigin]);
 
   useEffect(() => {
