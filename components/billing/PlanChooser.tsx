@@ -10,17 +10,18 @@ const PLANS = [
     features: ["Gratuit à vie", "30 clients maximum", "1 000 notifications / mois", "1 carte de fidélité", "Stats sur 7 jours"],
   },
   {
-    id: "pro", name: "Pro", price: 49, highlight: true,
+    id: "pro", name: "Pro", price: 9.99, highlight: true,
     features: ["100 clients maximum", "10 000 notifications / mois", "2 cartes de fidélité", "Ciblage avancé + notifications auto", "Historique complet + export CSV"],
   },
   {
-    id: "business", name: "Business", price: 99, highlight: false,
+    id: "business", name: "Business", price: 39.99, highlight: false,
     features: ["Clients & notifications illimités", "2 cartes de fidélité", "Ciblage avancé + notifications auto", "Support dédié (< 4h)"],
   },
 ] as const;
 
 const annualTotal = (p: number) => Math.round(p * 12 * 0.8);
 const annualMonthly = (p: number) => Math.round(annualTotal(p) / 12);
+const fmt = (p: number) => p.toLocaleString("fr-FR");
 
 interface Usage { clients: number; cards: number; }
 
@@ -159,20 +160,20 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
                 <>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     {billing === "annual" && (
-                      <span className="text-[16px] font-semibold text-slate-300 line-through">{plan.price}€</span>
+                      <span className="text-[16px] font-semibold text-slate-300 line-through">{fmt(plan.price)}€</span>
                     )}
                     <span className="text-[30px] font-bold leading-none text-slate-900">
-                      {billing === "monthly" ? plan.price : annualMonthly(plan.price)}€
+                      {fmt(billing === "monthly" ? plan.price : annualMonthly(plan.price))}€
                     </span>
                     <span className="text-[13px] text-slate-400">/mois</span>
                     {billing === "annual" && (
                       <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10.5px] font-bold text-green-400">
-                        économisez {plan.price * 12 - annualTotal(plan.price)}€
+                        économisez {fmt(Math.round(plan.price * 12 - annualTotal(plan.price)))}€
                       </span>
                     )}
                   </div>
                   {billing === "annual" && (
-                    <p className="mt-0.5 text-[11.5px] text-slate-400">Facturé {annualTotal(plan.price)}€ / an</p>
+                    <p className="mt-0.5 text-[11.5px] text-slate-400">Facturé {fmt(annualTotal(plan.price))}€ / an</p>
                   )}
                 </>
               )}
@@ -237,7 +238,10 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
                 onClick={() => { setWarnPlan(null); startCheckout("business"); }}
                 className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 text-[14px] font-bold text-white shadow-lg shadow-green-500/30 hover:from-green-600 hover:to-emerald-600 transition-all"
               >
-                Garder toutes mes fonctionnalités — Business ({billing === "monthly" ? "99€/mois" : "79€/mois"})
+                Garder toutes mes fonctionnalités — Business ({(() => {
+                  const businessPrice = PLANS.find((p) => p.id === "business")!.price;
+                  return billing === "monthly" ? `${fmt(businessPrice)}€/mois` : `${fmt(annualMonthly(businessPrice))}€/mois`;
+                })()})
               </button>
               <button
                 onClick={() => { const p = warnedPlan.id; setWarnPlan(null); startCheckout(p); }}

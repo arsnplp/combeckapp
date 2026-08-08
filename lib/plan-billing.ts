@@ -12,8 +12,8 @@ export interface PlanInfo {
 // Starter n'apparaît PAS ici : il est gratuit à vie et ne passe jamais par
 // Stripe (voir activateStarterFree ci-dessous).
 export const PLAN_PRICING = {
-  pro: { monthly: 49, annual: 470 },
-  business: { monthly: 99, annual: 950 },
+  pro: { monthly: 9.99, annual: 96 },
+  business: { monthly: 39.99, annual: 384 },
 } as const;
 
 export function getPlanInfo(plan: string | null, expiresAt: string | null): PlanInfo {

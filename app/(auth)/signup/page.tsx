@@ -11,8 +11,8 @@ import type { PlanId } from "@/types";
 const PLAN_INFO: Record<PlanId, { label: string; price: number; color: string }> = {
   free:     { label: "Essai gratuit", price: 0, color: "text-emerald-700 bg-emerald-50" },
   starter:  { label: "Starter",  price: 0,  color: "text-slate-600 bg-slate-100" },
-  pro:      { label: "Pro",      price: 49, color: "text-green-700 bg-green-50" },
-  business: { label: "Business", price: 99, color: "text-violet-700 bg-violet-50" },
+  pro:      { label: "Pro",      price: 9.99,  color: "text-green-700 bg-green-50" },
+  business: { label: "Business", price: 39.99, color: "text-violet-700 bg-violet-50" },
 };
 
 function SignupForm() {
@@ -119,8 +119,8 @@ function SignupForm() {
                 : plan === "starter"
                   ? "Gratuit à vie · 30 clients maximum · Sans carte bancaire"
                   : billingCycle === "annual"
-                    ? `${Math.round(planInfo.price * 12 * 0.8)}€ / an (soit ${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12)}€/mois, -20 %)`
-                    : `${planInfo.price}€ / mois · Sans engagement`}
+                    ? `${Math.round(planInfo.price * 12 * 0.8).toLocaleString("fr-FR")}€ / an (soit ${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12).toLocaleString("fr-FR")}€/mois, -20 %)`
+                    : `${planInfo.price.toLocaleString("fr-FR")}€ / mois · Sans engagement`}
             </p>
           </div>
           <div className="space-y-2.5">
@@ -151,7 +151,7 @@ function SignupForm() {
               ? "Essai gratuit — 30 jours offerts, niveau Business"
               : plan === "starter"
                 ? "Plan Starter — Gratuit à vie"
-                : `Plan ${planInfo.label} — ${billingCycle === "annual" ? `${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12)}€/mois facturé annuellement` : `${planInfo.price}€/mois`}`}
+                : `Plan ${planInfo.label} — ${billingCycle === "annual" ? `${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12).toLocaleString("fr-FR")}€/mois facturé annuellement` : `${planInfo.price.toLocaleString("fr-FR")}€/mois`}`}
           </div>
 
           <div className="mb-6">
@@ -170,7 +170,7 @@ function SignupForm() {
                 }`}
               >
                 <p className="text-[13px] font-bold text-slate-900">Mensuel</p>
-                <p className="text-[12px] text-slate-500">{planInfo.price}€ / mois</p>
+                <p className="text-[12px] text-slate-500">{planInfo.price.toLocaleString("fr-FR")}€ / mois</p>
                 <p className="text-[10.5px] text-slate-400">Sans engagement</p>
               </button>
               <button
@@ -182,8 +182,8 @@ function SignupForm() {
               >
                 <span className="absolute -top-2 right-2 rounded-full bg-green-600 px-2 py-0.5 text-[10px] font-bold text-white">-20 %</span>
                 <p className="text-[13px] font-bold text-slate-900">Annuel</p>
-                <p className="text-[12px] text-slate-500">{Math.round(Math.round(planInfo.price * 12 * 0.8) / 12)}€ / mois</p>
-                <p className="text-[10.5px] text-green-600 font-medium">{Math.round(planInfo.price * 12 * 0.8)}€ facturé 1× / an</p>
+                <p className="text-[12px] text-slate-500">{Math.round(Math.round(planInfo.price * 12 * 0.8) / 12).toLocaleString("fr-FR")}€ / mois</p>
+                <p className="text-[10.5px] text-green-600 font-medium">{Math.round(planInfo.price * 12 * 0.8).toLocaleString("fr-FR")}€ facturé 1× / an</p>
               </button>
             </div>
           )}

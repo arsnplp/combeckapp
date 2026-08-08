@@ -24,7 +24,7 @@ const PLANS = [
   {
     id: "pro",
     name: "Pro",
-    price: 49,
+    price: 9.99,
     description: "Le choix des commerçants actifs",
     highlight: true,
     features: [
@@ -40,7 +40,7 @@ const PLANS = [
   {
     id: "business",
     name: "Business",
-    price: 99,
+    price: 39.99,
     description: "Pour les enseignes en croissance",
     highlight: false,
     features: [
@@ -55,9 +55,10 @@ const PLANS = [
   },
 ] as const;
 
-// Affichage sans décimales — aligné sur PLAN_PRICING (annuel arrondi à l'euro)
+// Aligné sur PLAN_PRICING (annuel arrondi à l'euro)
 const annualTotal = (p: number) => Math.round(p * 12 * 0.8);
 const annualMonthly = (p: number) => Math.round(annualTotal(p) / 12);
+const fmt = (p: number) => p.toLocaleString("fr-FR");
 
 export default function TarifsPage() {
   const router = useRouter();
@@ -213,15 +214,15 @@ export default function TarifsPage() {
                   ) : (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       {billing === "annual" && (
-                        <span className="text-[20px] font-semibold text-slate-300 line-through">{plan.price}€</span>
+                        <span className="text-[20px] font-semibold text-slate-300 line-through">{fmt(plan.price)}€</span>
                       )}
                       <span className="text-[38px] font-bold leading-none text-slate-900">
-                        {billing === "monthly" ? plan.price : annualMonthly(plan.price)}€
+                        {fmt(billing === "monthly" ? plan.price : annualMonthly(plan.price))}€
                       </span>
                       <span className="text-[14px] text-slate-400">/mois</span>
                       {billing === "annual" && (
                         <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11.5px] font-bold text-green-400">
-                          économisez {plan.price * 12 - annualTotal(plan.price)}€
+                          économisez {fmt(Math.round(plan.price * 12 - annualTotal(plan.price)))}€
                         </span>
                       )}
                     </div>
@@ -229,7 +230,7 @@ export default function TarifsPage() {
                   {plan.price === 0 ? (
                     <p className="mt-1 text-[12px] text-slate-400">Aucune carte bancaire requise</p>
                   ) : billing === "annual" ? (
-                    <p className="mt-1 text-[12px] text-slate-400">Facturé {annualTotal(plan.price)}€ / an</p>
+                    <p className="mt-1 text-[12px] text-slate-400">Facturé {fmt(annualTotal(plan.price))}€ / an</p>
                   ) : (
                     <p className="mt-1 text-[12px] text-slate-400">Sans engagement</p>
                   )}

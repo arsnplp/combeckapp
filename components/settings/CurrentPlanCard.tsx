@@ -111,7 +111,7 @@ export default function CurrentPlanCard() {
                 <p className="text-lg font-bold" style={{ color: d.accent }}>Gratuit</p>
               ) : (
                 <>
-                  <p className="text-2xl font-bold" style={{ color: d.accent }}>{info.priceMonthly}€</p>
+                  <p className="text-2xl font-bold" style={{ color: d.accent }}>{info.priceMonthly.toLocaleString("fr-FR")}€</p>
                   <p className={`text-xs ${d.sub}`}>/mois</p>
                 </>
               )
