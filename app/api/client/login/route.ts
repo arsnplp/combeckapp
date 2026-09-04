@@ -25,11 +25,10 @@ export async function POST(req: NextRequest) {
   const { email, password } = parsed.data;
   const normalizedEmail = email.toLowerCase().trim();
 
-  const cards = await findClientCards(normalizedEmail);
-  if (cards.length === 0) {
-    return NextResponse.json({ error: "Aucune carte de fidélité trouvée pour cet email." }, { status: 404 });
-  }
-
+  // Le compte est cherché AVANT les cartes : un client qui a quitté tous ses
+  // commerces n'a plus aucune carte mais garde son compte, et doit pouvoir se
+  // reconnecter pour en rejoindre un nouveau. Exiger une carte l'enfermait
+  // dehors définitivement, alors que son mot de passe prouve son identité.
   const account = await getClientAccount(normalizedEmail);
 
   if (!account) {
@@ -39,6 +38,13 @@ export async function POST(req: NextRequest) {
     // oublié") — jamais de session accordée sans cette preuve, sinon
     // n'importe qui pourrait se connecter en tapant l'email de quelqu'un
     // d'autre (aucun mot de passe requis à l'inscription initiale).
+    // Cet envoi n'a lieu que si l'email est réellement connu de ComeBack :
+    // sans ce garde-fou, ce formulaire permettrait de faire envoyer un mail
+    // à n'importe quelle adresse.
+    const knownCards = await findClientCards(normalizedEmail);
+    if (knownCards.length === 0) {
+      return NextResponse.json({ error: "Aucun compte trouvé avec cet email." }, { status: 404 });
+    }
     try {
       const resetToken = await createResetToken(normalizedEmail, "client");
       await sendPasswordResetClient(normalizedEmail, resetToken);
@@ -59,6 +65,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Mot de passe incorrect." }, { status: 401 });
   }
 
+  // Identité prouvée : la session est accordée même sans aucune carte
+  // (l'écran "Aucune carte" propose alors d'en ajouter une par scan).
+  const cards = await findClientCards(normalizedEmail);
   const token = await createClientSession(normalizedEmail);
   const response = NextResponse.json({ ok: true, count: cards.length });
   response.cookies.set("comeback_client", token, {
