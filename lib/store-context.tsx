@@ -89,8 +89,8 @@ interface StoreCtx {
   customerCards: CustomerCard[];
   assignCard: (customerId: string, cardId: string) => CustomerCard;
   unassignCard: (customerCardId: string) => void;
-  addStampToCard: (customerCardId: string, count?: number) => void;
-  addPointsToCard: (customerCardId: string, amount: number, euros?: number) => void;
+  addStampToCard: (customerCardId: string, count?: number) => Promise<{ ok: boolean; added: number }>;
+  addPointsToCard: (customerCardId: string, amount: number, euros?: number) => Promise<{ ok: boolean }>;
   useRewardOnCard: (customerCardId: string, reward: Reward) => void;
   // Rédemptions serveur (historique récompenses utilisées)
   serverRedemptions: Array<{ id: string; customerId: string; customerCardId: string; rewardName: string; rewardEmoji: string; cost: number; costType: string; redeemedAt: string }>;
@@ -366,9 +366,11 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [syncFromServer]);
 
-  const addStampToCard = useCallback((customerCardId: string, count: number = 1) => {
+  const addStampToCard = useCallback(async (
+    customerCardId: string, count: number = 1,
+  ): Promise<{ ok: boolean; added: number }> => {
     const cc = customerCards.find((c) => c.id === customerCardId);
-    if (!cc) return;
+    if (!cc) return { ok: false, added: 0 };
     const card = loyaltyCards.find((c) => c.id === cc.cardId);
     const maxStamps = card?.stampsRequired ?? 8;
     const customer = customers.find((c) => c.id === cc.customerId);
@@ -378,57 +380,98 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
     const newStamps = Math.min(cc.stamps + requested, maxStamps);
     const added = newStamps - cc.stamps;
     const now = new Date().toISOString();
+    // État d'avant, conservé pour pouvoir revenir en arrière si le serveur
+    // ne confirme pas (coupure réseau, redémarrage pendant un déploiement…).
+    const prevStamps = cc.stamps;
+    const prevActivity = cc.lastActivity;
+
     setCustomerCards((prev) => prev.map((c) =>
       c.id !== customerCardId ? c : { ...c, stamps: newStamps, lastActivity: now }
     ));
-    // Carte déjà pleine : rien n'est crédité, donc pas de visite comptée
-    // (aligné sur le serveur, qui ignore aussi ce cas).
-    if (added > 0) {
-      const newVisits = (customer?.totalVisits ?? 0) + 1;
-      setCustomers((prev) => prev.map((c) =>
-        c.id !== cc.customerId ? c : { ...c, totalVisits: newVisits, lastVisit: now, status: computeStatus(newVisits) }
+
+    try {
+      const res = await fetch("/api/register", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "stamp", customerCardId, count: requested }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const data = await res.json().catch(() => null);
+      const serverStamps = typeof data?.stamps === "number" ? data.stamps : newStamps;
+      const serverAdded = typeof data?.added === "number" ? data.added : added;
+      // Vérité serveur (gère la troncature au plafond de la carte)
+      setCustomerCards((prev) => prev.map((c) =>
+        c.id !== customerCardId ? c : { ...c, stamps: serverStamps, lastActivity: now }
       ));
-      if (customer) addActivity({ type: "visit", customerId: cc.customerId, customerName: customer.name, description: `+${added} tampon${added > 1 ? "s" : ""} — ${card?.name ?? "carte"}`, value: added });
+      // Visite + journal seulement une fois le crédit confirmé : sinon un
+      // échec laisserait une visite fantôme dans les stats.
+      if (serverAdded > 0) {
+        const newVisits = (customer?.totalVisits ?? 0) + 1;
+        setCustomers((prev) => prev.map((c) =>
+          c.id !== cc.customerId ? c : { ...c, totalVisits: newVisits, lastVisit: now, status: computeStatus(newVisits) }
+        ));
+        if (customer) addActivity({ type: "visit", customerId: cc.customerId, customerName: customer.name, description: `+${serverAdded} tampon${serverAdded > 1 ? "s" : ""} — ${card?.name ?? "carte"}`, value: serverAdded });
+      }
+      return { ok: true, added: serverAdded };
+    } catch {
+      // Rien n'a été enregistré : on remet exactement l'état d'avant, sinon le
+      // commerçant voit des tampons qui n'existent pas et l'annonce au client.
+      setCustomerCards((prev) => prev.map((c) =>
+        c.id !== customerCardId ? c : { ...c, stamps: prevStamps, lastActivity: prevActivity }
+      ));
+      syncFromServer().catch(() => {});
+      return { ok: false, added: 0 };
     }
-    // Persist to server so stamp survives localStorage clear / multi-device
-    fetch("/api/register", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "stamp", customerCardId, count: requested }),
-    }).then((res) => {
-      // Échec serveur (session, carte inconnue…) : on réaligne l'affichage
-      // sur la vérité serveur au lieu de laisser un compteur mensonger
-      if (!res.ok) syncFromServer();
-    }).catch(() => {});
   }, [customerCards, loyaltyCards, customers, addActivity, syncFromServer]);
 
   // `euros` = montant réellement dépensé pour ce passage (distinct des points
   // crédités, qui peuvent inclure un bonus) — sert uniquement au calcul du
   // rang (Silver/Gold/Platine) sur les cartes en mode points.
-  const addPointsToCard = useCallback((customerCardId: string, amount: number, euros?: number) => {
+  const addPointsToCard = useCallback(async (
+    customerCardId: string, amount: number, euros?: number,
+  ): Promise<{ ok: boolean }> => {
     const cc = customerCards.find((c) => c.id === customerCardId);
-    if (!cc) return;
+    if (!cc) return { ok: false };
     const card = loyaltyCards.find((c) => c.id === cc.cardId);
     const customer = customers.find((c) => c.id === cc.customerId);
     const now = new Date().toISOString();
+    const prevPoints = cc.points;
+    const prevActivity = cc.lastActivity;
+
     setCustomerCards((prev) => prev.map((c) =>
       c.id !== customerCardId ? c : { ...c, points: c.points + amount, lastActivity: now }
     ));
-    const newVisits = (customer?.totalVisits ?? 0) + 1;
-    setCustomers((prev) => prev.map((c) =>
-      c.id !== cc.customerId ? c : {
-        ...c, totalVisits: newVisits, lastVisit: now, status: computeStatus(newVisits),
-        totalSpent: c.totalSpent + (euros && euros > 0 ? euros : 0),
+
+    try {
+      const res = await fetch("/api/register", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "points", customerCardId, points: amount, euros }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const data = await res.json().catch(() => null);
+      if (typeof data?.points === "number") {
+        setCustomerCards((prev) => prev.map((c) =>
+          c.id !== customerCardId ? c : { ...c, points: data.points, lastActivity: now }
+        ));
       }
-    ));
-    if (customer) addActivity({ type: "points_added", customerId: cc.customerId, customerName: customer.name, description: `+${amount} pts — ${card?.name ?? "carte"}`, value: amount });
-    fetch("/api/register", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "points", customerCardId, points: amount, euros }),
-    }).then((res) => {
-      if (!res.ok) syncFromServer();
-    }).catch(() => {});
+      const newVisits = (customer?.totalVisits ?? 0) + 1;
+      setCustomers((prev) => prev.map((c) =>
+        c.id !== cc.customerId ? c : {
+          ...c, totalVisits: newVisits, lastVisit: now, status: computeStatus(newVisits),
+          totalSpent: c.totalSpent + (euros && euros > 0 ? euros : 0),
+        }
+      ));
+      if (customer) addActivity({ type: "points_added", customerId: cc.customerId, customerName: customer.name, description: `+${amount} pts — ${card?.name ?? "carte"}`, value: amount });
+      return { ok: true };
+    } catch {
+      // Idem tampons : pas de points fantômes affichés en caisse.
+      setCustomerCards((prev) => prev.map((c) =>
+        c.id !== customerCardId ? c : { ...c, points: prevPoints, lastActivity: prevActivity }
+      ));
+      syncFromServer().catch(() => {});
+      return { ok: false };
+    }
   }, [customerCards, loyaltyCards, customers, addActivity, syncFromServer]);
 
   const useRewardOnCard = useCallback((customerCardId: string, reward: Reward) => {

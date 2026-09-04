@@ -40,6 +40,7 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
   const [stampCount, setStampCount] = useState(1);
   // Tampons réellement crédités (peut être < demandé si la carte se remplit)
   const [stampsAdded, setStampsAdded] = useState(0);
+  const [failed, setFailed] = useState("");
 
   useEffect(() => {
     if (!cc && !syncing && !syncFailed) {
@@ -75,18 +76,39 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
 
   // Garde anti double-tap : un appui physique rapide (deux fois sur le même
   // bouton) avant le passage à l'écran "done" ne doit créditer qu'une fois.
-  const doStamp = () => {
+  // On n'annonce "ajouté" qu'une fois le serveur confirmé : afficher un succès
+  // avant la réponse ferait dire au commerçant "c'est bon" alors qu'une coupure
+  // (réseau, redémarrage pendant un déploiement) n'a rien enregistré.
+  const doStamp = async () => {
     if (submitting || remaining <= 0) return;
     setSubmitting(true);
+    setFailed("");
     // Ne crédite jamais au-delà du plafond de la carte : le serveur tronque
     // de toute façon, autant que l'écran annonce le vrai chiffre.
     const willAdd = Math.min(stampCount, remaining);
-    addStampToCard(cc.id, willAdd);
-    setStampsAdded(willAdd);
+    const res = await addStampToCard(cc.id, willAdd);
+    if (!res.ok) {
+      setFailed("Enregistrement impossible — rien n'a été ajouté. Vérifiez la connexion et réessayez.");
+      setSubmitting(false);
+      return;
+    }
+    setStampsAdded(res.added);
     vibrate([30, 40, 30]);
     setDone("stamp");
   };
-  const doPoints = () => { if (submitting || previewPts <= 0) return; setSubmitting(true); addPointsToCard(cc.id, previewPts, euros); vibrate([30, 40, 30]); setDone("points"); };
+  const doPoints = async () => {
+    if (submitting || previewPts <= 0) return;
+    setSubmitting(true);
+    setFailed("");
+    const res = await addPointsToCard(cc.id, previewPts, euros);
+    if (!res.ok) {
+      setFailed("Enregistrement impossible — rien n'a été ajouté. Vérifiez la connexion et réessayez.");
+      setSubmitting(false);
+      return;
+    }
+    vibrate([30, 40, 30]);
+    setDone("points");
+  };
 
   return (
     <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
@@ -190,8 +212,15 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
                 <button onClick={doStamp} disabled={submitting}
                   className="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 font-semibold text-white text-sm disabled:opacity-40"
                   style={{ background: accent }}>
-                  <Stamp className="h-4 w-4" /> +{stampCount} tampon{stampCount > 1 ? "s" : ""}
+                  {submitting
+                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Enregistrement…</>
+                    : <><Stamp className="h-4 w-4" /> +{stampCount} tampon{stampCount > 1 ? "s" : ""}</>}
                 </button>
+                {failed && (
+                  <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-medium text-red-700">
+                    {failed}
+                  </p>
+                )}
                 <button onClick={onClose} className="mt-2 w-full py-2 text-xs text-slate-400 hover:text-slate-600">Annuler</button>
               </>
             )}
@@ -214,8 +243,15 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
             <button onClick={doPoints} disabled={submitting || previewPts === 0}
               className="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 font-semibold text-white text-sm disabled:opacity-40"
               style={{ background: accent }}>
-              <Star className="h-4 w-4" /> Valider {previewPts > 0 ? `+${previewPts} pts` : ""}
+              {submitting
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Enregistrement…</>
+                : <><Star className="h-4 w-4" /> Valider {previewPts > 0 ? `+${previewPts} pts` : ""}</>}
             </button>
+            {failed && (
+              <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-medium text-red-700">
+                {failed}
+              </p>
+            )}
             <button onClick={onClose} className="mt-2 w-full py-2 text-xs text-slate-400 hover:text-slate-600">Annuler</button>
           </>
         )}
