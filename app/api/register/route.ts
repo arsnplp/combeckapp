@@ -415,7 +415,18 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: true, stamps: card.stamps, points: card.points });
     } else if (action === "reward") {
       const { rewardName, rewardEmoji, cost, costType, customerId } = body;
-      await db_deductReward(tenantId, customerCardId, costType, cost);
+      // db_deductReward refuse déjà un solde insuffisant, mais son résultat
+      // était ignoré : la récompense était inscrite à l'historique et le
+      // compteur d'utilisation incrémenté même quand rien n'avait été déduit,
+      // et l'écran annonçait un succès. On honore le résultat.
+      const deduct = await db_deductReward(tenantId, customerCardId, costType, cost);
+      if (!deduct.success) {
+        return NextResponse.json(
+          { error: deduct.reason ?? "Récompense impossible à valider." },
+          { status: 422 },
+        );
+      }
+      // Historique + compteur seulement après une déduction réellement faite
       await db_addRedemption(tenantId, {
         customerId,
         customerCardId,
@@ -428,6 +439,12 @@ export async function PATCH(req: NextRequest) {
       await db_incrementRewardUsage(tenantId, rewardName);
       if (costType === "stamps") walletNotificationService.updateStamps(customerCardId).catch(console.error);
       else walletNotificationService.updatePoints(customerCardId).catch(console.error);
+      // Soldes à jour pour que l'écran s'aligne sur la vérité serveur
+      return NextResponse.json({
+        ok: true,
+        stamps: deduct.card?.stamps,
+        points: deduct.card?.points,
+      });
     }
     return NextResponse.json({ ok: true });
   } catch (e) {

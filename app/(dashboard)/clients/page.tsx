@@ -130,12 +130,16 @@ function CustomerCardWidget({
   cc: CustomerCard; card: LoyaltyCard; rewards: Reward[];
   networkOrigin: string; customer: Customer;
   onAddStamp: () => void; onAddPoints: () => void;
-  onUseReward: (r: Reward) => void; onUnassign?: () => void;
+  onUseReward: (r: Reward) => Promise<{ ok: boolean; error?: string }>; onUnassign?: () => void;
 }) {
   const [qrUrl, setQrUrl] = useState("");
   const [walletQrUrl, setWalletQrUrl] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [qrTab, setQrTab] = useState<"scan" | "wallet">("scan");
+  // Refus du serveur (solde insuffisant, coupure réseau…) : sans ça la
+  // récompense semblait consommée alors que rien n'avait été déduit.
+  const [rewardError, setRewardError] = useState("");
+  const [usingReward, setUsingReward] = useState(false);
 
   const availableReward = rewards.find(
     (r) => r.active && r.mode === card.loyaltyMode &&
@@ -258,9 +262,22 @@ function CustomerCardWidget({
                   </Button>
                 )}
                 {availableReward && (
-                  <Button size="sm" variant="success" className="w-full gap-2" onClick={() => onUseReward(availableReward)}>
-                    <Gift className="h-3.5 w-3.5" />Utiliser : {availableReward.name}
+                  <Button size="sm" variant="success" className="w-full gap-2" disabled={usingReward}
+                    onClick={async () => {
+                      if (usingReward) return;
+                      setUsingReward(true);
+                      setRewardError("");
+                      const r = await onUseReward(availableReward);
+                      if (!r.ok) setRewardError(r.error || "Validation impossible — rien n'a été déduit.");
+                      setUsingReward(false);
+                    }}>
+                    <Gift className="h-3.5 w-3.5" />{usingReward ? "Validation…" : `Utiliser : ${availableReward.name}`}
                   </Button>
+                )}
+                {rewardError && (
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-700">
+                    {rewardError}
+                  </p>
                 )}
                 {onUnassign && (
                   <button onClick={onUnassign} className="w-full text-center text-[11px] text-slate-400 hover:text-red-500 transition-colors py-1">

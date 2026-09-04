@@ -91,7 +91,7 @@ interface StoreCtx {
   unassignCard: (customerCardId: string) => void;
   addStampToCard: (customerCardId: string, count?: number) => Promise<{ ok: boolean; added: number }>;
   addPointsToCard: (customerCardId: string, amount: number, euros?: number) => Promise<{ ok: boolean }>;
-  useRewardOnCard: (customerCardId: string, reward: Reward) => void;
+  useRewardOnCard: (customerCardId: string, reward: Reward) => Promise<{ ok: boolean; error?: string }>;
   // Rédemptions serveur (historique récompenses utilisées)
   serverRedemptions: Array<{ id: string; customerId: string; customerCardId: string; rewardName: string; rewardEmoji: string; cost: number; costType: string; redeemedAt: string }>;
   // true une fois les données serveur chargées (évite d'agir sur un état par défaut vide et transitoire)
@@ -474,11 +474,20 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
     }
   }, [customerCards, loyaltyCards, customers, addActivity, syncFromServer]);
 
-  const useRewardOnCard = useCallback((customerCardId: string, reward: Reward) => {
+  const useRewardOnCard = useCallback(async (
+    customerCardId: string, reward: Reward,
+  ): Promise<{ ok: boolean; error?: string }> => {
     const cc = customerCards.find((c) => c.id === customerCardId);
-    if (!cc) return;
+    if (!cc) return { ok: false, error: "Carte introuvable." };
     const customer = customers.find((c) => c.id === cc.customerId);
     const now = new Date().toISOString();
+    // État d'avant, pour revenir en arrière si le serveur refuse ou ne répond
+    // pas : sinon la récompense apparaît consommée alors que le solde du
+    // client est intact, et le commerçant offre l'article pour rien.
+    const prevStamps = cc.stamps;
+    const prevPoints = cc.points;
+    const prevActivity = cc.lastActivity;
+
     setCustomerCards((prev) => prev.map((c) =>
       c.id !== customerCardId ? c : {
         ...c,
@@ -487,27 +496,56 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
         lastActivity: now,
       }
     ));
-    if (customer) {
-      setCustomers((prev) => prev.map((c) =>
-        c.id !== cc.customerId ? c : { ...c, rewardsUsed: c.rewardsUsed + 1 }
+
+    try {
+      const res = await fetch("/api/register", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reward",
+          customerCardId,
+          customerId: cc.customerId,
+          rewardName: reward.name,
+          rewardEmoji: reward.emoji ?? "",
+          cost: reward.cost,
+          costType: reward.mode,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      // On ne remonte que les motifs lisibles renvoyés par le serveur
+      // ("Pas assez de points"…) ; sinon un message clair, jamais un code HTTP.
+      if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "");
+      // Soldes serveur (source de vérité)
+      if (typeof data?.stamps === "number" || typeof data?.points === "number") {
+        setCustomerCards((prev) => prev.map((c) =>
+          c.id !== customerCardId ? c : {
+            ...c,
+            stamps: typeof data.stamps === "number" ? data.stamps : c.stamps,
+            points: typeof data.points === "number" ? data.points : c.points,
+            lastActivity: now,
+          }
+        ));
+      }
+      // Compteur + journal seulement une fois la déduction confirmée
+      if (customer) {
+        setCustomers((prev) => prev.map((c) =>
+          c.id !== cc.customerId ? c : { ...c, rewardsUsed: c.rewardsUsed + 1 }
+        ));
+        addActivity({ type: "reward", customerId: cc.customerId, customerName: customer.name, description: `${reward.name} utilisé` });
+      }
+      return { ok: true };
+    } catch (e) {
+      setCustomerCards((prev) => prev.map((c) =>
+        c.id !== customerCardId ? c : { ...c, stamps: prevStamps, points: prevPoints, lastActivity: prevActivity }
       ));
-      addActivity({ type: "reward", customerId: cc.customerId, customerName: customer.name, description: `${reward.name} utilisé` });
+      syncFromServer().catch(() => {});
+      const reason = e instanceof Error && e.message ? e.message : "";
+      return {
+        ok: false,
+        error: reason || "Validation impossible — rien n'a été déduit. Vérifiez la connexion et réessayez.",
+      };
     }
-    // Persister côté serveur + notifier Apple Wallet
-    fetch("/api/register", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "reward",
-        customerCardId,
-        customerId: cc.customerId,
-        rewardName: reward.name,
-        rewardEmoji: reward.emoji ?? "",
-        cost: reward.cost,
-        costType: reward.mode,
-      }),
-    }).catch(() => {});
-  }, [customerCards, customers, addActivity]);
+  }, [customerCards, customers, addActivity, syncFromServer]);
 
   // ── Legacy actions (global, use StoreSettings) ──────────────────────────────
 
