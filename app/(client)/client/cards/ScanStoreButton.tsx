@@ -126,29 +126,42 @@ function ScanStoreModal({ onClose }: { onClose: () => void }) {
   }, [handleDetected]);
 
   useEffect(() => {
-    navigator.mediaDevices?.getUserMedia({ video: { facingMode: "environment" }, audio: false })
-      .then((stream) => {
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {});
-          setStatus("scanning");
-          rafRef.current = requestAnimationFrame(scanFrame);
-        }
-        try {
-          const caps = stream.getVideoTracks()[0]?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
-          if (caps?.torch) setTorchAvailable(true);
-        } catch { /* pas de torche */ }
-      })
-      .catch((e) => {
-        setStatus("error");
-        setErrorMsg(
-          e?.name === "NotAllowedError"
-            ? "Accès à la caméra refusé. Autorisez-le dans les réglages de votre navigateur."
-            : "Caméra inaccessible sur cet appareil.",
-        );
-      });
-    return () => stopCamera();
+    // L'API caméra n'existe pas partout : navigateur intégré (Instagram,
+    // Messenger…), app ajoutée à l'écran d'accueil sur certains iPhone, ou
+    // page servie sans HTTPS. Sans ce test, l'appel se dissolvait
+    // silencieusement et l'écran restait noir sans la moindre explication.
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setStatus("error");
+      setErrorMsg("unsupported");
+      return;
+    }
+    let cancelled = false;
+    try {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })
+        .then((stream) => {
+          if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
+          streamRef.current = stream;
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.play().catch(() => {});
+            setStatus("scanning");
+            rafRef.current = requestAnimationFrame(scanFrame);
+          }
+          try {
+            const caps = stream.getVideoTracks()[0]?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
+            if (caps?.torch) setTorchAvailable(true);
+          } catch { /* pas de torche */ }
+        })
+        .catch((e) => {
+          if (cancelled) return;
+          setStatus("error");
+          setErrorMsg(e?.name === "NotAllowedError" || e?.name === "NotFoundError" ? "denied" : "unsupported");
+        });
+    } catch {
+      setStatus("error");
+      setErrorMsg("unsupported");
+    }
+    return () => { cancelled = true; stopCamera(); };
   }, [scanFrame, stopCamera]);
 
   const close = () => { stopCamera(); onClose(); };
@@ -167,6 +180,37 @@ function ScanStoreModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
+        {status === "error" ? (
+          // Pas de carré noir inerte : on explique pourquoi et surtout comment
+          // s'en sortir — l'appareil photo natif du téléphone ouvre le lien du
+          // QR directement, sans passer par cette page.
+          <div className="px-5 pb-5">
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+              <p className="text-[13px] font-semibold text-amber-800">
+                {errorMsg === "denied"
+                  ? "Accès à la caméra refusé"
+                  : "La caméra n'est pas accessible ici"}
+              </p>
+              <p className="mt-1.5 text-[12.5px] leading-relaxed text-amber-700">
+                {errorMsg === "denied"
+                  ? "Autorisez la caméra pour ce site dans les réglages de votre navigateur, puis réessayez."
+                  : "Certains navigateurs (Instagram, Messenger…) et l'app ajoutée à l'écran d'accueil ne permettent pas d'ouvrir la caméra."}
+              </p>
+              <div className="mt-3 rounded-xl bg-white/70 p-3">
+                <p className="text-[12.5px] font-semibold text-slate-800">💡 Le plus simple</p>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-slate-600">
+                  Ouvrez l&apos;<strong>appareil photo</strong> de votre téléphone et visez le QR code du
+                  commerce : la carte s&apos;ajoutera automatiquement à votre compte.
+                </p>
+              </div>
+            </div>
+            <button onClick={close}
+              className="mt-3 w-full rounded-2xl border border-gray-200 py-3 text-[13px] font-semibold text-gray-600 hover:bg-gray-50">
+              Fermer
+            </button>
+          </div>
+        ) : (
+          <>
         <div className="relative aspect-square bg-black">
           <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" playsInline muted />
           <canvas ref={canvasRef} className="hidden" />
@@ -195,9 +239,7 @@ function ScanStoreModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="px-5 py-4 text-center">
-          {status === "error" ? (
-            <p className="text-[12.5px] font-medium text-red-600">{errorMsg}</p>
-          ) : rejected ? (
+          {rejected ? (
             <p className="text-[12.5px] font-medium text-amber-600">{rejected}</p>
           ) : (
             <p className="flex items-center justify-center gap-1.5 text-[12.5px] text-gray-500">
@@ -205,6 +247,8 @@ function ScanStoreModal({ onClose }: { onClose: () => void }) {
             </p>
           )}
         </div>
+          </>
+        )}
       </div>
     </div>
   );
