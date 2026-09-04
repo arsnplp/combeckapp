@@ -36,6 +36,9 @@ export default function JoinPage() {
   const [isIOS, setIsIOS] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState("");
+  // false tant qu'on n'a pas fini d'essayer de récupérer le design : évite
+  // d'afficher "QR invalide" pendant le chargement d'une URL courte.
+  const [metaTried, setMetaTried] = useState(false);
 
   useEffect(() => {
     // Disable zoom on this page
@@ -50,19 +53,36 @@ export default function JoinPage() {
     const ref = params.get("ref");
     if (ref) setRefParam(ref);
     const d = params.get("d");
-    if (!d) return;
-    try {
-      let json: string;
+    // QR historiques : tout le design est embarqué dans le paramètre `d`.
+    // On le lit en priorité — les affiches déjà imprimées continuent de
+    // fonctionner exactement comme avant, sans réimpression.
+    let decoded = false;
+    if (d) {
       try {
-        const bytes = Uint8Array.from(atob(d), (c) => c.charCodeAt(0));
-        json = new TextDecoder().decode(bytes);
-      } catch {
-        json = atob(d);
-      }
-      setCard(JSON.parse(json));
-    } catch { /* ignore */ }
+        let json: string;
+        try {
+          const bytes = Uint8Array.from(atob(d), (c) => c.charCodeAt(0));
+          json = new TextDecoder().decode(bytes);
+        } catch {
+          json = atob(d);
+        }
+        setCard(JSON.parse(json));
+        decoded = true;
+      } catch { /* payload illisible : on retombe sur le serveur ci-dessous */ }
+    }
+    // Nouveaux QR (URL courte, donc bien plus faciles à scanner) ou `d`
+    // corrompu : on va chercher le design côté serveur.
+    if (!decoded) {
+      fetch(`/api/join/${cardId}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => { if (data?.id) setCard(data); })
+        .catch(() => {})
+        .finally(() => setMetaTried(true));
+    } else {
+      setMetaTried(true);
+    }
     fetch("/api/wallet/pass?warm=1").catch(() => {});
-  }, []);
+  }, [cardId]);
 
   // Sur ordinateur, un client scanne rarement ce QR depuis son propre poste —
   // mais s'il arrive ici via un lien partagé, Apple/Google Wallet n'existe
@@ -148,7 +168,13 @@ export default function JoinPage() {
   if (!card) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-400 text-sm">
-        QR invalide ou expiré.
+        {metaTried ? (
+          "QR invalide ou expiré."
+        ) : (
+          <span className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" /> Chargement de la carte…
+          </span>
+        )}
       </div>
     );
   }

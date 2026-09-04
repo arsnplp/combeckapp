@@ -164,27 +164,15 @@ export default function CartePage() {
 
   const joinUrl = useMemo(() => {
     if (!selected || !networkOrigin) return "";
-    const json = JSON.stringify({
-      id: selected.id, name: selected.name, welcomeMessage: selected.welcomeMessage,
-      backgroundColor: selected.backgroundColor, accentColor: selected.accentColor,
-      textColor: selected.textColor, loyaltyMode: selected.loyaltyMode,
-      stampsRequired: selected.stampsRequired, pointsPerEuro: selected.pointsPerEuro,
-      welcomePoints: selected.welcomePoints,
-      // Nom du commerce (pas celui de la carte) : utilisé pour organizationName
-      // sur le pass Apple Wallet — sans ça, le pass affiche le nom de la carte
-      // à la place du nom du commerce.
-      storeName: settings.name || selected.name,
-      ...(selected.stripPreset ? { stripPreset: selected.stripPreset } : {}),
-    });
-    const utf8Bytes = new TextEncoder().encode(json);
-    let binary = "";
-    utf8Bytes.forEach((b) => { binary += String.fromCharCode(b); });
-    // encodeURIComponent est indispensable : le base64 contient souvent des "+"
-    // (fréquent avec des emoji/accents dans le nom/message), et un "+" brut
-    // dans une query string est lu comme un espace par URLSearchParams côté
-    // page /join — le payload est alors corrompu et "QR invalide ou expiré"
-    // s'affiche, systématiquement, pour toute carte dont le base64 en contient un.
-    return `${networkOrigin}/join/${selected.id}?d=${encodeURIComponent(btoa(binary))}`;
+    // URL courte volontairement : embarquer tout le design en base64 donnait
+    // une URL de ~500 caractères, soit un QR de 85x85 modules. À la résolution
+    // d'une caméra de téléphone, les modules devenaient trop fins pour être
+    // décodés de façon fiable — le scan "ne faisait rien". Ici le QR retombe
+    // à ~29x29 modules, comme celui des cartes client qui se scanne sans peine.
+    // La page /join va chercher le design via /api/join/[cardId] ; bonus, il
+    // est toujours à jour même sur une affiche imprimée il y a des mois.
+    // Les anciens QR contenant "?d=" restent lus normalement par /join.
+    return `${networkOrigin}/join/${selected.id}`;
   }, [selected, networkOrigin]);
 
   useEffect(() => {

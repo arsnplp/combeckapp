@@ -104,8 +104,9 @@ function ScanStoreModal({ onClose }: { onClose: () => void }) {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || video.readyState < 2) { rafRef.current = requestAnimationFrame(scanFrame); return; }
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
+    const vw = video.videoWidth, vh = video.videoHeight;
+    canvas.width = vw; canvas.height = vh;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return;
     ctx.drawImage(video, 0, 0);
     try {
@@ -117,8 +118,18 @@ function ScanStoreModal({ onClose }: { onClose: () => void }) {
         if (results.length > 0) { handleDetected(results[0].rawValue as string); }
       } else {
         const { default: jsQR } = await import("jsqr");
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, canvas.width, canvas.height);
+        // Passe 1 : image entière (le QR peut être n'importe où dans le cadre)
+        const full = ctx.getImageData(0, 0, vw, vh);
+        let code = jsQR(full.data, vw, vh, { inversionAttempts: "dontInvert" });
+        if (!code) {
+          // Passe 2 : carré central, là où le viseur invite à placer le code.
+          // Sur un QR dense, ce recadrage double le nombre de pixels par
+          // module et fait passer des images que la passe 1 rate.
+          const side = Math.floor(Math.min(vw, vh) * 0.8);
+          const sx = Math.floor((vw - side) / 2), sy = Math.floor((vh - side) / 2);
+          const crop = ctx.getImageData(sx, sy, side, side);
+          code = jsQR(crop.data, side, side, { inversionAttempts: "dontInvert" });
+        }
         if (code) { handleDetected(code.data); }
       }
     } catch { /* ignore */ }
@@ -137,7 +148,19 @@ function ScanStoreModal({ onClose }: { onClose: () => void }) {
     }
     let cancelled = false;
     try {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })
+      navigator.mediaDevices.getUserMedia({
+        // Le QR d'inscription est dense (~85x85 modules car il embarque le
+        // design de la carte). En résolution par défaut (souvent 640x480) il
+        // reste ~2 pixels par module : trop peu pour être décodé. On demande
+        // donc explicitement du 1080p, avec repli automatique si l'appareil
+        // ne sait pas faire.
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      })
         .then((stream) => {
           if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
           streamRef.current = stream;
