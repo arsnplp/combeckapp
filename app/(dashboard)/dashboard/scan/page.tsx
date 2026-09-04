@@ -11,6 +11,7 @@ function vibrate(pattern: number | number[]) {
   try { navigator.vibrate?.(pattern); } catch { /* non supporté */ }
 }
 import { useStore } from "@/lib/store-context";
+import { MAX_STAMPS_PER_SCAN } from "@/lib/loyalty-limits";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,6 +37,9 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
   const [amount, setAmount] = useState("");
   const [done, setDone] = useState<"stamp" | "points" | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [stampCount, setStampCount] = useState(1);
+  // Tampons réellement crédités (peut être < demandé si la carte se remplit)
+  const [stampsAdded, setStampsAdded] = useState(0);
 
   useEffect(() => {
     if (!cc && !syncing && !syncFailed) {
@@ -61,12 +65,27 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
 
   const euros = parseFloat(amount.replace(",", "."));
   const previewPts = !isNaN(euros) && euros > 0 ? Math.round(euros * card.pointsPerEuro) : 0;
+  // Places restantes avant que la carte soit pleine — borne le sélecteur pour
+  // qu'on ne puisse pas promettre des tampons qui seront tronqués.
+  const stampsRequired = card.stampsRequired ?? 8;
+  const remaining = Math.max(0, stampsRequired - cc.stamps);
+  const maxAddable = Math.min(remaining, MAX_STAMPS_PER_SCAN);
   const accent = card.accentColor;
   const bg = card.backgroundColor;
 
   // Garde anti double-tap : un appui physique rapide (deux fois sur le même
   // bouton) avant le passage à l'écran "done" ne doit créditer qu'une fois.
-  const doStamp = () => { if (submitting) return; setSubmitting(true); addStampToCard(cc.id); vibrate([30, 40, 30]); setDone("stamp"); };
+  const doStamp = () => {
+    if (submitting || remaining <= 0) return;
+    setSubmitting(true);
+    // Ne crédite jamais au-delà du plafond de la carte : le serveur tronque
+    // de toute façon, autant que l'écran annonce le vrai chiffre.
+    const willAdd = Math.min(stampCount, remaining);
+    addStampToCard(cc.id, willAdd);
+    setStampsAdded(willAdd);
+    vibrate([30, 40, 30]);
+    setDone("stamp");
+  };
   const doPoints = () => { if (submitting || previewPts <= 0) return; setSubmitting(true); addPointsToCard(cc.id, previewPts, euros); vibrate([30, 40, 30]); setDone("points"); };
 
   return (
@@ -96,8 +115,15 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
               <CheckCircle className="h-6 w-6 text-green-600" />
             </div>
             <p className="font-semibold text-slate-800">
-              {done === "stamp" ? "+1 tampon ajouté !" : `+${previewPts} points ajoutés !`}
+              {done === "stamp"
+                ? `+${stampsAdded} tampon${stampsAdded > 1 ? "s" : ""} ajouté${stampsAdded > 1 ? "s" : ""} !`
+                : `+${previewPts} points ajoutés !`}
             </p>
+            {done === "stamp" && cc.stamps + stampsAdded >= stampsRequired && (
+              <p className="-mt-1 text-[12.5px] font-medium text-amber-600">
+                🎁 Carte pleine ({stampsRequired}/{stampsRequired}) — récompense disponible
+              </p>
+            )}
             {onScanNext && (
               <button onClick={onScanNext}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 py-3.5 text-sm font-bold text-white shadow-md shadow-green-600/20 active:scale-[0.99]">
@@ -110,13 +136,65 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
           </div>
         ) : card.loyaltyMode === "stamps" ? (
           <>
-            <p className="text-sm text-slate-500 mb-4">Ajouter un tampon à la carte de <strong>{customer.name.split(" ")[0]}</strong></p>
-            <button onClick={doStamp} disabled={submitting}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 font-semibold text-white text-sm disabled:opacity-40"
-              style={{ background: accent }}>
-              <Stamp className="h-4 w-4" /> +1 tampon
-            </button>
-            <button onClick={onClose} className="mt-2 w-full py-2 text-xs text-slate-400 hover:text-slate-600">Annuler</button>
+            {remaining <= 0 ? (
+              // Carte déjà pleine : créditer n'aurait aucun effet (le serveur
+              // tronque), donc on l'annonce au lieu d'un bouton qui ne fait rien.
+              <div className="text-center">
+                <p className="text-sm font-semibold text-slate-800">Carte déjà pleine</p>
+                <p className="mt-1 text-[13px] text-slate-500">
+                  {customer.name.split(" ")[0]} a ses {stampsRequired} tampons — validez sa récompense
+                  dans l&apos;onglet Récompense.
+                </p>
+                <button onClick={onClose} className="mt-4 w-full rounded-2xl border border-slate-200 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                  Fermer
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-slate-500 mb-3">
+                  Ajouter des tampons à la carte de <strong>{customer.name.split(" ")[0]}</strong>
+                </p>
+
+                <div className="mb-3 flex items-center justify-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setStampCount((n) => Math.max(1, n - 1))}
+                    disabled={stampCount <= 1}
+                    aria-label="Retirer un tampon"
+                    className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 text-xl font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-30"
+                  >
+                    −
+                  </button>
+                  <div className="min-w-[72px] text-center">
+                    <p className="text-[34px] font-bold leading-none text-slate-900">{stampCount}</p>
+                    <p className="mt-1 text-[11px] text-slate-400">tampon{stampCount > 1 ? "s" : ""}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStampCount((n) => Math.min(maxAddable, n + 1))}
+                    disabled={stampCount >= maxAddable}
+                    aria-label="Ajouter un tampon"
+                    className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 text-xl font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-30"
+                  >
+                    +
+                  </button>
+                </div>
+
+                <p className="mb-3 text-center text-[12px] text-slate-400">
+                  {cc.stamps} → <strong className="text-slate-600">{cc.stamps + stampCount}</strong> / {stampsRequired}
+                  {stampCount >= maxAddable && remaining <= MAX_STAMPS_PER_SCAN && (
+                    <span className="ml-1 text-amber-600">· maximum de la carte</span>
+                  )}
+                </p>
+
+                <button onClick={doStamp} disabled={submitting}
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 font-semibold text-white text-sm disabled:opacity-40"
+                  style={{ background: accent }}>
+                  <Stamp className="h-4 w-4" /> +{stampCount} tampon{stampCount > 1 ? "s" : ""}
+                </button>
+                <button onClick={onClose} className="mt-2 w-full py-2 text-xs text-slate-400 hover:text-slate-600">Annuler</button>
+              </>
+            )}
           </>
         ) : (
           <>
@@ -327,6 +405,7 @@ function CreditTab() {
   const [actionResult, setActionResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [acting, setActing] = useState(false);
   const [customPoints, setCustomPoints] = useState("10");
+  const [searchStampCount, setSearchStampCount] = useState(1);
 
   const handleWalletDetected = (raw: string) => {
     let path = raw;
@@ -347,31 +426,56 @@ function CreditTab() {
   // Après un crédit : on enchaîne directement sur le scan du client suivant
   const scanNext = () => { setDetectedCCId(null); setDetectedClientId(null); setMode("camera"); };
 
-  const search = async (q: string) => {
-    setQuery(q); setSelected(null); setActionResult(null);
-    if (q.trim().length < 2) { setResults(null); return; }
+  // Rafraîchit les résultats SANS toucher à la sélection ni au message : après
+  // un crédit, le commerçant doit garder sous les yeux le client et le nombre
+  // réellement ajouté (sinon la troncature « carte pleine » passe inaperçue).
+  const runSearch = async (q: string): Promise<SearchResult | null> => {
+    if (q.trim().length < 2) { setResults(null); return null; }
     setSearching(true);
     try {
       const res = await fetch(`/api/register?q=${encodeURIComponent(q.trim())}`);
       const data = await res.json();
       setResults(data);
-    } catch { /**/ }
-    setSearching(false);
+      return data;
+    } catch { return null; }
+    finally { setSearching(false); }
   };
 
-  const doAction = async (action: "stamp" | "points", pts?: number) => {
+  const search = async (q: string) => {
+    setQuery(q); setSelected(null); setActionResult(null);
+    await runSearch(q);
+  };
+
+  const doAction = async (action: "stamp" | "points", pts?: number, count?: number) => {
     if (!selected) return;
     setActing(true); setActionResult(null);
     try {
       const res = await fetch("/api/register", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, customerCardId: selected.cc.id, points: pts }),
+        body: JSON.stringify({ action, customerCardId: selected.cc.id, points: pts, count }),
       });
       if (res.ok) {
         vibrate([30, 40, 30]);
-        setActionResult({ ok: true, msg: action === "stamp" ? "+1 tampon ajouté !" : `+${pts} points ajoutés !` });
-        await search(query);
+        // Le serveur renvoie le nombre RÉELLEMENT crédité (tronqué si la carte
+        // se remplit) — on affiche ça plutôt que ce qui a été demandé.
+        const d = await res.json().catch(() => ({}));
+        const asked = count ?? 1;
+        const added = typeof d.added === "number" ? d.added : asked;
+        setActionResult({
+          ok: true,
+          msg: action === "stamp"
+            ? (d.alreadyFull
+                ? "Carte déjà pleine — aucun tampon ajouté."
+                : `+${added} tampon${added > 1 ? "s" : ""} ajouté${added > 1 ? "s" : ""} !${added < asked ? " (carte pleine)" : ""}`)
+            : `+${pts} points ajoutés !`,
+        });
+        // Recharge les compteurs et remet à jour la carte sélectionnée, sans
+        // fermer le panneau ni effacer le message qu'on vient d'afficher.
+        const fresh = await runSearch(query);
+        const freshCc = fresh?.customerCards?.find((c) => c.id === selected.cc.id);
+        if (freshCc) setSelected((prev) => (prev ? { ...prev, cc: freshCc } : prev));
+        setSearchStampCount(1);
       } else {
         const d = await res.json();
         setActionResult({ ok: false, msg: d.error ?? "Erreur" });
@@ -443,7 +547,7 @@ function CreditTab() {
                           const lc = loyaltyCards.find((l) => l.id === cc.cardId);
                           const cardMode = lc?.loyaltyMode ?? (cc.stamps > 0 ? "stamps" : "points");
                           return (
-                            <button key={cc.id} onClick={() => { setSelected({ cust: c, cc, cardMode }); setActionResult(null); }}
+                            <button key={cc.id} onClick={() => { setSelected({ cust: c, cc, cardMode }); setActionResult(null); setSearchStampCount(1); }}
                               className="w-full flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 hover:bg-slate-100 transition-colors">
                               <span className="text-[12px] text-slate-600">
                                 {cardMode === "stamps"
@@ -480,10 +584,28 @@ function CreditTab() {
             </div>
 
             {selected.cardMode === "stamps" ? (
-              <button onClick={() => doAction("stamp")} disabled={acting}
-                className="w-full h-11 flex items-center justify-center gap-2 rounded-xl bg-green-600 text-[13px] font-semibold text-white hover:bg-green-700 disabled:opacity-40 transition-colors">
-                {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} +1 Tampon
-              </button>
+              <div className="flex gap-2">
+                <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-1">
+                  <button type="button" aria-label="Retirer un tampon"
+                    onClick={() => setSearchStampCount((n) => Math.max(1, n - 1))}
+                    disabled={searchStampCount <= 1}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-lg font-bold text-slate-600 hover:bg-white disabled:opacity-30">
+                    −
+                  </button>
+                  <span className="min-w-[22px] text-center text-[14px] font-bold text-slate-900">{searchStampCount}</span>
+                  <button type="button" aria-label="Ajouter un tampon"
+                    onClick={() => setSearchStampCount((n) => Math.min(MAX_STAMPS_PER_SCAN, n + 1))}
+                    disabled={searchStampCount >= MAX_STAMPS_PER_SCAN}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-lg font-bold text-slate-600 hover:bg-white disabled:opacity-30">
+                    +
+                  </button>
+                </div>
+                <button onClick={() => doAction("stamp", undefined, searchStampCount)} disabled={acting}
+                  className="flex-1 h-11 flex items-center justify-center gap-2 rounded-xl bg-green-600 text-[13px] font-semibold text-white hover:bg-green-700 disabled:opacity-40 transition-colors">
+                  {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  +{searchStampCount} Tampon{searchStampCount > 1 ? "s" : ""}
+                </button>
+              </div>
             ) : (
               <div className="flex gap-2">
                 <input

@@ -12,6 +12,7 @@ import type {
   Product, Reward, Customer, StoreSettings, WalletConfig,
   ActivityItem, CustomerStatus, LoyaltyCard, CustomerCard,
 } from "@/types";
+import { normalizeStampCount } from "./loyalty-limits";
 
 // ── Version guard + localStorage scopé par tenant ────────────────────────────
 const STORE_VERSION = "cards-v2";
@@ -88,7 +89,7 @@ interface StoreCtx {
   customerCards: CustomerCard[];
   assignCard: (customerId: string, cardId: string) => CustomerCard;
   unassignCard: (customerCardId: string) => void;
-  addStampToCard: (customerCardId: string) => void;
+  addStampToCard: (customerCardId: string, count?: number) => void;
   addPointsToCard: (customerCardId: string, amount: number, euros?: number) => void;
   useRewardOnCard: (customerCardId: string, reward: Reward) => void;
   // Rédemptions serveur (historique récompenses utilisées)
@@ -365,27 +366,35 @@ export function StoreProvider({ children, tenantId }: { children: ReactNode; ten
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [syncFromServer]);
 
-  const addStampToCard = useCallback((customerCardId: string) => {
+  const addStampToCard = useCallback((customerCardId: string, count: number = 1) => {
     const cc = customerCards.find((c) => c.id === customerCardId);
     if (!cc) return;
     const card = loyaltyCards.find((c) => c.id === cc.cardId);
     const maxStamps = card?.stampsRequired ?? 8;
     const customer = customers.find((c) => c.id === cc.customerId);
-    const newStamps = Math.min(cc.stamps + 1, maxStamps);
+    // Même normalisation que le serveur, pour que l'affichage optimiste
+    // corresponde exactement à ce qui sera réellement enregistré.
+    const requested = normalizeStampCount(count);
+    const newStamps = Math.min(cc.stamps + requested, maxStamps);
+    const added = newStamps - cc.stamps;
     const now = new Date().toISOString();
     setCustomerCards((prev) => prev.map((c) =>
       c.id !== customerCardId ? c : { ...c, stamps: newStamps, lastActivity: now }
     ));
-    const newVisits = (customer?.totalVisits ?? 0) + 1;
-    setCustomers((prev) => prev.map((c) =>
-      c.id !== cc.customerId ? c : { ...c, totalVisits: newVisits, lastVisit: now, status: computeStatus(newVisits) }
-    ));
-    if (customer) addActivity({ type: "visit", customerId: cc.customerId, customerName: customer.name, description: `+1 tampon — ${card?.name ?? "carte"}`, value: 1 });
+    // Carte déjà pleine : rien n'est crédité, donc pas de visite comptée
+    // (aligné sur le serveur, qui ignore aussi ce cas).
+    if (added > 0) {
+      const newVisits = (customer?.totalVisits ?? 0) + 1;
+      setCustomers((prev) => prev.map((c) =>
+        c.id !== cc.customerId ? c : { ...c, totalVisits: newVisits, lastVisit: now, status: computeStatus(newVisits) }
+      ));
+      if (customer) addActivity({ type: "visit", customerId: cc.customerId, customerName: customer.name, description: `+${added} tampon${added > 1 ? "s" : ""} — ${card?.name ?? "carte"}`, value: added });
+    }
     // Persist to server so stamp survives localStorage clear / multi-device
     fetch("/api/register", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "stamp", customerCardId }),
+      body: JSON.stringify({ action: "stamp", customerCardId, count: requested }),
     }).then((res) => {
       // Échec serveur (session, carte inconnue…) : on réaligne l'affichage
       // sur la vérité serveur au lieu de laisser un compteur mensonger

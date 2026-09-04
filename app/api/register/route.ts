@@ -358,7 +358,7 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { action, customerCardId, points, euros } = body;
+    const { action, customerCardId, points, euros, count } = body;
     const tenantId = session.user.id;
     // Essai gratuit expiré : service suspendu
     const patchUser = await getUserById(tenantId);
@@ -385,13 +385,23 @@ export async function PATCH(req: NextRequest) {
       }
     }
     if (action === "stamp") {
-      const card = await db_addStamp(tenantId, customerCardId);
+      // `count` absent = 1 : les onglets/téléphones encore sur l'ancienne
+      // version du JS continuent de fonctionner à l'identique.
+      const result = await db_addStamp(tenantId, customerCardId, count ?? 1);
       // Carte absente côté serveur (données locales périmées) : refuser au lieu
       // de répondre ok — sinon l'UI croit que le tampon est enregistré
-      if (!card) return NextResponse.json({ error: "Carte introuvable — resynchronisez vos données." }, { status: 404 });
-      walletNotificationService.updateStamps(customerCardId).catch(console.error);
-      creditReferralsOnFirstVisit(tenantId, card.customerId);
-      return NextResponse.json({ ok: true, stamps: card.stamps, points: card.points });
+      if (!result) return NextResponse.json({ error: "Carte introuvable — resynchronisez vos données." }, { status: 404 });
+      const { card, added, requested, stampsRequired, alreadyFull } = result;
+      // Aucun tampon crédité (carte déjà pleine) : pas de push wallet ni de
+      // crédit de parrainage — rien n'a changé côté client.
+      if (added > 0) {
+        walletNotificationService.updateStamps(customerCardId).catch(console.error);
+        creditReferralsOnFirstVisit(tenantId, card.customerId);
+      }
+      return NextResponse.json({
+        ok: true, stamps: card.stamps, points: card.points,
+        added, requested, stampsRequired, alreadyFull,
+      });
     } else if (action === "points") {
       const card = await db_addPoints(tenantId, customerCardId, points ?? 0);
       if (!card) return NextResponse.json({ error: "Carte introuvable — resynchronisez vos données." }, { status: 404 });

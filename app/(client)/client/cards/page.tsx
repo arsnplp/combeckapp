@@ -8,6 +8,7 @@ import LogoutButton from "./LogoutButton";
 import GdprSection from "./GdprSection";
 import AddToHomeScreen from "./AddToHomeScreen";
 import AutoRefresh from "./AutoRefresh";
+import ScanStoreButton from "./ScanStoreButton";
 
 export default async function CardsPage() {
   const cookieStore = await cookies();
@@ -26,6 +27,9 @@ export default async function CardsPage() {
         <p className="mt-2 text-[13px] leading-relaxed text-gray-500">
           Scannez le QR code d'un commerce partenaire pour activer votre première carte de fidélité.
         </p>
+        <div className="mx-auto mt-5 max-w-xs">
+          <ScanStoreButton />
+        </div>
         <div className="mt-8">
           <LogoutButton />
         </div>
@@ -132,6 +136,8 @@ export default async function CardsPage() {
           );
         })}
       </div>
+
+      <ScanStoreButton />
 
       <GdprSection />
       <LogoutButton />

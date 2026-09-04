@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { walletDb_deletePassesForCards } from "./wallet-db";
+import { normalizeStampCount } from "./loyalty-limits";
 
 // ── Types (identiques à l'ancienne version JSON) ──────────────────────────────
 
@@ -194,21 +195,50 @@ export async function db_getCustomerIdForCard(tenantId: string, customerCardId: 
   return cc?.customer_id ?? null;
 }
 
-export async function db_addStamp(tenantId: string, customerCardId: string): Promise<DbCustomerCard | null> {
+export interface AddStampResult {
+  card: DbCustomerCard;
+  /** Tampons réellement crédités — peut être < count si le plafond est atteint. */
+  added: number;
+  /** Tampons demandés (après normalisation), pour message d'UI honnête. */
+  requested: number;
+  stampsRequired: number;
+  /** true si la carte était déjà pleine avant l'appel (0 tampon crédité). */
+  alreadyFull: boolean;
+}
+
+export async function db_addStamp(
+  tenantId: string, customerCardId: string, count: number = 1,
+): Promise<AddStampResult | null> {
   const cc = await getCardInTenant(tenantId, customerCardId);
   if (!cc) return null;
+  // Normalise l'entrée : NaN/0/négatif/décimal/absurde ne doivent jamais
+  // atteindre la base (un appelant ancien n'envoie rien -> 1 par défaut).
+  const requested = normalizeStampCount(count);
   // Plafonne au nombre de tampons requis par la carte — sans ça, un double
-  // scan/double-tap accidentel peut pousser le solde au-delà du seuil et
-  // laisser le client réclamer plus de récompenses que ce qu'il a gagné.
+  // scan/double-tap accidentel (ou une saisie trop grande) peut pousser le
+  // solde au-delà du seuil et laisser le client réclamer plus de récompenses
+  // que ce qu'il a gagné.
   const { data: lc } = await supabase().from("loyalty_cards")
     .select("stamps_required").eq("id", cc.card_id).maybeSingle();
   const stampsRequired = lc?.stamps_required ?? Infinity;
+  const before = cc.stamps ?? 0;
+  const after = Math.min(before + requested, stampsRequired);
+  const added = after - before;
   const now = new Date().toISOString();
   const { data } = await supabase().from("customer_cards")
-    .update({ stamps: Math.min(cc.stamps + 1, stampsRequired), last_activity: now })
+    .update({ stamps: after, last_activity: now })
     .eq("id", customerCardId).select("*").maybeSingle();
-  await maybeRecordVisit(cc.customer_id);
-  return data ? mapCard(data as CardRow) : null;
+  if (!data) return null;
+  // Carte déjà pleine : aucun tampon crédité, donc aucune visite comptée
+  // (sinon un scan sans effet gonflerait les stats de passage).
+  if (added > 0) await maybeRecordVisit(cc.customer_id);
+  return {
+    card: mapCard(data as CardRow),
+    added,
+    requested,
+    stampsRequired: Number.isFinite(stampsRequired) ? stampsRequired : after,
+    alreadyFull: added === 0,
+  };
 }
 
 export async function db_deleteCustomer(tenantId: string, customerId: string): Promise<void> {
