@@ -13,7 +13,7 @@ const iconMap = {
 };
 
 interface ActivityFeedProps {
-  items: ActivityItem[];
+  items: Array<ActivityItem & { actorName?: string; actorType?: string }>;
 }
 
 export default function ActivityFeed({ items }: ActivityFeedProps) {
@@ -39,7 +39,14 @@ export default function ActivityFeed({ items }: ActivityFeedProps) {
               <p className="truncate text-[13px] font-medium text-slate-800">
                 {item.customerName}
               </p>
-              <p className="text-[11.5px] text-slate-400">{item.description}</p>
+              <p className="truncate text-[11.5px] text-slate-400">
+                {item.description}
+                {/* Qui a fait l'action : n'apparaît que pour un employé —
+                    inutile de répéter « par vous » sur ses propres actions. */}
+                {item.actorType === "employee" && item.actorName && (
+                  <span className="text-slate-500"> · par {item.actorName}</span>
+                )}
+              </p>
             </div>
             <span className="flex-shrink-0 text-[11px] tabular-nums text-slate-400">
               {formatTimeAgo(item.time)}

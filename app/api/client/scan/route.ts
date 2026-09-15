@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { resolveActor } from "@/lib/actor";
+import { logActivity } from "@/lib/activity-log";
 import { getRedemption, markUsed } from "@/lib/redemptions";
 import { db_deductReward, db_getAll, db_addRedemption, db_incrementRewardUsage } from "@/lib/server-db";
 import { walletNotificationService } from "@/lib/wallet-notification-service";
@@ -10,11 +11,12 @@ import { isTrialExpired } from "@/lib/plan-billing";
 const processingTokens = new Set<string>();
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  const tenantId = session?.user?.id;
-  if (!tenantId || tenantId === "admin") {
+  // Validation d'une récompense : accessible au commerçant comme à l'employé
+  const resolved = await resolveActor(req);
+  if (!resolved) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
+  const { tenantId, actor } = resolved;
 
   // Essai gratuit expiré : service suspendu
   if (isTrialExpired(await getUserById(tenantId))) {
@@ -67,6 +69,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: result.reason ?? "Erreur lors de la déduction." }, { status: 422 });
     }
     await db_incrementRewardUsage(tenantId, r.rewardName);
+    logActivity(tenantId, {
+      type: "reward", customerId: cc.customerId, customerCardId: r.customerCardId,
+      amount: r.cost, label: `${r.rewardName} utilisé`,
+    }, actor);
 
     // Notifier les wallets pour mettre à jour la carte en temps réel
     if (r.costType === "stamps") {

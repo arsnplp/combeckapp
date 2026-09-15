@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   LayoutDashboard, Gift, Users, CreditCard,
-  Bell, BarChart3, Settings, ScanLine, Gem, User,
+  Bell, BarChart3, Settings, ScanLine, Gem, User, UserCog,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { fetchPlanFeatures } from "@/lib/plan-features";
@@ -27,6 +27,7 @@ const navSections = [
     label: "Clients",
     items: [
       { href: "/dashboard/scan", label: "Scanner QR", icon: ScanLine, tourId: "scanner" },
+      { href: "/employes", label: "Employés", icon: UserCog },
     ],
   },
   {

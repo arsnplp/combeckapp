@@ -42,6 +42,11 @@ export const authConfig = {
         pathname.startsWith("/politique-de-confidentialite") ||
         pathname.startsWith("/join/") ||
         pathname.startsWith("/wallet-add/") ||
+        // Portail employé : authentification par cookie dédié (comme le
+        // portail client), jamais par NextAuth — le middleware ne doit donc
+        // pas le rediriger vers la connexion commerçant.
+        pathname.startsWith("/employe") ||
+        pathname.startsWith("/api/employee/") ||
         pathname.startsWith("/client") ||
         pathname.startsWith("/api/auth") ||
         pathname.startsWith("/api/register") ||

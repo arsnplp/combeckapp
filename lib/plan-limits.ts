@@ -4,6 +4,8 @@ export const PLAN_LIMITS: Record<PlanId, {
   clients: number;
   notifs: number;
   cards: number;
+  /** Comptes employés rattachables au commerce (Infinity = illimité). */
+  employees: number;
   targetingAdvanced: boolean;
   referralEnabled: boolean;
   csvExport: boolean;
@@ -14,6 +16,7 @@ export const PLAN_LIMITS: Record<PlanId, {
     clients: Infinity,
     notifs: Infinity,
     cards: 2,
+    employees: Infinity,
     targetingAdvanced: true,
     referralEnabled: true,
     csvExport: true,
@@ -23,6 +26,10 @@ export const PLAN_LIMITS: Record<PlanId, {
     clients: 30,
     notifs: 1000,
     cards: 1,
+    // 1 employé même sur le plan gratuit : sinon le commerçant partage son
+    // propre mot de passe, ce qui donnerait à l'employé l'accès aux réglages,
+    // à la facturation et à l'export du fichier clients.
+    employees: 1,
     targetingAdvanced: false,
     referralEnabled: true,
     csvExport: false,
@@ -32,6 +39,7 @@ export const PLAN_LIMITS: Record<PlanId, {
     clients: 100,
     notifs: 10000,
     cards: 2,
+    employees: 3,
     targetingAdvanced: true,
     referralEnabled: true,
     csvExport: true,
@@ -41,6 +49,7 @@ export const PLAN_LIMITS: Record<PlanId, {
     clients: Infinity,
     notifs: Infinity,
     cards: 2,
+    employees: Infinity,
     targetingAdvanced: true,
     referralEnabled: true,
     csvExport: true,

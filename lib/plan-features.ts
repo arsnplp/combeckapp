@@ -8,6 +8,7 @@ export interface PlanFeatures extends PlanInfo {
   maxCards: number;
   priceMonthly: number | null; // null pour l'essai gratuit
   maxClients: number | null; // null = illimité (Infinity ne passe pas en JSON)
+  maxEmployees: number | null; // idem : null = illimité
   canTarget: boolean;
   canReferral: boolean;
   canRecurring: boolean;
@@ -27,6 +28,7 @@ export function getPlanFeatures(plan: PlanId, expiresAt?: string | null): PlanFe
     // de PLAN_PRICING (jamais de prix Stripe). "null" reste réservé à l'essai.
     priceMonthly: plan === "starter" ? 0 : plan in PLAN_PRICING ? PLAN_PRICING[plan as keyof typeof PLAN_PRICING].monthly : null,
     maxClients: limits.clients === Infinity ? null : limits.clients,
+    maxEmployees: limits.employees === Infinity ? null : limits.employees,
     canTarget: limits.targetingAdvanced,
     canReferral: limits.referralEnabled,
     canRecurring: ["pro", "business", "free"].includes(plan),

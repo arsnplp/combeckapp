@@ -7,7 +7,7 @@ import ActivityFeed from "@/components/dashboard/ActivityFeed";
 import VisitorChart from "@/components/dashboard/VisitorChart";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useStore } from "@/lib/store-context";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 const quickActions = [
   { label: "Ajouter un client", desc: "Enregistrez un nouveau client", icon: Users, color: "#2563eb", bg: "rgba(37,99,235,0.08)", href: "/clients" },
@@ -15,8 +15,24 @@ const quickActions = [
   { label: "Voir l'analytics", desc: "Analysez vos performances", icon: TrendingUp, color: "#059669", bg: "rgba(5,150,105,0.08)", href: "/analytics" },
 ];
 
+interface ServerActivity {
+  id: string; type: "visit" | "reward" | "new_client" | "points_added";
+  customerId: string | null; label: string; createdAt: string;
+  actorType: "merchant" | "employee"; actorName: string;
+}
+
 export default function DashboardPage() {
   const { customers, rewards, activity, serverRedemptions, loyaltyCards } = useStore();
+
+  // Journal serveur : partagé entre vos appareils, et surtout seul endroit où
+  // apparaissent les actions faites par vos employés depuis leur téléphone.
+  const [serverActivity, setServerActivity] = useState<ServerActivity[]>([]);
+  useEffect(() => {
+    fetch("/api/activities")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (Array.isArray(d?.activities)) setServerActivity(d.activities); })
+      .catch(() => {});
+  }, []);
 
   const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -69,6 +85,19 @@ export default function DashboardPage() {
   // Activité récente : le journal de session live, complété par l'historique réel
   // persisté (inscriptions + récompenses) si l'onglet vient d'être ouvert
   const recentActivity = useMemo(() => {
+    // Le serveur fait foi dès qu'il a des entrées : il inclut les actions des
+    // employés, que le journal local du navigateur ne verra jamais.
+    if (serverActivity.length > 0) {
+      return serverActivity.slice(0, 7).map((a) => ({
+        id: a.id,
+        type: a.type,
+        customerName: customers.find((c) => c.id === a.customerId)?.name ?? "Client",
+        description: a.label,
+        time: a.createdAt,
+        actorName: a.actorName,
+        actorType: a.actorType,
+      }));
+    }
     if (activity.length > 0) return activity.slice(0, 7);
     const fromJoins = customers
       .filter((c) => c.joinDate)
@@ -81,7 +110,7 @@ export default function DashboardPage() {
     return [...fromJoins, ...fromRedemptions]
       .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
       .slice(0, 7);
-  }, [activity, customers, serverRedemptions]);
+  }, [serverActivity, activity, customers, serverRedemptions]);
 
   const hasData = customers.length > 0;
 
@@ -110,7 +139,7 @@ export default function DashboardPage() {
         </div>
       )}
       {/* Greeting */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-[17px] font-semibold tracking-tight text-slate-900">
             Vue d&apos;ensemble
@@ -128,7 +157,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
         {stats.map((stat, i) => (
           <StatCard key={stat.title} {...stat} index={i} />
         ))}
@@ -199,7 +228,7 @@ export default function DashboardPage() {
       )}
 
       {/* Quick Actions */}
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <section className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 md:grid-cols-3">
         {quickActions.map((action) => {
           const Icon = action.icon;
           return (

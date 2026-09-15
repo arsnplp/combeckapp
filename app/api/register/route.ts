@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveActor } from "@/lib/actor";
+import { logActivity } from "@/lib/activity-log";
 import {
   db_addCustomer, db_addCustomerCard, db_addPoints, db_addStamp, db_addSpend,
   db_deleteCustomer, db_getAll, findTenantByCardId,
@@ -305,13 +307,14 @@ export async function POST(req: NextRequest) {
 
 // GET — appelé depuis le dashboard (avec session)
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const resolved = await resolveActor(req);
+  if (!resolved) {
     // Le mode ccId (page /process) doit distinguer « non connecté » de « vide »
     if (req.nextUrl.searchParams.get("ccId")) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     return NextResponse.json({ customers: [], customerCards: [], redemptions: [] });
   }
-  const data = await db_getAll(session.user.id);
+  const tenantId = resolved.tenantId;
+  const data = await db_getAll(tenantId);
 
   // Lecture directe d'une carte client (page /process après scan du QR wallet)
   const ccId = req.nextUrl.searchParams.get("ccId");
@@ -321,7 +324,7 @@ export async function GET(req: NextRequest) {
     const customer = data.customers.find((c) => c.id === cc.customerId) ?? null;
     let loyaltyCard = null;
     try {
-      const blob = await getTenantSettings(session.user.id);
+      const blob = await getTenantSettings(tenantId);
       loyaltyCard = blob.loyaltyCards.find((c: { id: string }) => c.id === cc.cardId) ?? null;
     } catch { /* settings manquants */ }
     return NextResponse.json({ customerCard: cc, customer, loyaltyCard });
@@ -337,7 +340,7 @@ export async function GET(req: NextRequest) {
     // Lire les loyalty cards depuis Supabase
     let loyaltyCards: { id: string; name: string; loyaltyMode: string }[] = [];
     try {
-      const blob = await getTenantSettings(session.user.id);
+      const blob = await getTenantSettings(tenantId);
       loyaltyCards = blob.loyaltyCards;
     } catch { /* pas de settings */ }
     return NextResponse.json({
@@ -353,13 +356,16 @@ export async function GET(req: NextRequest) {
 
 // PATCH — appelé depuis le dashboard (avec session) pour ajouter tampon/points
 export async function PATCH(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  // Commerçant (NextAuth) OU employé ayant déverrouillé ce commerce.
+  // Le chemin commerçant est identique à avant : resolveActor le renvoie en
+  // premier et ne consulte la session employé que s'il n'y en a pas.
+  const resolved = await resolveActor(req);
+  if (!resolved) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const { tenantId, actor } = resolved;
 
   try {
     const body = await req.json();
     const { action, customerCardId, points, euros, count } = body;
-    const tenantId = session.user.id;
     // Essai gratuit expiré : service suspendu
     const patchUser = await getUserById(tenantId);
     if (isTrialExpired(patchUser)) {
@@ -398,6 +404,12 @@ export async function PATCH(req: NextRequest) {
         walletNotificationService.updateStamps(customerCardId).catch(console.error);
         creditReferralsOnFirstVisit(tenantId, card.customerId);
       }
+      if (added > 0) {
+        logActivity(tenantId, {
+          type: "visit", customerId: card.customerId, customerCardId,
+          amount: added, label: `+${added} tampon${added > 1 ? "s" : ""}`,
+        }, actor);
+      }
       return NextResponse.json({
         ok: true, stamps: card.stamps, points: card.points,
         added, requested, stampsRequired, alreadyFull,
@@ -412,6 +424,10 @@ export async function PATCH(req: NextRequest) {
       if (typeof euros === "number" && euros > 0) {
         db_addSpend(tenantId, card.customerId, euros).catch(console.error);
       }
+      logActivity(tenantId, {
+        type: "points_added", customerId: card.customerId, customerCardId,
+        amount: points ?? 0, label: `+${points ?? 0} points`,
+      }, actor);
       return NextResponse.json({ ok: true, stamps: card.stamps, points: card.points });
     } else if (action === "reward") {
       const { rewardName, rewardEmoji, cost, costType, customerId } = body;
@@ -437,6 +453,10 @@ export async function PATCH(req: NextRequest) {
         redeemedAt: new Date().toISOString(),
       });
       await db_incrementRewardUsage(tenantId, rewardName);
+      logActivity(tenantId, {
+        type: "reward", customerId, customerCardId,
+        amount: cost, label: `${rewardName} utilisé`,
+      }, actor);
       if (costType === "stamps") walletNotificationService.updateStamps(customerCardId).catch(console.error);
       else walletNotificationService.updatePoints(customerCardId).catch(console.error);
       // Soldes à jour pour que l'écran s'aligne sur la vérité serveur
