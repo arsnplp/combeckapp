@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { supabase } from "@/lib/supabase";
 import { stripePriceId, activateStarterFree } from "@/lib/plan-billing";
 import { notifyAdminEmail } from "@/lib/mailer";
+import { getUpsellState, ensureLoyaltyCoupon } from "@/lib/upsell";
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) return null;
@@ -106,6 +107,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ url: portal.url, portal: true });
     }
 
+    // ── Offre « premier mois à -50 % » ──────────────────────────────────
+    // L'éligibilité est recalculée ICI, côté serveur, à partir de la base :
+    // l'interface ne peut pas s'attribuer la réduction en envoyant un drapeau.
+    // Si le coupon est indisponible pour une raison quelconque, on continue au
+    // prix plein — un commerçant ne doit jamais être bloqué au paiement.
+    // Réservé au mensuel : le coupon Stripe "once" s'applique à la PREMIÈRE
+    // FACTURE. En annuel, cette facture couvre douze mois — la remise porterait
+    // donc sur toute l'année au lieu du seul premier mois annoncé.
+    let loyaltyCoupon: string | null = null;
+    if (billingCycle === "monthly") {
+      try {
+        const upsell = await getUpsellState(merchant.id);
+        if (upsell.eligible) loyaltyCoupon = await ensureLoyaltyCoupon(stripe);
+      } catch (e) {
+        console.error("[checkout] offre fidélité ignorée", e);
+      }
+    }
+
     // Abonnement récurrent : facturation automatique chaque mois / an
     const metadata = { merchantId: merchant.id, plan, billingCycle };
     const checkoutSession = await stripe.checkout.sessions.create({
@@ -113,7 +132,12 @@ export async function POST(req: NextRequest) {
       mode: "subscription",
       locale: "fr",
       line_items: [{ price: priceId, quantity: 1 }],
-      allow_promotion_codes: true,
+      // Stripe refuse `discounts` et `allow_promotion_codes` ensemble. Quand
+      // l'offre s'applique, la réduction est déjà la meilleure proposition :
+      // on l'applique automatiquement plutôt que de demander un code à saisir.
+      ...(loyaltyCoupon
+        ? { discounts: [{ coupon: loyaltyCoupon }] }
+        : { allow_promotion_codes: true }),
       // Ne demande une carte que si elle sera vraiment nécessaire : Stripe
       // évalue si l'abonnement restera à 0€ sur toute sa durée (donc un code
       // promo -100% "à vie" saute l'étape carte, mais un code temporaire ou

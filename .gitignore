@@ -6,3 +6,5 @@ data/
 .DS_Store
 node_modules
 certificates/
+captures-test/
+.playwright-mcp/

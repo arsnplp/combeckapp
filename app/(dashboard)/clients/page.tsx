@@ -10,6 +10,7 @@ import {
   MoveRight, CheckSquare, Download, Loader2,
 } from "lucide-react";
 import CustomerTable, { type EnrichedCustomer } from "@/components/clients/CustomerTable";
+import LimitUpsellModal from "@/components/billing/LimitUpsellModal";
 import { computeRank } from "@/lib/rank";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -482,11 +483,18 @@ export default function ClientsPage() {
 
   const [showAssign, setShowAssign] = useState(false);
   const [maxClients, setMaxClients] = useState<number | null>(null);
+  const [upsellEligible, setUpsellEligible] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
 
   useEffect(() => {
     fetchPlanFeatures().then((f) => setMaxClients(f?.maxClients ?? null));
+    // Offre « premier mois à -50 % » : l'éligibilité vient du serveur, jamais
+    // déduite ici — l'affichage reste ainsi aligné sur ce que Stripe appliquera.
+    fetch("/api/upsell")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setUpsellEligible(!!d?.eligible))
+      .catch(() => {});
   }, []);
 
   const handleExportCsv = async () => {
@@ -637,23 +645,31 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-4">
+      {/* Plan gratuit saturé : proposition de passer au plan supérieur. */}
+      <LimitUpsellModal />
+
       {/* Limite clients du plan */}
       {atClientLimit && (
-        <div className="flex flex-wrap items-center gap-3 rounded-2xl border-2 border-red-300 bg-red-50 px-4 py-3.5">
-          <span className="text-[20px]">🚫</span>
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50/50 px-4 py-3.5">
+          <span className="text-[20px]">🎉</span>
           <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-bold text-red-800">
-              {customers.length}/{maxClients} clients — les nouvelles inscriptions sont bloquées
+            <p className="text-[14px] font-bold text-slate-900">
+              Vos {maxClients} places sont prises — votre programme fonctionne !
             </p>
-            <p className="text-[12px] text-red-700/70">
+            <p className="text-[12px] text-slate-600">
               {frozenCustomerIds.size > 0
-                ? `${frozenCustomerIds.size} client${frozenCustomerIds.size > 1 ? "s" : ""} au-delà de la limite ${frozenCustomerIds.size > 1 ? "sont gelés" : "est gelé"} (🧊 ci-dessous) — soldes conservés, mais plus aucun cumul tant que vous restez sur ce plan.`
-                : "Vos clients actuels continuent de cumuler normalement, mais personne ne peut plus rejoindre votre programme."}
+                ? `${frozenCustomerIds.size} client${frozenCustomerIds.size > 1 ? "s" : ""} au-delà de la limite ${frozenCustomerIds.size > 1 ? "sont gelés" : "est gelé"} (🧊 ci-dessous) — leurs soldes sont conservés et reviennent dès que vous passez au plan supérieur.`
+                : "Vos clients actuels continuent de cumuler normalement. Pour accueillir les suivants, passez au plan supérieur."}
+              {upsellEligible && (
+                <strong className="ml-1 font-semibold text-green-700">
+                  On vous offre 50 % sur votre premier mois.
+                </strong>
+              )}
             </p>
           </div>
           <a href="/abonnement"
-            className="flex-shrink-0 rounded-xl bg-red-600 px-4 py-2.5 text-[13px] font-bold text-white shadow-md shadow-red-600/25 transition-all hover:bg-red-700 active:scale-[0.98]">
-            Passer au plan supérieur
+            className="flex-shrink-0 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-2.5 text-[13px] font-bold text-white shadow-md shadow-green-600/25 transition-all hover:from-green-700 hover:to-emerald-700 active:scale-[0.98]">
+            {upsellEligible ? "En profiter" : "Passer au plan supérieur"}
           </a>
         </div>
       )}

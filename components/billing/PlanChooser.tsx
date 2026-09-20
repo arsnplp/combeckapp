@@ -22,17 +22,29 @@ const PLANS = [
 const annualTotal = (p: number) => Math.round(p * 12 * 0.8);
 const annualMonthly = (p: number) => Math.round(annualTotal(p) / 12);
 const fmt = (p: number) => p.toLocaleString("fr-FR");
+/** Prix du premier mois remisé, arrondi au centime comme le fera Stripe. */
+const firstMonth = (p: number, percent: number) => Math.round(p * (100 - percent)) / 100;
 
 interface Usage { clients: number; cards: number; }
 
 export default function PlanChooser({ currentPlan }: { currentPlan?: string | null }) {
   const router = useRouter();
+  // Remise « premier mois » : l'éligibilité vient du serveur (jamais déduite
+  // ici) et ne vaut qu'en mensuel, exactement comme au moment du paiement.
+  const [upsellPercent, setUpsellPercent] = useState<number | null>(null);
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
   const [paying, setPaying] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [usage, setUsage] = useState<Usage | null>(null);
   // Modale d'avertissement avant de choisir un plan inférieur au niveau d'essai (Business)
   const [warnPlan, setWarnPlan] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/upsell")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setUpsellPercent(d?.eligible ? (d.percentOff ?? 50) : null))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     // Usage réel pour rendre l'avertissement concret
@@ -159,21 +171,35 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
               ) : (
                 <>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    {billing === "annual" && (
+                    {(billing === "annual" || (billing === "monthly" && upsellPercent)) && (
                       <span className="text-[16px] font-semibold text-slate-300 line-through">{fmt(plan.price)}€</span>
                     )}
                     <span className="text-[30px] font-bold leading-none text-slate-900">
-                      {fmt(billing === "monthly" ? plan.price : annualMonthly(plan.price))}€
+                      {billing === "annual"
+                        ? fmt(annualMonthly(plan.price))
+                        : fmt(upsellPercent ? firstMonth(plan.price, upsellPercent) : plan.price)}€
                     </span>
-                    <span className="text-[13px] text-slate-400">/mois</span>
+                    <span className="text-[13px] text-slate-400">
+                      {billing === "monthly" && upsellPercent ? "le 1er mois" : "/mois"}
+                    </span>
                     {billing === "annual" && (
                       <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10.5px] font-bold text-green-400">
                         économisez {fmt(Math.round(plan.price * 12 - annualTotal(plan.price)))}€
                       </span>
                     )}
+                    {billing === "monthly" && upsellPercent && (
+                      <span className="rounded-full bg-green-600 px-2 py-0.5 text-[10.5px] font-bold text-white">
+                        −{upsellPercent} %
+                      </span>
+                    )}
                   </div>
                   {billing === "annual" && (
                     <p className="mt-0.5 text-[11.5px] text-slate-400">Facturé {fmt(annualTotal(plan.price))}€ / an</p>
+                  )}
+                  {/* Le prix qui s'appliquera ensuite, annoncé clairement :
+                      le commerçant ne doit pas découvrir le plein tarif au 2e mois. */}
+                  {billing === "monthly" && upsellPercent && (
+                    <p className="mt-0.5 text-[11.5px] text-slate-400">puis {fmt(plan.price)}€ / mois · sans engagement</p>
                   )}
                 </>
               )}

@@ -6,6 +6,7 @@ import StatCard from "@/components/dashboard/StatCard";
 import ActivityFeed from "@/components/dashboard/ActivityFeed";
 import VisitorChart from "@/components/dashboard/VisitorChart";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import LimitUpsellModal from "@/components/billing/LimitUpsellModal";
 import { useStore } from "@/lib/store-context";
 import { useMemo, useState, useEffect } from "react";
 
@@ -118,6 +119,10 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Plan gratuit saturé : proposition de passer au plan supérieur.
+          Ne s'affiche que si le serveur confirme l'éligibilité. */}
+      <LimitUpsellModal />
+
       {/* Onboarding — aucune carte configurée */}
       {!hasCard && (
         <div className="flex items-start gap-4 rounded-xl border border-green-200 bg-green-50 px-5 py-4">

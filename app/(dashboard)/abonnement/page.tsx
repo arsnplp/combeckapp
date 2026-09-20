@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Gift, Loader2, ExternalLink, CreditCard } from "lucide-react";
+import { Gift, Loader2, ExternalLink, CreditCard, Sparkles } from "lucide-react";
 import PlanChooser from "@/components/billing/PlanChooser";
 
 interface PlanInfo { plan: string; label: string; isExpired: boolean; daysLeft: number | null; }
+interface Upsell { eligible: boolean; percentOff?: number; maxClients?: number | null; }
 
 export default function AbonnementPage() {
   const [info, setInfo] = useState<PlanInfo | null>(null);
+  const [upsell, setUpsell] = useState<Upsell | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -15,6 +17,12 @@ export default function AbonnementPage() {
     fetch("/api/plan-features")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setInfo({ plan: d.plan, label: d.label, isExpired: d.isExpired, daysLeft: d.daysLeft }))
+      .catch(() => {});
+    // La remise affichée ici est exactement celle que le serveur appliquera au
+    // paiement : les deux lisent la même fonction d'éligibilité.
+    fetch("/api/upsell")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setUpsell(d))
       .catch(() => {});
   }, []);
 
@@ -45,6 +53,30 @@ export default function AbonnementPage() {
         <h2 className="mt-1 text-[22px] font-bold text-slate-900">Choisir un plan</h2>
         <p className="mt-0.5 text-[13px] text-slate-500">Votre plan actuel, et changez quand vous voulez.</p>
       </div>
+
+      {/* Remerciement + remise, quand le plan gratuit est saturé */}
+      {upsell?.eligible && (
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-600 to-emerald-700 px-6 py-5 text-white shadow-lg shadow-green-600/20">
+          <div className="pointer-events-none absolute inset-0 opacity-[0.12]"
+            style={{ backgroundImage: "radial-gradient(circle at 15% 20%, white 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
+          <div className="relative flex flex-wrap items-center gap-x-5 gap-y-3">
+            <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-inset ring-white/25">
+              <span className="text-[17px] font-black leading-none">−{upsell.percentOff ?? 50}%</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center gap-1.5 text-[15px] font-bold">
+                <Sparkles className="h-4 w-4" /> Merci d&apos;utiliser ComeBack
+              </p>
+              <p className="mt-1 text-[13px] leading-relaxed text-green-50/90">
+                Vous avez rempli les {upsell.maxClients ?? 30} places de votre plan gratuit. Pour votre
+                fidélité, nous vous offrons <strong className="font-semibold text-white">{upsell.percentOff ?? 50} %
+                sur votre premier mois</strong> — appliqué automatiquement au paiement, aucun code à
+                saisir. Offre valable sur l&apos;abonnement mensuel.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Plan actuel */}
       {info && (
