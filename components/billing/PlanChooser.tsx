@@ -32,6 +32,9 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
   // Remise « premier mois » : l'éligibilité vient du serveur (jamais déduite
   // ici) et ne vaut qu'en mensuel, exactement comme au moment du paiement.
   const [upsellPercent, setUpsellPercent] = useState<number | null>(null);
+  // Plan lu au serveur : sert de filet quand la page parente ne l'a pas encore
+  // transmis (elle le charge en parallèle) ou ne le transmet pas du tout.
+  const [serverPlan, setServerPlan] = useState<string | null>(null);
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
   const [paying, setPaying] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -42,7 +45,10 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
   useEffect(() => {
     fetch("/api/upsell")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setUpsellPercent(d?.eligible ? (d.percentOff ?? 50) : null))
+      .then((d) => {
+        setUpsellPercent(d?.eligible ? (d.percentOff ?? 50) : null);
+        if (d?.plan) setServerPlan(d.plan);
+      })
       .catch(() => {});
   }, []);
 
@@ -78,9 +84,25 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
     setPaying(null);
   };
 
+  // Niveau de fonctionnalités de chaque plan. L'essai gratuit ("free") donne
+  // accès au niveau Business, d'où son rang maximal.
+  const planRank = (id?: string | null): number => {
+    switch (id) {
+      case "starter": return 1;
+      case "pro": return 2;
+      case "business":
+      case "free": return 3;
+      // Plan inconnu (ex. page /bloque qui ne le transmet pas) : on suppose le
+      // niveau le plus élevé pour continuer d'avertir en cas de doute.
+      default: return 3;
+    }
+  };
+
   const choosePlan = (planId: string) => {
-    // Starter / Pro = perte de fonctionnalités vs l'essai (niveau Business) → avertir
-    if (planId !== "business") { setWarnPlan(planId); return; }
+    // N'avertir QUE si le commerçant descend en gamme. Depuis le plan gratuit,
+    // passer à Pro est une amélioration : lui annoncer « vous perdez… »
+    // serait faux et le découragerait de s'abonner.
+    if (planRank(planId) < planRank(currentPlan ?? serverPlan)) { setWarnPlan(planId); return; }
     startCheckout(planId);
   };
 
