@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { PLAN_LIMITS } from "./plan-limits";
 import { getUserById } from "./users";
+import { isTrialExpired } from "./plan-billing";
 import type { PlanId } from "@/types";
 
 /**
@@ -20,9 +21,18 @@ export const FIRST_MONTH_DISCOUNT_PERCENT = 50;
  */
 export const LOYALTY_COUPON_ID = "comeback_fidelite_50";
 
+/**
+ * Pourquoi l'offre est proposée. Les deux moments où le commerçant se heurte
+ * à un mur, et donc où la proposition a du sens :
+ *  - "limit"       : plan gratuit à vie saturé (30 clients atteints)
+ *  - "trial_ended" : essai de 30 jours terminé, compte bloqué
+ */
+export type UpsellReason = "limit" | "trial_ended";
+
 export interface UpsellState {
   /** Le commerçant a-t-il droit à l'offre en ce moment ? */
   eligible: boolean;
+  reason: UpsellReason | null;
   plan: PlanId;
   customerCount: number;
   /** null = illimité */
@@ -43,26 +53,29 @@ export async function getUpsellState(merchantId: string): Promise<UpsellState> {
   const limits = PLAN_LIMITS[plan] ?? PLAN_LIMITS.starter;
   const maxClients = limits.clients === Infinity ? null : limits.clients;
 
-  // Plan illimité : rien à débloquer, donc aucune offre.
-  if (maxClients === null) {
-    return { eligible: false, plan, customerCount: 0, maxClients: null, percentOff: FIRST_MONTH_DISCOUNT_PERCENT };
-  }
-
+  // Le nombre de clients sert aussi à personnaliser le message ("vous avez
+  // déjà 24 clients fidélisés"), on le lit donc dans les deux cas.
   const { count } = await supabase()
     .from("customers")
     .select("id", { count: "exact", head: true })
     .eq("merchant_id", merchantId);
   const customerCount = count ?? 0;
 
-  return {
-    // L'offre ne s'adresse qu'au plan gratuit à vie saturé : c'est le seul
-    // moment où le commerçant est réellement bloqué par sa limite.
-    eligible: plan === "starter" && customerCount >= maxClients,
-    plan,
-    customerCount,
-    maxClients,
-    percentOff: FIRST_MONTH_DISCOUNT_PERCENT,
-  };
+  const base = { plan, customerCount, maxClients, percentOff: FIRST_MONTH_DISCOUNT_PERCENT };
+
+  // Essai terminé : le compte est bloqué sur /bloque tant qu'aucun plan n'est
+  // choisi. Rien ne le déloge automatiquement (le cron n'envoie que des
+  // rappels), donc l'offre reste visible aussi longtemps qu'il hésite.
+  if (isTrialExpired(merchant)) {
+    return { ...base, eligible: true, reason: "trial_ended" };
+  }
+
+  // Plan gratuit à vie saturé : plus aucun nouveau client ne peut s'inscrire.
+  if (maxClients !== null && plan === "starter" && customerCount >= maxClients) {
+    return { ...base, eligible: true, reason: "limit" };
+  }
+
+  return { ...base, eligible: false, reason: null };
 }
 
 /**

@@ -5,7 +5,13 @@ import { Gift, Loader2, ExternalLink, CreditCard, Sparkles } from "lucide-react"
 import PlanChooser from "@/components/billing/PlanChooser";
 
 interface PlanInfo { plan: string; label: string; isExpired: boolean; daysLeft: number | null; }
-interface Upsell { eligible: boolean; percentOff?: number; maxClients?: number | null; }
+interface Upsell {
+  eligible: boolean;
+  reason?: "limit" | "trial_ended" | null;
+  percentOff?: number;
+  maxClients?: number | null;
+  customerCount?: number;
+}
 
 export default function AbonnementPage() {
   const [info, setInfo] = useState<PlanInfo | null>(null);
@@ -65,11 +71,16 @@ export default function AbonnementPage() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 text-[15px] font-bold">
-                <Sparkles className="h-4 w-4" /> Merci d&apos;utiliser ComeBack
+                <Sparkles className="h-4 w-4" />
+                {upsell.reason === "trial_ended" ? "Merci d'avoir essayé ComeBack" : "Merci d'utiliser ComeBack"}
               </p>
               <p className="mt-1 text-[13px] leading-relaxed text-green-50/90">
-                Vous avez rempli les {upsell.maxClients ?? 30} places de votre plan gratuit. Pour votre
-                fidélité, nous vous offrons <strong className="font-semibold text-white">{upsell.percentOff ?? 50} %
+                {upsell.reason === "trial_ended"
+                  ? (upsell.customerCount && upsell.customerCount > 0
+                      ? `Vous avez déjà ${upsell.customerCount} client${upsell.customerCount > 1 ? "s" : ""} fidélisé${upsell.customerCount > 1 ? "s" : ""} — pour continuer avec eux, `
+                      : "Pour continuer, ")
+                  : `Vous avez rempli les ${upsell.maxClients ?? 30} places de votre plan gratuit. Pour votre fidélité, `}
+                nous vous offrons <strong className="font-semibold text-white">{upsell.percentOff ?? 50} %
                 sur votre premier mois</strong> — appliqué automatiquement au paiement, aucun code à
                 saisir. Offre valable sur l&apos;abonnement mensuel.
               </p>

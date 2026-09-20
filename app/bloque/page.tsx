@@ -11,10 +11,22 @@ import PlanChooser from "@/components/billing/PlanChooser";
  * seule page accessible tant qu'un plan n'a pas été choisi. Tout est restauré
  * au paiement.
  */
+interface Upsell { eligible: boolean; percentOff?: number; customerCount?: number; }
+
 export default function BlockedPage() {
   const [checked, setChecked] = useState(false);
   const [showPlans, setShowPlans] = useState(false);
+  const [upsell, setUpsell] = useState<Upsell | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    // Offre « premier mois à -50 % » : c'est ici qu'elle compte le plus, le
+    // commerçant étant face au mur. L'éligibilité vient du serveur.
+    fetch("/api/upsell")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setUpsell(d))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/plan-features")
@@ -56,11 +68,38 @@ export default function BlockedPage() {
               <strong> conservés</strong>. Choisissez un plan pour tout retrouver
               exactement comme vous l&apos;avez laissé.
             </p>
+
+            {/* Offre de reprise : le moment où le commerçant décide s'il reste */}
+            {upsell?.eligible && (
+              <div className="mt-7 w-full max-w-md overflow-hidden rounded-2xl bg-gradient-to-br from-green-600 to-emerald-700 px-6 py-5 text-left text-white shadow-lg shadow-green-900/20">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-inset ring-white/25">
+                    <span className="text-[17px] font-black leading-none">−{upsell.percentOff ?? 50}%</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[15px] font-bold">Merci d&apos;avoir essayé ComeBack</p>
+                    <p className="mt-1 text-[13px] leading-relaxed text-green-50/90">
+                      {upsell.customerCount && upsell.customerCount > 0 ? (
+                        <>
+                          Vous avez déjà <strong className="font-semibold text-white">{upsell.customerCount} client
+                          {upsell.customerCount > 1 ? "s" : ""} fidélisé{upsell.customerCount > 1 ? "s" : ""}</strong>.
+                          Pour continuer avec eux, on vous offre {upsell.percentOff ?? 50} % sur votre premier mois.
+                        </>
+                      ) : (
+                        <>On vous offre <strong className="font-semibold text-white">{upsell.percentOff ?? 50} % sur
+                        votre premier mois</strong> pour continuer.</>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <button
               onClick={() => setShowPlans(true)}
               className="mt-8 rounded-2xl bg-gradient-to-r from-green-500 to-emerald-600 px-10 py-4 text-[16px] font-bold text-white shadow-xl shadow-green-600/25 transition-all hover:from-green-600 hover:to-emerald-700 active:scale-[0.98]"
             >
-              Choisir un plan
+              {upsell?.eligible ? "En profiter" : "Choisir un plan"}
             </button>
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
@@ -74,6 +113,11 @@ export default function BlockedPage() {
           <div className="rounded-3xl bg-white p-6 shadow-xl sm:p-8">
             <div className="mb-6 text-center">
               <h1 className="text-[24px] font-bold text-slate-900">Choisissez votre plan</h1>
+              {upsell?.eligible && (
+                <p className="mx-auto mt-2 inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3.5 py-1.5 text-[12.5px] font-semibold text-green-700 ring-1 ring-inset ring-green-200">
+                  🎁 {upsell.percentOff ?? 50} % offerts sur votre premier mois — déduit automatiquement
+                </p>
+              )}
               <p className="mt-1.5 text-[13.5px] text-slate-500">
                 Paiement sécurisé Stripe — votre compte est réactivé immédiatement après le paiement.
               </p>

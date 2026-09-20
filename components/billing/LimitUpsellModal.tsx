@@ -27,6 +27,7 @@ function snooze(): void {
 
 interface UpsellState {
   eligible: boolean;
+  reason?: "limit" | "trial_ended" | null;
   customerCount?: number;
   maxClients?: number | null;
   percentOff?: number;
@@ -108,11 +109,12 @@ export default function LimitUpsellModal() {
 
         <div className="px-7 pb-7 pt-6 text-center">
           <h2 id="upsell-titre" className="text-[19px] font-bold leading-snug text-slate-900">
-            Vos {max} places sont prises 🎉
+            {state.reason === "trial_ended" ? "Votre essai est terminé" : `Vos ${max} places sont prises 🎉`}
           </h2>
           <p className="mt-2.5 text-[13.5px] leading-relaxed text-slate-600">
-            Vous avez atteint la limite de clients du plan gratuit — c&apos;est le signe que votre
-            programme de fidélité fonctionne vraiment.
+            {state.reason === "trial_ended"
+              ? "Vos clients, vos cartes et vos données sont conservés — tout revient dès que vous choisissez un plan."
+              : "Vous avez atteint la limite de clients du plan gratuit — c'est le signe que votre programme de fidélité fonctionne vraiment."}
           </p>
           <p className="mt-2 text-[13.5px] leading-relaxed text-slate-600">
             Si ComeBack vous plaît, on vous offre <strong className="font-semibold text-slate-900">{percent} %
