@@ -3,11 +3,19 @@ import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
 import { createFreeTrial } from "@/lib/plan-billing";
 import { isValidPhone } from "@/lib/validation";
+import { checkRateLimit, getIp, tooManyRequests } from "@/lib/rate-limit";
 import { randomBytes } from "crypto";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export async function POST(req: NextRequest) {
+  // Création de compte commerçant ouverte à tous : sans plafond, on pouvait
+  // créer des comptes en masse (et déclencher autant d'emails de vérification).
+  // 5 par quart d'heure laisse largement la place à une inscription normale,
+  // y compris après plusieurs erreurs de saisie.
+  if (!checkRateLimit(`free-trial:${getIp(req)}`, 5, 15 * 60 * 1000)) {
+    return tooManyRequests();
+  }
   try {
     const { email, password, storeName, city, phone } = await req.json();
 

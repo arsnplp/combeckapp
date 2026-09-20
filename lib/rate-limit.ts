@@ -38,13 +38,32 @@ export function checkRateLimit(
   return true;
 }
 
-/** Extrait l'IP depuis les headers (supporte reverse proxy Nginx). */
+/**
+ * Identifie l'appelant derrière le reverse proxy nginx.
+ *
+ * SÉCURITÉ — ne jamais lire la PREMIÈRE valeur de `X-Forwarded-For` : nginx est
+ * configuré avec `$proxy_add_x_forwarded_for`, qui AJOUTE l'IP réelle à la
+ * suite de l'en-tête envoyé par le client. Un appelant qui envoie
+ * `X-Forwarded-For: 1.2.3.4` obtient donc `1.2.3.4, <son IP réelle>` : prendre
+ * le premier élément revenait à le laisser choisir son identité, et donc à
+ * remettre son quota à zéro à chaque requête (force brute illimitée sur toutes
+ * les connexions).
+ *
+ * `X-Real-IP` est posé par nginx avec `proxy_set_header`, qui ÉCRASE toute
+ * valeur fournie par le client : c'est la seule source fiable. En repli, on
+ * prend la DERNIÈRE valeur de `X-Forwarded-For`, celle ajoutée par notre propre
+ * proxy.
+ */
 export function getIp(req: { headers: { get(name: string): string | null } }): string {
-  return (
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    req.headers.get("x-real-ip") ??
-    "unknown"
-  );
+  const real = req.headers.get("x-real-ip")?.trim();
+  if (real) return real;
+
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) {
+    const hops = forwarded.split(",").map((h) => h.trim()).filter(Boolean);
+    if (hops.length > 0) return hops[hops.length - 1];
+  }
+  return "unknown";
 }
 
 /** Réponse 429 standard. */
