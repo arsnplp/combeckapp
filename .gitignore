@@ -8,3 +8,4 @@ node_modules
 certificates/
 captures-test/
 .playwright-mcp/
+.env.preprod
