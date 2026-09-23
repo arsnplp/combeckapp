@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Send, Loader2, CheckCircle, Plus, Pencil, Trash2, X, Check } from "lucide-react";
 import { useStore } from "@/lib/store-context";
-import { computeRank, RANK_EMOJIS } from "@/lib/rank";
+import { computeRank } from "@/lib/rank";
 import NotificationHistory from "@/components/notifications/NotificationHistory";
 import RecurringNotifications from "@/components/notifications/RecurringNotifications";
 import QuotaCard from "@/components/notifications/QuotaCard";
@@ -76,11 +76,16 @@ export default function NotificationsPage() {
   const goldClients = byRank("gold");
   const platineClients = byRank("platine");
 
-  const audienceConfig: Record<AudienceType, { label: string; emoji: string; count: number; accent: string; ids: string[] }> = {
-    all:     { label: "Tous",    emoji: "👥", count: customers.length,        accent: "#16a34a", ids: customers.map((c) => c.id) },
-    silver:  { label: "Silver",  emoji: RANK_EMOJIS.silver,  count: silverClients.length,  accent: "#64748b", ids: silverClients.map((c) => c.id) },
-    gold:    { label: "Gold",    emoji: RANK_EMOJIS.gold,    count: goldClients.length,    accent: "#d97706", ids: goldClients.map((c) => c.id) },
-    platine: { label: "Platine", emoji: RANK_EMOJIS.platine, count: platineClients.length, accent: "#0ea5e9", ids: platineClients.map((c) => c.id) },
+  // Chaque rang porte sa couleur : `soft` en fond au repos, `strong` en fond
+  // une fois sélectionné (texte blanc). Pas d'emoji — il mangeait la largeur
+  // et faisait passer « Platine » à la ligne.
+  const audienceConfig: Record<AudienceType, {
+    label: string; count: number; soft: string; strong: string; text: string; ids: string[];
+  }> = {
+    all:     { label: "Tous",    count: customers.length,       soft: "#dcfce7", strong: "#16a34a", text: "#15803d", ids: customers.map((c) => c.id) },
+    silver:  { label: "Silver",  count: silverClients.length,   soft: "#e2e8f0", strong: "#94a3b8", text: "#475569", ids: silverClients.map((c) => c.id) },
+    gold:    { label: "Gold",    count: goldClients.length,     soft: "#fef3c7", strong: "#f59e0b", text: "#92400e", ids: goldClients.map((c) => c.id) },
+    platine: { label: "Platine", count: platineClients.length,  soft: "#e0f2fe", strong: "#38bdf8", text: "#0369a1", ids: platineClients.map((c) => c.id) },
   };
 
   const getEffectiveIds = (): string[] => {
@@ -155,17 +160,25 @@ export default function NotificationsPage() {
                 <button
                   key={key}
                   onClick={() => setAudience(key)}
-                  className="flex items-center gap-2 rounded-xl border px-3 py-2 text-left transition-all"
+                  aria-pressed={active}
+                  className="rounded-xl border px-2 py-2 text-center transition-all active:scale-[0.97]"
                   style={{
-                    background: active ? `${cfg.accent}12` : "#f8fafc",
-                    borderColor: active ? cfg.accent : "#e2e8f0",
+                    background: active ? cfg.strong : cfg.soft,
+                    borderColor: active ? cfg.strong : "transparent",
                   }}
                 >
-                  <span className="flex-shrink-0 text-[15px]">{cfg.emoji}</span>
-                  <div className="min-w-0">
-                    <p className="text-[12px] font-semibold leading-tight" style={{ color: active ? cfg.accent : "#334155" }}>{cfg.label}</p>
-                    <p className="mt-0.5 text-[10px] text-slate-400">{cfg.count}</p>
-                  </div>
+                  <p
+                    className="truncate text-[12.5px] font-semibold leading-tight"
+                    style={{ color: active ? "#ffffff" : cfg.text }}
+                  >
+                    {cfg.label}
+                  </p>
+                  <p
+                    className="mt-0.5 text-[11px] font-medium leading-tight"
+                    style={{ color: active ? "rgba(255,255,255,0.75)" : cfg.text, opacity: active ? 1 : 0.6 }}
+                  >
+                    {cfg.count}
+                  </p>
                 </button>
               );
             })}
@@ -326,8 +339,8 @@ export default function NotificationsPage() {
         <div className="flex items-center justify-between px-6 py-4">
           <p className="text-[12px] text-slate-500">
             Envoi à :{" "}
-            <span className="font-semibold" style={{ color: inactiveFilter ? "#f97316" : audienceConfig[audience].accent }}>
-              {audienceConfig[audience].emoji} {effectiveCount} destinataire{effectiveCount !== 1 ? "s" : ""}
+            <span className="font-semibold" style={{ color: inactiveFilter ? "#f97316" : audienceConfig[audience].text }}>
+              {effectiveCount} destinataire{effectiveCount !== 1 ? "s" : ""}
               {inactiveFilter && <span className="ml-1 font-normal text-orange-400">(filtrés)</span>}
             </span>
           </p>

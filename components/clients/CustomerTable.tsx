@@ -23,11 +23,14 @@ interface CustomerTableProps {
 
 type FilterType = "all" | RankType;
 
-const FILTERS: { label: string; value: FilterType }[] = [
-  { label: "Tous", value: "all" },
-  { label: "🥈 Silver", value: "silver" },
-  { label: "🥇 Gold", value: "gold" },
-  { label: "💎 Platine", value: "platine" },
+// Chaque rang porte sa couleur plutôt qu'un emoji : `soft` au repos,
+// `strong` en fond une fois sélectionné (texte blanc). Mêmes teintes que le
+// sélecteur d'audience des notifications.
+const FILTERS: { label: string; value: FilterType; soft: string; strong: string; text: string }[] = [
+  { label: "Tous",    value: "all",     soft: "#f1f5f9", strong: "#0f172a", text: "#475569" },
+  { label: "Silver",  value: "silver",  soft: "#e2e8f0", strong: "#94a3b8", text: "#475569" },
+  { label: "Gold",    value: "gold",    soft: "#fef3c7", strong: "#f59e0b", text: "#92400e" },
+  { label: "Platine", value: "platine", soft: "#e0f2fe", strong: "#38bdf8", text: "#0369a1" },
 ];
 
 const PAGE_SIZE = 50;
@@ -88,9 +91,12 @@ export default function CustomerTable({ customers, onSelect, selectedIds, onSele
             <button
               key={f.value}
               onClick={() => setFilter(f.value)}
-              className={`rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition-colors ${
-                filter === f.value ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
+              aria-pressed={filter === f.value}
+              className="whitespace-nowrap rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition-all active:scale-[0.97]"
+              style={{
+                background: filter === f.value ? f.strong : f.soft,
+                color: filter === f.value ? "#ffffff" : f.text,
+              }}
             >
               {f.label}
             </button>
