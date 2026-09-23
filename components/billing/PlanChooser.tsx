@@ -202,7 +202,7 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
                         : fmt(upsellPercent ? firstMonth(plan.price, upsellPercent) : plan.price)}€
                     </span>
                     <span className="text-[13px] text-slate-400">
-                      {billing === "monthly" && upsellPercent ? "le 1er mois" : "/mois"}
+                      {billing === "monthly" && upsellPercent ? "le 1er mois TTC" : "/mois TTC"}
                     </span>
                     {billing === "annual" && (
                       <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10.5px] font-bold text-green-400">
@@ -216,12 +216,12 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
                     )}
                   </div>
                   {billing === "annual" && (
-                    <p className="mt-0.5 text-[11.5px] text-slate-400">Facturé {fmt(annualTotal(plan.price))}€ / an</p>
+                    <p className="mt-0.5 text-[11.5px] text-slate-400">Facturé {fmt(annualTotal(plan.price))}€ / an TTC</p>
                   )}
                   {/* Le prix qui s'appliquera ensuite, annoncé clairement :
                       le commerçant ne doit pas découvrir le plein tarif au 2e mois. */}
                   {billing === "monthly" && upsellPercent && (
-                    <p className="mt-0.5 text-[11.5px] text-slate-400">puis {fmt(plan.price)}€ / mois · sans engagement</p>
+                    <p className="mt-0.5 text-[11.5px] text-slate-400">puis {fmt(plan.price)}€ / mois TTC · sans engagement</p>
                   )}
                 </>
               )}

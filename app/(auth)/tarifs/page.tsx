@@ -219,7 +219,7 @@ export default function TarifsPage() {
                       <span className="text-[38px] font-bold leading-none text-slate-900">
                         {fmt(billing === "monthly" ? plan.price : annualMonthly(plan.price))}€
                       </span>
-                      <span className="text-[14px] text-slate-400">/mois</span>
+                      <span className="text-[14px] text-slate-400">/mois TTC</span>
                       {billing === "annual" && (
                         <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11.5px] font-bold text-green-400">
                           économisez {fmt(Math.round(plan.price * 12 - annualTotal(plan.price)))}€
@@ -230,9 +230,9 @@ export default function TarifsPage() {
                   {plan.price === 0 ? (
                     <p className="mt-1 text-[12px] text-slate-400">Aucune carte bancaire requise</p>
                   ) : billing === "annual" ? (
-                    <p className="mt-1 text-[12px] text-slate-400">Facturé {fmt(annualTotal(plan.price))}€ / an</p>
+                    <p className="mt-1 text-[12px] text-slate-400">Facturé {fmt(annualTotal(plan.price))}€ / an TTC</p>
                   ) : (
-                    <p className="mt-1 text-[12px] text-slate-400">Sans engagement</p>
+                    <p className="mt-1 text-[12px] text-slate-400">Sans engagement · prix TTC</p>
                   )}
                   <p className="mt-1.5 text-[13px] text-slate-500">{plan.description}</p>
                 </div>
@@ -281,7 +281,7 @@ export default function TarifsPage() {
         {/* Footnote */}
         <p className="mt-10 text-center text-[12px] text-slate-400">
           Toutes les formules incluent les cartes Apple Wallet et Google Wallet, les notifications push et le dashboard analytics.
-          <br />Paiement sécurisé par Stripe. Formule annuelle : -20 %.
+          <br />Tous les prix sont TTC, toutes taxes comprises. Paiement sécurisé par Stripe. Formule annuelle : -20 %.
         </p>
       </div>
     </div>

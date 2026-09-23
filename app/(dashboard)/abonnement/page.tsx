@@ -126,7 +126,7 @@ export default function AbonnementPage() {
       <PlanChooser currentPlan={info?.plan} />
 
       <p className="text-center text-[11.5px] text-slate-400">
-        Paiement sécurisé par Stripe · Sans engagement · Le changement de plan d&apos;un abonnement en cours se fait
+        Tous les prix sont TTC, toutes taxes comprises · Paiement sécurisé par Stripe · Sans engagement · Le changement de plan d&apos;un abonnement en cours se fait
         via le portail Stripe (prorata automatique).
       </p>
     </div>

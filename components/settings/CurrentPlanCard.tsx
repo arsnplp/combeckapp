@@ -113,7 +113,7 @@ export default function CurrentPlanCard() {
               ) : (
                 <>
                   <p className="text-2xl font-bold" style={{ color: d.accent }}>{info.priceMonthly.toLocaleString("fr-FR")}€</p>
-                  <p className={`text-xs ${d.sub}`}>/mois</p>
+                  <p className={`text-xs ${d.sub}`}>/mois TTC</p>
                 </>
               )
             )
