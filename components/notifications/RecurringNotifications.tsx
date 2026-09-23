@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { Repeat, Plus, Trash2, Loader2, Lock, Clock } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 interface RecurringItem {
   id: string;
@@ -31,6 +33,8 @@ export default function RecurringNotifications() {
 
   // Formulaire
   const [showForm, setShowForm] = useState(false);
+  // Explication du verrou, ouverte à la demande depuis le cadenas.
+  const [showLockInfo, setShowLockInfo] = useState(false);
   const [message, setMessage] = useState("");
   const [frequency, setFrequency] = useState<"daily" | "weekly" | "monthly">("weekly");
   const [dayOfWeek, setDayOfWeek] = useState(1);
@@ -123,7 +127,18 @@ export default function RecurringNotifications() {
             <p className="text-[12px] text-slate-500">Envois récurrents programmés — comptent dans votre quota mensuel</p>
           </div>
         </div>
-        {!locked && (
+        {locked ? (
+          // Fonctionnalité réservée aux plans payants : un simple cadenas,
+          // l'explication arrive au clic. Un bandeau permanent occupait une
+          // grande partie de la page pour un message qu'on ne lit qu'une fois.
+          <button
+            onClick={() => setShowLockInfo(true)}
+            aria-label="Pourquoi cette fonctionnalité est-elle verrouillée ?"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600"
+          >
+            <Lock className="h-3.5 w-3.5" />
+          </button>
+        ) : (
           <button
             onClick={() => setShowForm((v) => !v)}
             className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-[12.5px] font-semibold text-white hover:bg-green-700 transition-colors"
@@ -133,8 +148,9 @@ export default function RecurringNotifications() {
         )}
       </div>
 
-      {/* Contenu (grisé si plan non éligible) */}
-      <div className={locked ? "pointer-events-none select-none opacity-40" : ""}>
+      {/* Contenu — masqué quand le plan ne le permet pas : rien d'utilisable
+          à montrer, et le bloc occupait inutilement la hauteur de la page. */}
+      <div hidden={locked}>
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
@@ -228,18 +244,39 @@ export default function RecurringNotifications() {
         )}
       </div>
 
-      {/* Overlay verrou plan */}
-      {locked && (
-        <div className="absolute inset-x-0 bottom-0 top-[61px] flex items-center justify-center">
-          <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-            <Lock className="h-4 w-4 text-slate-400" />
-            <div>
-              <p className="text-[13px] font-semibold text-slate-800">Réservé aux plans Pro et Business</p>
-              <p className="text-[11.5px] text-slate-500">Passez au plan supérieur pour automatiser vos relances.</p>
+      {/* Explication du verrou, à la demande */}
+      <Dialog open={showLockInfo} onOpenChange={setShowLockInfo}>
+        <DialogContent className="sm:max-w-[380px]">
+          <div className="px-6 pb-6 pt-7 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-green-50">
+              <Repeat className="h-5 w-5 text-green-600" />
             </div>
+            <DialogTitle className="mt-4 text-[16px] font-bold text-slate-900">
+              Automatisez vos relances
+            </DialogTitle>
+            <p className="mt-2 text-[13px] leading-relaxed text-slate-600">
+              Programmez un message qui part tout seul, chaque semaine ou chaque mois —
+              sans y penser. Ces envois comptent dans votre quota mensuel.
+            </p>
+            <p className="mt-3 text-[12.5px] font-medium text-slate-500">
+              Disponible avec les plans Pro et Business.
+            </p>
+            <Link
+              href="/abonnement"
+              onClick={() => setShowLockInfo(false)}
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 py-3 text-[14px] font-bold text-white shadow-md shadow-green-600/20 transition-all hover:from-green-700 hover:to-emerald-700 active:scale-[0.98]"
+            >
+              Voir les plans
+            </Link>
+            <button
+              onClick={() => setShowLockInfo(false)}
+              className="mt-2 w-full py-2 text-[12.5px] font-medium text-slate-400 transition-colors hover:text-slate-600"
+            >
+              Plus tard
+            </button>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
