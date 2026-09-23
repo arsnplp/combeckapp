@@ -143,7 +143,18 @@ export async function POST(req: NextRequest) {
       // promo -100% "à vie" saute l'étape carte, mais un code temporaire ou
       // partiel continue de la demander puisqu'un futur prélèvement existe).
       payment_method_collection: "if_required",
-      subscription_data: { metadata },
+      // TVA française incluse dans le prix affiché : le commerçant paie bien
+      // le montant annoncé (9,99 €), et la facture Stripe fait apparaître le
+      // détail (8,33 € HT + 1,66 € de TVA).
+      //
+      // On passe par un taux de TVA explicite plutôt que par `tax_behavior:
+      // inclusive` sur les tarifs : le comportement est identique, mais un
+      // taux se désactive alors qu'un tarif marqué "inclusive" ne peut plus
+      // jamais revenir en arrière chez Stripe.
+      subscription_data: {
+        metadata,
+        ...(process.env.STRIPE_TAX_RATE_ID ? { default_tax_rates: [process.env.STRIPE_TAX_RATE_ID] } : {}),
+      },
       metadata,
       success_url: `${appUrl}/dashboard?billing=success`,
       cancel_url: `${appUrl}/tarifs?billing=cancel`,
