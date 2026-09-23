@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Send, Loader2, CheckCircle, Plus, Pencil, Trash2, X, Check } from "lucide-react";
+import { Send, Loader2, CheckCircle, Plus, Pencil, Trash2, X, Check, ChevronDown } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { computeRank } from "@/lib/rank";
 import NotificationHistory from "@/components/notifications/NotificationHistory";
@@ -52,6 +52,9 @@ export default function NotificationsPage() {
   const [editingValue, setEditingValue] = useState("");
   const [newSuggestion, setNewSuggestion] = useState("");
   const [addingNew, setAddingNew] = useState(false);
+  // Replié par défaut : déplié, le bloc faisait descendre le bouton d'envoi
+  // hors de l'écran, alors que c'est l'action principale de la page.
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
 
   useEffect(() => { setSuggestions(loadSuggestions()); }, []);
 
@@ -235,24 +238,49 @@ export default function NotificationsPage() {
           />
         </div>
 
-        {/* Suggestions */}
-        <div className="border-b border-slate-100 px-6 py-5">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">Suggestions rapides</p>
+        {/* Suggestions — repliées par défaut pour ne pas repousser l'envoi */}
+        <div className="border-b border-slate-100 px-6 py-4">
+          <div className="flex items-center justify-between gap-2">
             <button
-              onClick={() => { setEditingSuggestions((v) => !v); setEditingIdx(null); setAddingNew(false); }}
-              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                editingSuggestions
-                  ? "border-green-300 bg-green-50 text-green-600"
-                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-              }`}
+              onClick={() => {
+                setSuggestionsOpen((v) => {
+                  // En refermant, on abandonne toute édition en cours pour ne
+                  // pas rouvrir sur un champ à moitié rempli.
+                  if (v) { setEditingSuggestions(false); setEditingIdx(null); setAddingNew(false); }
+                  return !v;
+                });
+              }}
+              aria-expanded={suggestionsOpen}
+              className="group flex min-w-0 items-center gap-1.5 text-left"
             >
-              <Pencil size={11} />
-              {editingSuggestions ? "Terminer" : "Modifier"}
+              <ChevronDown
+                size={14}
+                className={`flex-shrink-0 text-slate-400 transition-transform duration-200 group-hover:text-slate-600 ${suggestionsOpen ? "rotate-180" : ""}`}
+              />
+              <p className="truncate text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400 transition-colors group-hover:text-slate-600">
+                Suggestions rapides
+              </p>
+              <span className="flex-shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                {suggestions.length}
+              </span>
             </button>
+            {suggestionsOpen && (
+              <button
+                onClick={() => { setEditingSuggestions((v) => !v); setEditingIdx(null); setAddingNew(false); }}
+                className={`flex flex-shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                  editingSuggestions
+                    ? "border-green-300 bg-green-50 text-green-600"
+                    : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                }`}
+              >
+                <Pencil size={11} />
+                {editingSuggestions ? "Terminer" : "Modifier"}
+              </button>
+            )}
           </div>
 
-          <div className="flex flex-col gap-2">
+          {suggestionsOpen && (
+          <div className="mt-3 flex flex-col gap-2">
             {suggestions.map((s, i) => (
               <div key={i} className="flex items-center gap-2">
                 {editingIdx === i ? (
@@ -333,6 +361,7 @@ export default function NotificationsPage() {
               )
             )}
           </div>
+          )}
         </div>
 
         {/* Footer */}
