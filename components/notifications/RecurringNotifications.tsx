@@ -116,37 +116,50 @@ export default function RecurringNotifications() {
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-50">
-            <Repeat className="h-4 w-4 text-green-600" />
+      {/* En-tête — verrouillé : la ligne entière ouvre l'explication.
+          Un cadenas seul fait une cible minuscule, surtout au doigt. Le
+          cadenas reste affiché comme repère visuel, mais ce n'est plus un
+          bouton : imbriquer un bouton dans un bouton n'est pas valide. */}
+      {locked ? (
+        <button
+          onClick={() => setShowLockInfo(true)}
+          className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-slate-50"
+        >
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-green-50">
+              <Repeat className="h-4 w-4 text-green-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[14px] font-semibold text-slate-900">Notifications automatiques</p>
+              <p className="text-[12px] text-slate-500">Envois récurrents programmés — comptent dans votre quota mensuel</p>
+            </div>
           </div>
-          <div>
-            <p className="text-[14px] font-semibold text-slate-900">Notifications automatiques</p>
-            <p className="text-[12px] text-slate-500">Envois récurrents programmés — comptent dans votre quota mensuel</p>
-          </div>
-        </div>
-        {locked ? (
-          // Fonctionnalité réservée aux plans payants : un simple cadenas,
-          // l'explication arrive au clic. Un bandeau permanent occupait une
-          // grande partie de la page pour un message qu'on ne lit qu'une fois.
-          <button
-            onClick={() => setShowLockInfo(true)}
-            aria-label="Pourquoi cette fonctionnalité est-elle verrouillée ?"
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600"
+          <span
+            aria-hidden
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400"
           >
             <Lock className="h-3.5 w-3.5" />
-          </button>
-        ) : (
+          </span>
+        </button>
+      ) : (
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-50">
+              <Repeat className="h-4 w-4 text-green-600" />
+            </div>
+            <div>
+              <p className="text-[14px] font-semibold text-slate-900">Notifications automatiques</p>
+              <p className="text-[12px] text-slate-500">Envois récurrents programmés — comptent dans votre quota mensuel</p>
+            </div>
+          </div>
           <button
             onClick={() => setShowForm((v) => !v)}
             className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-[12.5px] font-semibold text-white hover:bg-green-700 transition-colors"
           >
             <Plus className="h-3.5 w-3.5" /> Nouvelle
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Contenu — masqué quand le plan ne le permet pas : rien d'utilisable
           à montrer, et le bloc occupait inutilement la hauteur de la page. */}
