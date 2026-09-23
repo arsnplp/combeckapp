@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { Users, Star, Gift, RefreshCw, BarChart2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -197,7 +198,7 @@ export default function AnalyticsPage() {
           {inactiveClients > 0 && (
             <p className="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
               💡 {inactiveClients} client{inactiveClients > 1 ? "s" : ""} inactif{inactiveClients > 1 ? "s" : ""} — pensez à envoyer une campagne de réactivation depuis les{" "}
-              <a href="/notifications" className="font-semibold underline">Notifications</a>.
+              <Link href="/notifications" className="font-semibold underline">Notifications</Link>.
             </p>
           )}
         </div>

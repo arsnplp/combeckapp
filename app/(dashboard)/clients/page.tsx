@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import QRCode from "qrcode";
 import { motion, AnimatePresence } from "framer-motion";
@@ -667,10 +668,10 @@ export default function ClientsPage() {
               )}
             </p>
           </div>
-          <a href="/abonnement"
+          <Link href="/abonnement"
             className="flex-shrink-0 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-2.5 text-[13px] font-bold text-white shadow-md shadow-green-600/25 transition-all hover:from-green-700 hover:to-emerald-700 active:scale-[0.98]">
             {upsellEligible ? "En profiter" : "Passer au plan supérieur"}
-          </a>
+          </Link>
         </div>
       )}
       {nearClientLimit && (
@@ -679,9 +680,9 @@ export default function ClientsPage() {
           <p className="min-w-0 flex-1 text-[13px] text-amber-800">
             <strong>{customers.length}/{maxClients} clients</strong> — plus que {maxClients - customers.length} place{maxClients - customers.length > 1 ? "s" : ""} sur votre plan.
           </p>
-          <a href="/abonnement" className="flex-shrink-0 text-[12.5px] font-semibold text-amber-700 underline hover:text-amber-900">
+          <Link href="/abonnement" className="flex-shrink-0 text-[12.5px] font-semibold text-amber-700 underline hover:text-amber-900">
             Voir les plans
-          </a>
+          </Link>
         </div>
       )}
 
@@ -729,9 +730,9 @@ export default function ClientsPage() {
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3">
           <span className="text-[18px]">⚠️</span>
           <p className="min-w-0 flex-1 text-[13px] text-amber-800">{exportError}</p>
-          <a href="/abonnement" className="flex-shrink-0 text-[12.5px] font-semibold text-amber-700 underline hover:text-amber-900">
+          <Link href="/abonnement" className="flex-shrink-0 text-[12.5px] font-semibold text-amber-700 underline hover:text-amber-900">
             Voir les plans
-          </a>
+          </Link>
           <button onClick={() => setExportError("")} className="flex-shrink-0 text-amber-400 hover:text-amber-600 transition-colors">
             <X className="h-4 w-4" />
           </button>

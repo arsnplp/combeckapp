@@ -394,7 +394,7 @@ export default function CartePage() {
                   Votre plan permet {maxCards} carte{maxCards > 1 ? "s" : ""} active{maxCards > 1 ? "s" : ""} — c&apos;est vous qui
                   choisissez laquelle avec « Utiliser cette carte ». Les clients et soldes des cartes gelées
                   sont conservés, mais les nouvelles inscriptions y sont bloquées.{" "}
-                  <a href="/abonnement" className="font-semibold underline">Passer au plan supérieur</a> les réactive toutes instantanément.
+                  <Link href="/abonnement" className="font-semibold underline">Passer au plan supérieur</Link> les réactive toutes instantanément.
                 </p>
               </div>
             )}

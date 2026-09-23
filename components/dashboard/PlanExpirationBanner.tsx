@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Clock, AlertCircle } from "lucide-react";
 
@@ -57,7 +58,7 @@ export default function PlanExpirationBanner() {
             : "Choisissez un plan pour continuer sans interruption — vos cartes et clients restent en place."}
         </p>
       </div>
-      <a
+      <Link
         href="/abonnement"
         className={`flex-shrink-0 rounded-xl px-4 py-2.5 text-[13px] font-bold text-white shadow-md transition-all active:scale-[0.98] ${
           urgent
@@ -66,7 +67,7 @@ export default function PlanExpirationBanner() {
         }`}
       >
         Choisir un plan
-      </a>
+      </Link>
     </div>
   );
 }

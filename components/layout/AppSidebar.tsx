@@ -1,5 +1,6 @@
 "use client";
 
+import NavIcon from "@/components/layout/NavIcon";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -90,7 +91,7 @@ export default function AppSidebar() {
                           : "bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-green-500/25 hover:from-green-600 hover:to-emerald-700"
                       }`}
                     >
-                      <Icon className="h-[17px] w-[17px] flex-shrink-0 text-white" />
+                      <NavIcon icon={Icon} className="h-[17px] w-[17px] flex-shrink-0 text-white" />
                       <span className="truncate">{item.label}</span>
                     </Link>
                   );
@@ -104,7 +105,7 @@ export default function AppSidebar() {
                       isActive ? "bg-green-50 text-green-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                     }`}
                   >
-                    <Icon className={`h-[15px] w-[15px] flex-shrink-0 transition-colors ${isActive ? "text-green-600" : "text-slate-400 group-hover:text-slate-600"}`} />
+                    <NavIcon icon={Icon} className={`h-[15px] w-[15px] flex-shrink-0 transition-colors ${isActive ? "text-green-600" : "text-slate-400 group-hover:text-slate-600"}`} />
                     <span className="truncate">{item.label}</span>
                     {item.href === "/carte" && !hasLogo && (
                       <span

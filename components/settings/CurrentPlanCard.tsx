@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Zap, CheckCircle, Gift, ArrowRight, Crown, Loader2 } from "lucide-react";
 import { fetchPlanFeatures, type PlanFeatures } from "@/lib/plan-features";
@@ -121,12 +122,12 @@ export default function CurrentPlanCard() {
       </div>
 
       {d.next && (
-        <a
+        <Link
           href="/abonnement"
           className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 py-3 text-[13.5px] font-bold text-white shadow-md shadow-green-600/20 transition-all hover:from-green-700 hover:to-emerald-700 active:scale-[0.99]"
         >
           {d.next.label} <ArrowRight className="h-4 w-4" />
-        </a>
+        </Link>
       )}
     </div>
   );

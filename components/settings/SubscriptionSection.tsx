@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import { CreditCard, ArrowRight } from "lucide-react";
 
@@ -41,16 +42,16 @@ export default function SubscriptionSection() {
 
       <div className="mt-4 flex flex-wrap gap-2">
         {isFree ? (
-          <a href="/abonnement"
+          <Link href="/abonnement"
             className="flex items-center gap-1.5 rounded-xl bg-green-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-green-700 transition-colors">
             Passer à un plan payant
-          </a>
+          </Link>
         ) : (
-          <a href="/abonnement"
+          <Link href="/abonnement"
             className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-slate-800 transition-colors">
             Changer de plan
             <ArrowRight className="h-3.5 w-3.5" />
-          </a>
+          </Link>
         )}
       </div>
       <p className="mt-2 text-[11.5px] text-slate-400">

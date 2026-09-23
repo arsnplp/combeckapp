@@ -1,5 +1,6 @@
 "use client";
 
+import NavIcon from "@/components/layout/NavIcon";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -63,7 +64,7 @@ export default function MobileNav() {
                         : "bg-gradient-to-br from-green-500 to-emerald-600 shadow-green-500/30"
                     }`}
                   >
-                    <Icon className="h-6 w-6 text-white" />
+                    <NavIcon icon={Icon} className="h-6 w-6 text-white" />
                   </span>
                   <span className={`text-[10px] font-semibold ${active ? "text-green-700" : "text-slate-400"}`}>
                     {tab.label}
@@ -78,7 +79,7 @@ export default function MobileNav() {
                 data-tour={tab.tourId}
                 className="flex flex-col items-center justify-center gap-1 transition-colors active:bg-slate-50"
               >
-                <Icon className={`h-[21px] w-[21px] ${active ? "text-green-600" : "text-slate-400"}`} />
+                <NavIcon icon={Icon} className={`h-[21px] w-[21px] ${active ? "text-green-600" : "text-slate-400"}`} />
                 <span className={`text-[10px] font-semibold ${active ? "text-green-700" : "text-slate-400"}`}>
                   {tab.label}
                 </span>
@@ -149,7 +150,7 @@ export default function MobileNav() {
                         active ? "bg-green-50 text-green-700" : "text-slate-700 active:bg-slate-50"
                       }`}
                     >
-                      <Icon className={`h-5 w-5 ${active ? "text-green-600" : "text-slate-400"}`} />
+                      <NavIcon icon={Icon} className={`h-5 w-5 ${active ? "text-green-600" : "text-slate-400"}`} />
                       {item.label}
                     </Link>
                   );

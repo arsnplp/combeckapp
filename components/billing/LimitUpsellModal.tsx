@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { X, Sparkles, ArrowRight } from "lucide-react";
 
@@ -121,13 +122,13 @@ export default function LimitUpsellModal() {
             sur votre premier mois</strong> pour continuer sans limite.
           </p>
 
-          <a
+          <Link
             href="/abonnement"
             onClick={snooze}
             className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 py-3.5 text-[14.5px] font-bold text-white shadow-lg shadow-green-600/25 transition-all hover:from-green-700 hover:to-emerald-700 active:scale-[0.98]"
           >
             En profiter <ArrowRight className="h-4 w-4" />
-          </a>
+          </Link>
           <button
             onClick={close}
             className="mt-2.5 w-full py-2 text-[12.5px] font-medium text-slate-400 transition-colors hover:text-slate-600"
