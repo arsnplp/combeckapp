@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Star, Loader2, AlertTriangle } from "lucide-react";
+import { Check, Star, Loader2, AlertTriangle, Gift, Lock } from "lucide-react";
 
 const PLANS = [
   {
@@ -35,6 +35,10 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
   // Plan lu au serveur : sert de filet quand la page parente ne l'a pas encore
   // transmis (elle le charge en parallèle) ou ne le transmet pas du tout.
   const [serverPlan, setServerPlan] = useState<string | null>(null);
+  // Essai gratuit : état renvoyé par le serveur (disponible / en cours /
+  // utilisé). Affiché en permanence au-dessus des plans.
+  const [trial, setTrial] = useState<{ status: string; daysLeft?: number; days?: number } | null>(null);
+  const [trialLoading, setTrialLoading] = useState(false);
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
   const [paying, setPaying] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -50,7 +54,24 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
         if (d?.plan) setServerPlan(d.plan);
       })
       .catch(() => {});
+    fetch("/api/billing/trial")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setTrial(d))
+      .catch(() => {});
   }, []);
+
+  const startTrial = async () => {
+    if (trialLoading) return;
+    setTrialLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/billing/trial", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.url) { window.location.href = data.url; return; }
+      setError(data?.error ?? "Impossible de démarrer l'essai.");
+    } catch { setError("Erreur réseau."); }
+    setTrialLoading(false);
+  };
 
   useEffect(() => {
     // Usage réel pour rendre l'avertissement concret
@@ -142,6 +163,52 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
 
   return (
     <div className="space-y-5">
+      {/* Essai gratuit — toujours visible : disponible, en cours, ou utilisé */}
+      {trial && (
+        trial.status === "available" ? (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl border-2 border-dashed border-green-300 bg-green-50/60 px-5 py-4">
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-green-600 text-white">
+              <Gift className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[14.5px] font-bold text-slate-900">
+                Essai Business offert — {trial.days ?? 30} jours
+              </p>
+              <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-600">
+                Toutes les fonctionnalités débloquées. <strong className="font-semibold">0 € aujourd&apos;hui</strong>,
+                carte demandée pour la suite : à la fin des {trial.days ?? 30} jours, l&apos;abonnement
+                Business à 39,99 € / mois TTC démarre automatiquement. Résiliable à tout moment avant.
+              </p>
+            </div>
+            <button
+              onClick={startTrial}
+              disabled={trialLoading}
+              className="flex flex-shrink-0 items-center gap-2 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-5 py-2.5 text-[13.5px] font-bold text-white shadow-md shadow-green-600/20 transition-all hover:from-green-700 hover:to-emerald-700 active:scale-[0.98] disabled:opacity-60"
+            >
+              {trialLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gift className="h-4 w-4" />}
+              Activer l&apos;essai
+            </button>
+          </div>
+        ) : trial.status === "active" ? (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-green-200 bg-green-50 px-5 py-3.5">
+            <Gift className="h-4.5 w-4.5 flex-shrink-0 text-green-700" />
+            <p className="min-w-0 flex-1 text-[13.5px] text-slate-700">
+              <strong className="font-bold text-slate-900">Essai Business en cours</strong> — il reste{" "}
+              {trial.daysLeft} jour{(trial.daysLeft ?? 0) > 1 ? "s" : ""}. À son terme, l&apos;abonnement
+              Business démarre automatiquement.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3.5">
+            <Lock className="h-4 w-4 flex-shrink-0 text-slate-400" />
+            <p className="min-w-0 flex-1 text-[13px] text-slate-500">
+              <strong className="font-semibold text-slate-600">Essai gratuit déjà utilisé.</strong>{" "}
+              Il n&apos;est proposé qu&apos;une fois par commerce.
+            </p>
+          </div>
+        )
+      )}
+
       {/* Toggle */}
       <div className="flex justify-center">
         <div className="inline-flex items-center rounded-xl bg-slate-100 p-1">

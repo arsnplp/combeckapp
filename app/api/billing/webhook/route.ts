@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { activatePlan, setPlanUntil, planFromPriceId, PLAN_PRICING } from "@/lib/plan-billing";
 import { creditCommission, refundCommission, getAffiliateById, UNLOCK_DELAY_DAYS } from "@/lib/affiliates";
 import { sendAffiliateCommissionEmail, sendAffiliateRefundEmail, notifyAdminEmail } from "@/lib/mailer";
+import { markTrialUsed } from "@/lib/trial";
 import type { PlanId } from "@/types";
 
 // Commission affilié pour un paiement donné (première fois comme renouvellement)
@@ -69,6 +70,17 @@ export async function POST(req: NextRequest) {
 
       if (session.mode === "subscription") {
         console.log(`[webhook] Abonnement souscrit pour ${merchantId ?? "?"} (${plan ?? "?"})`);
+        // Essai gratuit : on le marque consommé seulement ici, une fois
+        // l'abonnement réellement créé — ouvrir puis abandonner la page de
+        // paiement ne doit rien consommer.
+        if (merchantId && session.metadata?.trial === "1") {
+          try {
+            await markTrialUsed(merchantId);
+            console.log(`[webhook] Essai gratuit démarré pour ${merchantId}`);
+          } catch (e) {
+            console.error("[webhook] marquage essai", e);
+          }
+        }
       } else if (merchantId && plan && billingCycle) {
         await activatePlan(merchantId, plan as never, billingCycle as never);
         console.log(`[webhook] Plan activated (one-shot) for ${merchantId}: ${plan} (${billingCycle})`);
