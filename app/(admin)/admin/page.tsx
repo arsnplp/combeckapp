@@ -312,25 +312,34 @@ export default function AdminPage() {
     setResolvingError(null);
   };
 
-  const loadConversations = async () => {
-    setLoadingConvos(true);
+  /**
+   * `silent` : rafraîchissement de fond, déclenché toutes les 15 s. Sans lui,
+   * chaque sondage rallumait l'état de chargement et faisait clignoter toute
+   * la liste. On ne remplace l'état que si le contenu a réellement changé,
+   * pour ne pas re-rendre la liste pour rien.
+   */
+  const loadConversations = async (silent = false) => {
+    if (!silent) setLoadingConvos(true);
     try {
       const res = await fetch("/api/admin/support");
       const data = await res.json();
-      setConversations(data.conversations ?? []);
+      const next = data.conversations ?? [];
+      setConversations((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
     } catch { /* ignore */ }
-    setLoadingConvos(false);
+    if (!silent) setLoadingConvos(false);
   };
 
-  const loadThread = async (merchantId: string) => {
-    setLoadingThread(true);
+  /** Idem : le fil est resondé toutes les 5 s, sans écran de chargement. */
+  const loadThread = async (merchantId: string, silent = false) => {
+    if (!silent) setLoadingThread(true);
     try {
       const res = await fetch(`/api/admin/support/${merchantId}`);
       const data = await res.json();
-      setThread(data.messages ?? []);
+      const next = data.messages ?? [];
+      setThread((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
       setConversations((prev) => prev.map((c) => c.merchantId === merchantId ? { ...c, unreadForAdmin: 0 } : c));
     } catch { /* ignore */ }
-    setLoadingThread(false);
+    if (!silent) setLoadingThread(false);
   };
 
   const selectConversation = (merchantId: string) => {
@@ -387,7 +396,7 @@ export default function AdminPage() {
   // Rafraîchit la liste des conversations pendant que l'onglet est ouvert
   useEffect(() => {
     if (tab !== "messages") return;
-    const t = setInterval(loadConversations, 15000);
+    const t = setInterval(() => loadConversations(true), 15000);
     return () => clearInterval(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
@@ -395,7 +404,7 @@ export default function AdminPage() {
   // Rafraîchit le fil ouvert (réponses du commerçant en quasi temps réel)
   useEffect(() => {
     if (tab !== "messages" || !selectedMerchant) return;
-    const t = setInterval(() => loadThread(selectedMerchant), 5000);
+    const t = setInterval(() => loadThread(selectedMerchant, true), 5000);
     return () => clearInterval(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, selectedMerchant]);
@@ -447,7 +456,7 @@ export default function AdminPage() {
         <p className="mb-3 text-[13px] font-semibold text-white">🔗 Liens rapides</p>
         <div className="grid gap-2 sm:grid-cols-2">
           {QUICK_LINKS.map((l) => (
-            <div key={l.url} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3.5 py-2.5">
+            <div key={l.url} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3.5 py-2.5">
               <span className="text-[18px]">{l.emoji}</span>
               <div className="min-w-0 flex-1">
                 <p className="text-[12.5px] font-semibold text-white">{l.label}</p>
@@ -543,7 +552,7 @@ export default function AdminPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-xl border border-white/[0.06] bg-white/[0.03] p-1 w-fit">
+      <div className="flex w-fit max-w-full flex-wrap gap-1 rounded-xl border border-white/[0.06] bg-white/[0.03] p-1">
         <button
           onClick={() => setTab("restaurants")}
           className={`rounded-lg px-4 py-2 text-[13px] font-medium transition-colors ${
@@ -594,7 +603,59 @@ export default function AdminPage() {
 
       {/* Restaurants Tab */}
       {tab === "restaurants" && (
-        <div className="overflow-x-auto rounded-2xl border border-white/[0.06] bg-white/[0.03]">
+        <>
+        <div className="space-y-2.5 md:hidden">
+          {users.map((u) => {
+            const planStyle = PLAN_STYLE[u.plan] ?? PLAN_STYLE.starter;
+            return (
+              <div key={u.id} className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-[14px] font-semibold text-white">{u.storeName}</p>
+                    <p className="truncate text-[12px] text-slate-400">{u.email}</p>
+                  </div>
+                  <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${planStyle.class}`}>
+                    {planStyle.label}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-white/[0.06] pt-3 text-center">
+                  <div>
+                    <p className="text-[15px] font-bold text-white">{u.clients}</p>
+                    <p className="text-[10.5px] uppercase tracking-wide text-slate-500">clients</p>
+                  </div>
+                  <div>
+                    <p className="text-[15px] font-bold text-white">{u.loyaltyCards}</p>
+                    <p className="text-[10.5px] uppercase tracking-wide text-slate-500">cartes</p>
+                  </div>
+                  <div>
+                    <p className="text-[15px] font-bold text-green-400">{formatEuros(u.monthlyRevenue)} €</p>
+                    <p className="text-[10.5px] uppercase tracking-wide text-slate-500">/ mois</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-[11.5px] text-slate-500">
+                  {u.phone && <span>{u.phone}</span>}
+                  {u.city && <span>· {u.city}</span>}
+                  <span>· inscrit le {formatDate(u.createdAt)}</span>
+                  {u.daysLeft !== null && u.plan === "free" && (
+                    <span className={u.daysLeft <= 0 ? "text-red-400" : u.daysLeft <= 10 ? "text-amber-400" : "text-emerald-400"}>
+                      · {u.daysLeft <= 0 ? "essai expiré" : `essai J-${u.daysLeft}`}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleAccess(u.id)}
+                  disabled={impersonating === u.id}
+                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] py-2.5 text-[12.5px] font-medium text-slate-300 transition-colors hover:border-green-500/30 hover:bg-green-600/20 hover:text-green-300 disabled:opacity-40"
+                >
+                  {impersonating === u.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogIn className="h-3.5 w-3.5" />}
+                  Accéder au compte
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="hidden overflow-x-auto rounded-2xl border border-white/[0.06] bg-white/[0.03] md:block">
           <div className="border-b border-white/[0.06] px-6 py-4 flex items-center justify-between">
             <h2 className="text-[14px] font-semibold text-white">Abonnés</h2>
             <span className="text-[12px] text-slate-500">MRR total : <span className="font-bold text-green-400">{formatEuros(mrr)} €/mois</span></span>
@@ -712,6 +773,7 @@ export default function AdminPage() {
             </table>
           )}
         </div>
+        </>
       )}
 
       {/* Clients Tab */}
