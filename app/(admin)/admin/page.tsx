@@ -46,6 +46,16 @@ const PLAN_STYLE: Record<PlanId, { label: string; class: string }> = {
   business: { label: "◆ Business", class: "bg-violet-500/10 text-violet-400" },
 };
 
+/**
+ * Montant en euros, à deux décimales.
+ *
+ * Les prix sont additionnés en virgule flottante : 9,99 + 39,99 donne
+ * 49.980000000000004, qui s'affichait tel quel. On arrondit au centime.
+ */
+function formatEuros(amount: number): string {
+  return amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
 }
@@ -526,7 +536,7 @@ export default function AdminPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={Euro}       label="MRR"              value={`${mrr} €`}      sub="Revenu mensuel récurrent" color="#34d399" />
+        <StatCard icon={Euro}       label="MRR"              value={`${formatEuros(mrr)} €`}      sub="Revenu mensuel récurrent" color="#34d399" />
         <StatCard icon={Store}      label="Abonnés"          value={users.length}     sub={`${users.filter(u=>u.plan==="pro").length} Pro · ${users.filter(u=>u.plan==="business").length} Business · ${users.filter(u=>u.plan==="free" && (u.daysLeft ?? 1) > 0).length} en essai`} color="#60a5fa" />
         <StatCard icon={Users}      label="Clients total"    value={totalClients}     sub="Toutes enseignes" color="#f59e0b" />
         <StatCard icon={CreditCard} label="Cartes créées"    value={totalCards}       sub="Programmes de fidélité" color="#a78bfa" />
@@ -584,10 +594,10 @@ export default function AdminPage() {
 
       {/* Restaurants Tab */}
       {tab === "restaurants" && (
-        <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.03]">
+        <div className="overflow-x-auto rounded-2xl border border-white/[0.06] bg-white/[0.03]">
           <div className="border-b border-white/[0.06] px-6 py-4 flex items-center justify-between">
             <h2 className="text-[14px] font-semibold text-white">Abonnés</h2>
-            <span className="text-[12px] text-slate-500">MRR total : <span className="font-bold text-green-400">{mrr} €/mois</span></span>
+            <span className="text-[12px] text-slate-500">MRR total : <span className="font-bold text-green-400">{formatEuros(mrr)} €/mois</span></span>
           </div>
 
           {loading ? (
@@ -642,7 +652,7 @@ export default function AdminPage() {
                         )}
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className="text-[13px] font-bold text-green-400">{u.monthlyRevenue} €</span>
+                        <span className="text-[13px] font-bold text-green-400">{formatEuros(u.monthlyRevenue)} €</span>
                       </td>
                       <td className="px-5 py-3.5 text-[13px] font-medium text-white">{u.clients}</td>
                       <td className="px-5 py-3.5 text-[13px] text-slate-400">{u.loyaltyCards}</td>
@@ -692,7 +702,7 @@ export default function AdminPage() {
               <tfoot>
                 <tr className="border-t border-white/[0.08] bg-white/[0.02]">
                   <td colSpan={5} className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total</td>
-                  <td className="px-5 py-3 text-[13px] font-bold text-green-400">{mrr} €</td>
+                  <td className="px-5 py-3 text-[13px] font-bold text-green-400">{formatEuros(mrr)} €</td>
                   <td className="px-5 py-3 text-[13px] font-bold text-white">{totalClients}</td>
                   <td className="px-5 py-3 text-[13px] font-bold text-white">{totalCards}</td>
                   <td />
@@ -706,7 +716,7 @@ export default function AdminPage() {
 
       {/* Clients Tab */}
       {tab === "clients" && (
-        <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.03]">
+        <div className="overflow-x-auto rounded-2xl border border-white/[0.06] bg-white/[0.03]">
           <div className="border-b border-white/[0.06] px-6 py-4 flex items-center justify-between">
             <h2 className="text-[14px] font-semibold text-white">Clients fidélité</h2>
             <span className="text-[12px] text-slate-500">{clients.length} client{clients.length > 1 ? "s" : ""}</span>
@@ -802,7 +812,7 @@ export default function AdminPage() {
 
       {/* Erreurs Tab */}
       {tab === "errors" && (
-        <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.03]">
+        <div className="overflow-x-auto rounded-2xl border border-white/[0.06] bg-white/[0.03]">
           <div className="border-b border-white/[0.06] px-6 py-4 flex items-center justify-between">
             <h2 className="text-[14px] font-semibold text-white">Erreurs système</h2>
             <span className="text-[12px] text-slate-500">
