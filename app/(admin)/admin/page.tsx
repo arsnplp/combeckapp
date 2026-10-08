@@ -438,6 +438,10 @@ export default function AdminPage() {
           <p className="mt-0.5 text-[13px] text-slate-400">Vue globale de tous les abonnés Comeback</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <a href="/admin/relances"
+            className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[12px] text-slate-400 hover:text-white transition-colors">
+            📣 Relances
+          </a>
           <a href="/admin/affilies"
             className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[12px] text-slate-400 hover:text-white transition-colors">
             🤝 Affiliation
