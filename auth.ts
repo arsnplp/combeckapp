@@ -6,6 +6,42 @@ import { authConfig } from "./auth.config";
 import { getUserByEmail, getUserById, createUserFromGoogle } from "@/lib/users";
 import { consumeImpersonateToken } from "@/lib/impersonate-tokens";
 import { checkRateLimit, getIp } from "@/lib/rate-limit";
+import { timingSafeEqual } from "crypto";
+
+/**
+ * Comptes super-admin, déclarés en variables d'environnement.
+ *
+ * Le premier utilise ADMIN_EMAIL / ADMIN_PASSWORD, les suivants ajoutent un
+ * suffixe : ADMIN_EMAIL_2 / ADMIN_PASSWORD_2, _3, etc. Des paires numérotées
+ * plutôt qu'une liste à parser : un mot de passe peut contenir n'importe quel
+ * caractère, y compris le séparateur qu'on aurait choisi.
+ *
+ * Tous ouvrent la même identité (`id: "admin"`) : le reste de l'app reconnaît
+ * l'administrateur à cet identifiant, et l'email réel est conservé dans la
+ * session pour savoir lequel s'est connecté.
+ */
+function adminAccounts(): Array<{ email: string; password: string }> {
+  const accounts: Array<{ email: string; password: string }> = [];
+  for (const suffix of ["", "_2", "_3", "_4", "_5"]) {
+    const email = process.env[`ADMIN_EMAIL${suffix}`]?.trim().toLowerCase();
+    const password = process.env[`ADMIN_PASSWORD${suffix}`]?.trim();
+    if (email && password) accounts.push({ email, password });
+  }
+  return accounts;
+}
+
+/**
+ * Comparaison à durée constante : une comparaison `!==` classique s'arrête au
+ * premier caractère différent, ce qui laisse mesurer la progression d'une
+ * tentative. Les longueurs sont comparées à part car `timingSafeEqual` exige
+ * des tampons de même taille.
+ */
+function passwordMatches(given: string, expected: string): boolean {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -53,11 +89,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const password = credentials?.password as string ?? "";
         if (!email || !password) return null;
 
-        // Admin via env vars
-        if (email === process.env.ADMIN_EMAIL?.trim().toLowerCase()) {
-          const adminPass = process.env.ADMIN_PASSWORD?.trim();
-          if (!adminPass || password !== adminPass) return null;
-          return { id: "admin", email, name: "Super Admin" };
+        // Admin via variables d'environnement (un ou plusieurs comptes)
+        const adminAccount = adminAccounts().find((a) => a.email === email);
+        if (adminAccount) {
+          if (!passwordMatches(password, adminAccount.password)) return null;
+          return { id: "admin", email: adminAccount.email, name: "Super Admin" };
         }
 
         // Utilisateurs normaux
