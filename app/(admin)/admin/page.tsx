@@ -687,37 +687,38 @@ export default function AdminPage() {
                           <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-green-600/20 text-[10px] font-bold text-green-400">
                             {initials}
                           </div>
-                          <span className="text-[13px] font-medium text-white">{u.storeName}</span>
+                          <span className="whitespace-nowrap text-[13px] font-medium text-white">{u.storeName}</span>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-[13px] text-slate-400">{u.email}</td>
-                      <td className="px-5 py-3.5 text-[13px] text-slate-400">{u.phone || "—"}</td>
-                      <td className="px-5 py-3.5 text-[13px] text-slate-400">{u.city || "—"}</td>
-                      <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${planStyle.class}`}>
-                          {planStyle.label}
-                        </span>
-                        {u.plan === "free" && u.daysLeft !== null && (
-                          <span className={`ml-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${
+                      <td className="whitespace-nowrap px-5 py-3.5 text-[13px] text-slate-400">{u.email}</td>
+                      <td className="whitespace-nowrap px-5 py-3.5 text-[13px] text-slate-400">{u.phone || "—"}</td>
+                      <td className="whitespace-nowrap px-5 py-3.5 text-[13px] text-slate-400">{u.city || "—"}</td>
+                      <td className="whitespace-nowrap px-5 py-3.5">
+                        {u.plan === "free" && u.daysLeft !== null ? (
+                          <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                             u.daysLeft <= 0 ? "bg-red-500/10 text-red-400"
                             : u.daysLeft <= 10 ? "bg-amber-500/10 text-amber-400"
                             : "bg-emerald-500/10 text-emerald-400"
                           }`}>
-                            {u.daysLeft <= 0 ? "Essai expiré" : `J-${u.daysLeft}`}
+                            {u.daysLeft <= 0 ? "Essai expiré" : `Essai · J-${u.daysLeft}`}
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${planStyle.class}`}>
+                            {planStyle.label}
                           </span>
                         )}
                         {u.plan !== "free" && u.daysLeft !== null && u.daysLeft <= 7 && (
-                          <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-amber-400">
+                          <span className="ml-1.5 inline-flex items-center whitespace-nowrap rounded-full bg-amber-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-amber-400">
                             expire J-{Math.max(u.daysLeft, 0)}
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="whitespace-nowrap px-5 py-3.5">
                         <span className="text-[13px] font-bold text-green-400">{formatEuros(u.monthlyRevenue)} €</span>
                       </td>
                       <td className="px-5 py-3.5 text-[13px] font-medium text-white">{u.clients}</td>
                       <td className="px-5 py-3.5 text-[13px] text-slate-400">{u.loyaltyCards}</td>
-                      <td className="px-5 py-3.5 text-[12px] text-slate-500">{formatDate(u.createdAt)}</td>
+                      <td className="whitespace-nowrap px-5 py-3.5 text-[12px] text-slate-500">{formatDate(u.createdAt)}</td>
                       <td className="px-4 py-3.5">
                         <div className="flex flex-col gap-1.5 items-start">
                           <button
