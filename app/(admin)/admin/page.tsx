@@ -428,23 +428,23 @@ export default function AdminPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-amber-400">Super Admin</p>
           <h1 className="mt-1 text-[26px] font-bold text-white">Tableau de bord</h1>
           <p className="mt-0.5 text-[13px] text-slate-400">Vue globale de tous les abonnés Comeback</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <a href="/admin/affilies"
-            className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[12px] text-slate-400 hover:text-white transition-colors">
+            className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[12px] text-slate-400 hover:text-white transition-colors">
             🤝 Affiliation
           </a>
           <a href="/admin/promos"
-            className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[12px] text-slate-400 hover:text-white transition-colors">
+            className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[12px] text-slate-400 hover:text-white transition-colors">
             🎟️ Codes promo
           </a>
           <button onClick={() => { load(true); if (tab === "clients") loadClients(); }} disabled={refreshing}
-            className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[12px] text-slate-400 hover:text-white transition-colors disabled:opacity-50">
+            className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[12px] text-slate-400 hover:text-white transition-colors disabled:opacity-50">
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
             Actualiser
           </button>

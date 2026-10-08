@@ -19,15 +19,15 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   return (
     <div className="min-h-screen bg-slate-950">
       {/* Admin topbar */}
-      <header className="flex h-12 items-center justify-between border-b border-white/10 bg-slate-900 px-6">
-        <div className="flex items-center gap-3">
+      <header className="flex h-12 items-center justify-between gap-2 border-b border-white/10 bg-slate-900 px-3 sm:px-6">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-dark.png" alt="Comeback" className="h-5 w-auto object-contain" />
-          <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-400">
+          <span className="flex flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-400">
             <Shield className="h-2.5 w-2.5" /> Super Admin
           </span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-shrink-0 items-center gap-3 sm:gap-4">
           <Link href="/admin" className="text-[12px] text-slate-400 hover:text-white transition-colors">
             Dashboard
           </Link>
