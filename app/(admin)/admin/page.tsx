@@ -424,6 +424,9 @@ export default function AdminPage() {
       return sortDesc ? -diff : diff;
     });
   const selectedConversation = conversations.find((c) => c.merchantId === selectedMerchant) ?? null;
+  // Fiche du commerçant qui écrit, prise dans la liste déjà chargée —
+  // pas d'appel supplémentaire pour afficher son plan et ses chiffres.
+  const selectedUser = users.find((u) => u.id === selectedMerchant) ?? null;
 
   return (
     <div className="space-y-8">
@@ -561,7 +564,7 @@ export default function AdminPage() {
               : "text-slate-400 hover:text-white"
           }`}
         >
-          Restaurants
+          Commerces
         </button>
         <button
           onClick={() => setTab("clients")}
@@ -992,8 +995,28 @@ export default function AdminPage() {
             ) : (
               <>
                 <div className="border-b border-white/[0.06] px-5 py-3.5">
-                  <p className="text-[13.5px] font-semibold text-white">{selectedConversation.storeName}</p>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <p className="text-[13.5px] font-semibold text-white">{selectedConversation.storeName}</p>
+                    {selectedUser && (
+                      <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${
+                        (PLAN_STYLE[selectedUser.plan] ?? PLAN_STYLE.starter).class
+                      }`}>
+                        {(PLAN_STYLE[selectedUser.plan] ?? PLAN_STYLE.starter).label}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11.5px] text-slate-500">{selectedConversation.email}</p>
+                  {/* Contexte du commerçant, repris de la liste déjà chargée :
+                      savoir à qui on parle et ce qu'il a avant de répondre. */}
+                  {selectedUser && (
+                    <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
+                      {selectedUser.phone && <span>📞 {selectedUser.phone}</span>}
+                      {selectedUser.city && <span>📍 {selectedUser.city}</span>}
+                      <span>👥 {selectedUser.clients} client{selectedUser.clients > 1 ? "s" : ""}</span>
+                      <span>🎟️ {selectedUser.loyaltyCards} carte{selectedUser.loyaltyCards > 1 ? "s" : ""}</span>
+                      <span>inscrit le {formatDate(selectedUser.createdAt)}</span>
+                    </p>
+                  )}
                 </div>
                 <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
                   {loadingThread ? (
