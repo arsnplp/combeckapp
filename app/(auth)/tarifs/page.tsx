@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Star, Gift, Loader2 } from "lucide-react";
+import { Check, Star, Gift, Loader2, Lock } from "lucide-react";
 
 const PLANS = [
   {
@@ -67,6 +67,9 @@ export default function TarifsPage() {
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
+  // État de l'essai, renvoyé par le serveur : disponible, en cours ou utilisé.
+  const [trial, setTrial] = useState<{ status: string; daysLeft?: number } | null>(null);
+  const [trialLoading, setTrialLoading] = useState(false);
   const [paying, setPaying] = useState<string | null>(null);
   const [payError, setPayError] = useState("");
 
@@ -77,7 +80,25 @@ export default function TarifsPage() {
         if (d?.plan) { setLoggedIn(true); setCurrentPlan(d.plan); setTrialDaysLeft(d.daysLeft ?? null); }
       })
       .catch(() => {});
+    fetch("/api/billing/trial")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setTrial(d))
+      .catch(() => {});
   }, []);
+
+  /** Démarre l'essai : session Stripe avec carte, 0 € aujourd'hui. */
+  const startTrial = async () => {
+    if (trialLoading) return;
+    setTrialLoading(true);
+    setPayError("");
+    try {
+      const res = await fetch("/api/billing/trial", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.url) { window.location.href = data.url; return; }
+      setPayError(data?.error ?? "Impossible de démarrer l'essai.");
+    } catch { setPayError("Erreur réseau."); }
+    setTrialLoading(false);
+  };
 
   const checkout = async (planId: string) => {
     if (paying) return;
@@ -128,15 +149,19 @@ export default function TarifsPage() {
           Fidélisez vos clients avec des cartes Apple Wallet et Google Wallet. Sans engagement, résiliable à tout moment.
         </p>
 
-        {/* Essai gratuit — toujours visible pour les nouveaux */}
-        {!loggedIn && (
+        {/* Essai gratuit — visible en permanence, dans ses trois états.
+            Auparavant le bloc était conditionné à `!loggedIn` : il
+            s'affichait le temps que la page découvre la session, puis
+            disparaissait. Un commerçant connecté ne voyait donc jamais s'il
+            lui restait un essai à prendre. */}
+        {!loggedIn ? (
           <div className="mx-auto mt-7 max-w-lg rounded-2xl border-2 border-dashed border-green-300 bg-green-50/70 p-5">
             <div className="flex items-center justify-center gap-2">
               <Gift className="h-5 w-5 text-green-600" />
               <p className="text-[15px] font-bold text-green-900">Nouveau sur ComeBack ?</p>
             </div>
             <p className="mt-1 text-[13px] text-green-800/70">
-              <strong>30 jours gratuits avec toutes les fonctionnalités du plan Business</strong> — sans carte bancaire, sans engagement.
+              <strong>30 jours avec toutes les fonctionnalités du plan Business</strong> — 0 € aujourd&apos;hui, sans engagement.
             </p>
             <Link
               href="/signup?plan=free"
@@ -145,19 +170,42 @@ export default function TarifsPage() {
               Commencer l&apos;essai gratuit
             </Link>
           </div>
-        )}
-
-        {/* Compte en essai gratuit : rappel des jours restants */}
-        {loggedIn && currentPlan === "free" && (
+        ) : trial?.status === "available" ? (
+          <div className="mx-auto mt-7 max-w-lg rounded-2xl border-2 border-dashed border-green-300 bg-green-50/70 p-5">
+            <div className="flex items-center justify-center gap-2">
+              <Gift className="h-5 w-5 text-green-600" />
+              <p className="text-[15px] font-bold text-green-900">Votre essai Business vous attend</p>
+            </div>
+            <p className="mt-1 text-[13px] text-green-800/70">
+              30 jours toutes fonctionnalités débloquées. <strong>0 € aujourd&apos;hui</strong> — la carte
+              est demandée pour la suite, puis Business à 39,99 € / mois TTC. Résiliable avant.
+            </p>
+            <button
+              onClick={startTrial}
+              disabled={trialLoading}
+              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-green-600 px-6 py-3 text-[14px] font-bold text-white shadow-lg shadow-green-600/20 transition-all hover:bg-green-700 active:scale-[0.98] disabled:opacity-60"
+            >
+              {trialLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gift className="h-4 w-4" />}
+              Activer l&apos;essai
+            </button>
+          </div>
+        ) : trial?.status === "active" ? (
           <div className="mx-auto mt-7 max-w-lg rounded-2xl border border-green-200 bg-green-50 px-5 py-3.5">
             <p className="text-[13.5px] text-green-800">
               <Gift className="mr-1.5 inline h-4 w-4 align-[-2px]" />
-              {trialDaysLeft !== null
-                ? <>Vous êtes en essai gratuit — <strong>{trialDaysLeft} jour{trialDaysLeft > 1 ? "s" : ""} restant{trialDaysLeft > 1 ? "s" : ""}</strong>. Choisissez un plan pour continuer ensuite.</>
-                : <>Vous êtes en essai gratuit. Choisissez un plan pour continuer ensuite.</>}
+              <strong>Essai Business en cours</strong>
+              {typeof trial.daysLeft === "number" && <> — {trial.daysLeft} jour{trial.daysLeft > 1 ? "s" : ""} restant{trial.daysLeft > 1 ? "s" : ""}</>}.
+              Choisissez un plan pour la suite.
             </p>
           </div>
-        )}
+        ) : trial?.status === "used" ? (
+          <div className="mx-auto mt-7 max-w-lg rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3.5">
+            <p className="text-[13px] text-slate-500">
+              <Lock className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]" />
+              <strong className="font-semibold text-slate-600">Essai gratuit déjà utilisé.</strong> Il n&apos;est proposé qu&apos;une fois par commerce.
+            </p>
+          </div>
+        ) : null}
 
         {/* Toggle mensuel / annuel */}
         <div className="mt-7 inline-flex items-center rounded-xl bg-slate-100 p-1">
