@@ -59,7 +59,8 @@ function SignupForm() {
     if (!isValidPhone(trimmedPhone)) { setError("Numéro de téléphone invalide."); return; }
     setLoading(true);
     try {
-      // Essai gratuit → route dédiée (30 jours d'expiration) ; payant → signup classique
+      // Essai gratuit → route dédiée (compte Starter, email vérifié d'office,
+      // l'essai Business est ensuite démarré via Stripe) ; payant → signup classique
       const endpoint = plan === "free" ? "/api/auth/free-trial" : "/api/auth/signup";
       const res = await fetch(endpoint, {
         method: "POST",
@@ -71,7 +72,17 @@ function SignupForm() {
       const signInRes = await signIn("credentials", { email: trimmedEmail, password, redirect: false });
       if (signInRes?.error) { setError("Compte créé mais erreur de connexion."); setLoading(false); return; }
 
+      // Essai : on enchaîne directement sur Stripe pour la carte. Rien n'est
+      // prélevé aujourd'hui ; c'est cette carte qui permettra à l'abonnement
+      // de se poursuivre au 30e jour sans redemander quoi que ce soit.
+      // Si Stripe est indisponible ou si le commerçant ferme la page, il
+      // garde son compte Starter et retrouvera l'essai sur /tarifs.
       if (plan === "free") {
+        try {
+          const tr = await fetch("/api/billing/trial", { method: "POST" });
+          const trData = await tr.json();
+          if (tr.ok && trData.url) { window.location.href = trData.url; return; }
+        } catch { /* on continue vers le dashboard */ }
         router.push("/dashboard");
         router.refresh();
         return;
@@ -115,7 +126,7 @@ function SignupForm() {
             </h2>
             <p className="mt-3 text-[14px] leading-relaxed text-slate-400">
               {plan === "free"
-                ? "Gratuit 30 jours · Toutes les fonctionnalités Business · Sans carte bancaire"
+                ? "30 jours · Toutes les fonctionnalités Business · 0 € aujourd'hui, carte demandée"
                 : plan === "starter"
                   ? "Gratuit à vie · 30 clients maximum · Sans carte bancaire"
                   : billingCycle === "annual"
@@ -240,8 +251,19 @@ function SignupForm() {
             <button type="submit" disabled={loading}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60">
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {loading ? "Création du compte…" : "Créer mon compte"}
+              {loading ? "Création du compte…" : plan === "free" ? "Continuer" : "Créer mon compte"}
             </button>
+
+            {/* Le commerçant doit savoir qu'une page de paiement suit, sinon
+                l'arrivée sur Stripe ressemble à une demande de paiement. */}
+            {plan === "free" && (
+              <p className="text-center text-[12px] leading-relaxed text-slate-500">
+                Étape suivante : votre carte, pour que l&apos;essai se poursuive sans coupure.
+                <br />
+                <strong className="font-semibold text-slate-600">0 € prélevé aujourd&apos;hui.</strong>{" "}
+                Résiliable en un clic avant le 30<sup>e</sup> jour.
+              </p>
+            )}
           </form>
 
           <p className="mt-6 text-center text-[13px] text-slate-500">

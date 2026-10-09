@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     const sb = supabase();
     const { data: merchant } = await sb
       .from("merchants")
-      .select("id, email, stripe_customer_id")
+      .select("id, email, stripe_customer_id, plan, plan_expires_at")
       .eq("id", merchantId)
       .maybeSingle();
     if (!merchant) return NextResponse.json({ error: "Compte non trouvé." }, { status: 404 });
@@ -78,8 +78,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Vous avez déjà un abonnement en cours." }, { status: 409 });
     }
 
+    // Comptes créés avant le passage à l'essai avec carte : ils sont sur le
+    // plan « free », un essai de 30 jours sans carte déjà entamé. Leur en
+    // ouvrir un second ferait 60 jours gratuits. On reprend donc le temps
+    // qu'il leur reste au lieu de repartir de zéro — ils ne perdent rien,
+    // leur accès se prolonge simplement jusqu'à la date déjà promise.
+    let trialDays = TRIAL_DAYS;
+    if (merchant.plan === "free" && merchant.plan_expires_at) {
+      const left = Math.ceil((new Date(merchant.plan_expires_at).getTime() - Date.now()) / 86400_000);
+      // Stripe refuse un essai de moins d'un jour.
+      trialDays = Math.min(TRIAL_DAYS, Math.max(1, left));
+    }
+
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.getcomeback.fr";
-    const metadata = { merchantId: merchant.id, plan: TRIAL_PLAN, billingCycle: "monthly", trial: "1" };
+    const metadata = { merchantId: merchant.id, plan: TRIAL_PLAN, billingCycle: "monthly", trial: "1", trialDays: String(trialDays) };
 
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -94,7 +106,7 @@ export async function POST(req: NextRequest) {
       // « forever » à -50 % réduit donc aussi tous les prélèvements suivants.
       allow_promotion_codes: true,
       subscription_data: {
-        trial_period_days: TRIAL_DAYS,
+        trial_period_days: trialDays,
         metadata,
         ...(process.env.STRIPE_TAX_RATE_ID ? { default_tax_rates: [process.env.STRIPE_TAX_RATE_ID] } : {}),
       },

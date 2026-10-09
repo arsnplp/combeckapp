@@ -75,7 +75,8 @@ export async function POST(req: NextRequest) {
         // paiement ne doit rien consommer.
         if (merchantId && session.metadata?.trial === "1") {
           try {
-            await markTrialUsed(merchantId);
+            const trialDays = Number(session.metadata?.trialDays);
+            await markTrialUsed(merchantId, Number.isFinite(trialDays) && trialDays > 0 ? trialDays : undefined);
             console.log(`[webhook] Essai gratuit démarré pour ${merchantId}`);
           } catch (e) {
             console.error("[webhook] marquage essai", e);

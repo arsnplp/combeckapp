@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Créer le compte gratuit
-    const { id, plan_expires_at } = await createFreeTrial(normalized);
+    const { id } = await createFreeTrial(normalized);
     const passwordHash = await bcrypt.hash(password, 12);
     const verificationToken = randomBytes(32).toString("hex");
 
@@ -56,8 +56,14 @@ export async function POST(req: NextRequest) {
       store_name: storeName.trim(),
       city: city?.trim() ?? "",
       phone: String(phone).trim(),
-      plan: "free",
-      plan_expires_at,
+      // Le compte naît sur Starter, gratuit à vie. L'essai de 30 jours au
+      // niveau Business n'est plus accordé ici : il passe désormais par
+      // Stripe avec saisie de carte (0 € prélevé), que la page d'inscription
+      // enchaîne juste après. Abandonner cette page ne coûte donc rien au
+      // commerçant — il garde un compte utilisable et pourra activer l'essai
+      // plus tard depuis la page des plans.
+      plan: "starter",
+      plan_expires_at: null,
       created_at: new Date().toISOString(),
       email_verified: true, // essai gratuit = vérifié auto
       is_admin: false,
@@ -77,8 +83,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       userId: id,
       email: normalized,
-      plan: "free",
-      plan_expires_at,
+      plan: "starter",
       redirect: "/dashboard",
     });
   } catch (e) {

@@ -54,11 +54,15 @@ export async function getTrialState(merchantId: string): Promise<TrialState> {
  * l'abonnement d'essai est bien créé — pas à l'ouverture de la page de
  * paiement : ouvrir puis abandonner ne doit rien consommer.
  *
+ * `days` est la durée réellement accordée par Stripe. Elle peut être
+ * inférieure à TRIAL_DAYS pour un compte qui avait déjà entamé l'ancien
+ * essai sans carte : on ne lui ajoute pas 30 jours par-dessus.
+ *
  * Ça n'ouvre pas la porte à un second essai : une fois cette date posée,
  * `getTrialState` renvoie « utilisé » définitivement.
  */
-export async function markTrialUsed(merchantId: string): Promise<void> {
-  const endsAt = new Date(Date.now() + TRIAL_DAYS * 86400_000);
+export async function markTrialUsed(merchantId: string, days = TRIAL_DAYS): Promise<void> {
+  const endsAt = new Date(Date.now() + days * 86400_000);
   await supabase()
     .from("merchants")
     .update({ trial_used_at: new Date().toISOString(), trial_ends_at: endsAt.toISOString() })
