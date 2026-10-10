@@ -14,11 +14,31 @@ interface TenantUser {
   city: string;
   phone: string;
   plan: PlanId;
+  /** Ce qui est réellement encaissé chaque mois (remises déduites). */
   monthlyRevenue: number;
+  /** Le même montant sans remise, pour montrer l'écart. */
+  monthlyFull: number;
+  revenueStatus: "payant" | "essai" | "impayé" | "estimé" | "aucun";
+  discountLabel: string | null;
+  billingInterval: "month" | "year" | null;
   createdAt: string;
   clients: number;
   cards: number;
   loyaltyCards: number;
+}
+
+/** Totaux calculés sur les abonnements Stripe, pas sur les prix catalogue. */
+interface RevenueTotals {
+  /** Encaissé chaque mois, essais exclus. */
+  mrr: number;
+  /** Ce que rapporteraient les essais en cours s'ils se convertissent. */
+  trial: number;
+  /** Abonnements en échec de paiement. */
+  unpaid: number;
+  /** Manque à gagner mensuel dû aux codes promo récurrents. */
+  discounts: number;
+  /** Part du MRR estimée faute d'abonnement Stripe. */
+  estimated: number;
 }
 
 interface ClientCard {
@@ -74,6 +94,56 @@ function StatCard({ icon: Icon, label, value, sub, color }: {
       <p className="text-[28px] font-bold text-white leading-none">{value}</p>
       {sub && <p className="mt-1 text-[11px] text-slate-500">{sub}</p>}
     </div>
+  );
+}
+
+/**
+ * Montant encaissé pour un commerçant.
+ *
+ * Un chiffre seul mentirait : 39,99 € affichés en vert pour un essai
+ * laissent croire à un encaissement qui n'a pas lieu, et un code promo
+ * disparaît complètement. L'état et l'écart au prix catalogue sont donc
+ * affichés avec le montant.
+ */
+function Revenue({ u, size = "sm" }: { u: TenantUser; size?: "sm" | "md" }) {
+  const amount = `${formatEuros(u.monthlyRevenue)} €`;
+  const big = size === "md" ? "text-[15px]" : "text-[13px]";
+
+  if (u.revenueStatus === "essai") {
+    return (
+      <span className="whitespace-nowrap">
+        <span className={`${big} font-bold text-amber-400`}>Essai</span>
+        <span className="ml-1 text-[11px] text-slate-500">puis {amount}</span>
+      </span>
+    );
+  }
+  if (u.revenueStatus === "impayé") {
+    return (
+      <span className="whitespace-nowrap">
+        <span className={`${big} font-bold text-red-400`}>{amount}</span>
+        <span className="ml-1 text-[11px] text-red-400/70">impayé</span>
+      </span>
+    );
+  }
+  if (u.monthlyRevenue === 0) {
+    return <span className={`${big} font-bold text-slate-500`}>{amount}</span>;
+  }
+  return (
+    <span className="whitespace-nowrap">
+      <span className={`${big} font-bold text-green-400`}>{amount}</span>
+      {u.discountLabel && (
+        <>
+          <span className="ml-1 text-[11px] text-slate-500 line-through">{formatEuros(u.monthlyFull)} €</span>
+          <span className="ml-1 text-[11px] font-medium text-violet-300">{u.discountLabel}</span>
+        </>
+      )}
+      {u.billingInterval === "year" && (
+        <span className="ml-1 text-[11px] text-slate-500">annuel</span>
+      )}
+      {u.revenueStatus === "estimé" && (
+        <span className="ml-1 text-[11px] text-slate-500" title="Aucun abonnement Stripe : montant estimé sur le prix du plan">estimé</span>
+      )}
+    </span>
   );
 }
 
@@ -178,6 +248,7 @@ const ROW_LABELS: Record<string, string> = {
 export default function AdminPage() {
   const [tab, setTab] = useState<"restaurants" | "clients" | "errors" | "messages">("restaurants");
   const [users, setUsers] = useState<TenantUser[]>([]);
+  const [totals, setTotals] = useState<RevenueTotals | null>(null);
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [systemErrors, setSystemErrors] = useState<SystemErrorItem[]>([]);
   const [loadingErrors, setLoadingErrors] = useState(false);
@@ -355,7 +426,8 @@ export default function AdminPage() {
     if (!silent) setLoading(true); else setRefreshing(true);
     const res = await fetch("/api/admin/users");
     const data = await res.json();
-    setUsers(data);
+    setUsers(data.users ?? []);
+    setTotals(data.totals ?? null);
     setLoading(false);
     setRefreshing(false);
   };
@@ -490,7 +562,9 @@ export default function AdminPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, selectedMerchant]);
 
-  const mrr          = users.reduce((s, u) => s + u.monthlyRevenue, 0);
+  // Les totaux viennent du serveur, qui les calcule sur Stripe. La somme
+  // locale ne sert que de secours tant que la première réponse n'est pas là.
+  const mrr          = totals?.mrr ?? users.reduce((s, u) => s + u.monthlyRevenue, 0);
   const totalClients = users.reduce((s, u) => s + u.clients, 0);
   const totalCards   = users.reduce((s, u) => s + u.loyaltyCards, 0);
 
@@ -633,8 +707,23 @@ export default function AdminPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={Euro}       label="MRR"              value={`${formatEuros(mrr)} €`}      sub="Revenu mensuel récurrent" color="#34d399" />
-        <StatCard icon={Store}      label="Abonnés"          value={users.length}     sub={`${users.filter(u=>u.plan==="pro").length} Pro · ${users.filter(u=>u.plan==="business").length} Business · ${users.filter(u=>u.plan==="free" && (u.daysLeft ?? 1) > 0).length} en essai`} color="#60a5fa" />
+        <StatCard
+          icon={Euro}
+          label="MRR"
+          value={`${formatEuros(mrr)} €`}
+          sub={
+            totals
+              ? [
+                  "Encaissé chaque mois",
+                  totals.trial > 0 ? `+ ${formatEuros(totals.trial)} € en essai` : null,
+                  totals.discounts > 0 ? `− ${formatEuros(totals.discounts)} € de remises` : null,
+                  totals.unpaid > 0 ? `${formatEuros(totals.unpaid)} € impayés` : null,
+                ].filter(Boolean).join(" · ")
+              : "Revenu mensuel récurrent"
+          }
+          color="#34d399"
+        />
+        <StatCard icon={Store}      label="Abonnés"          value={users.length}     sub={`${users.filter(u=>u.revenueStatus==="payant"||u.revenueStatus==="estimé").length} payants · ${users.filter(u=>u.revenueStatus==="essai").length} en essai · ${users.filter(u=>u.monthlyRevenue===0&&u.revenueStatus==="aucun").length} gratuits`} color="#60a5fa" />
         <StatCard icon={Users}      label="Clients total"    value={totalClients}     sub="Toutes enseignes" color="#f59e0b" />
         <StatCard icon={CreditCard} label="Cartes créées"    value={totalCards}       sub="Programmes de fidélité" color="#a78bfa" />
       </div>
@@ -716,7 +805,7 @@ export default function AdminPage() {
                     <p className="text-[10.5px] uppercase tracking-wide text-slate-500">cartes</p>
                   </div>
                   <div>
-                    <p className="text-[15px] font-bold text-green-400">{formatEuros(u.monthlyRevenue)} €</p>
+                    <Revenue u={u} size="md" />
                     <p className="text-[10.5px] uppercase tracking-wide text-slate-500">/ mois</p>
                   </div>
                 </div>
@@ -812,7 +901,7 @@ export default function AdminPage() {
                         )}
                       </td>
                       <td className="whitespace-nowrap px-5 py-3.5">
-                        <span className="text-[13px] font-bold text-green-400">{formatEuros(u.monthlyRevenue)} €</span>
+                        <Revenue u={u} />
                       </td>
                       <td className="px-5 py-3.5 text-[13px] font-medium text-white">{u.clients}</td>
                       <td className="px-5 py-3.5 text-[13px] text-slate-400">{u.loyaltyCards}</td>
