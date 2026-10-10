@@ -139,6 +139,42 @@ function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+/** Ce que la suppression d'un compte emporterait — renvoyé par l'API. */
+interface MerchantImpact {
+  merchantId: string;
+  storeName: string;
+  email: string;
+  plan: string;
+  rows: Record<string, number>;
+  totalRows: number;
+  stripeSubscription: { id: string; status: string; amount: number } | null;
+  requiresTyping: boolean;
+  isAdmin: boolean;
+}
+
+/** Noms lisibles des tables, pour l'écran de confirmation. */
+const ROW_LABELS: Record<string, string> = {
+  customers: "clients",
+  customer_cards: "cartes de clients",
+  loyalty_cards: "cartes de fidélité",
+  activities: "tampons et visites",
+  redemptions: "récompenses utilisées",
+  redemption_tokens: "jetons de récompense",
+  rewards: "récompenses configurées",
+  products: "produits",
+  notifications: "notifications",
+  recurring_notifications: "notifications automatiques",
+  notification_usage: "compteurs de notifications",
+  support_messages: "messages du SAV",
+  referrals: "parrainages",
+  affiliate_referrals: "rattachements affiliés",
+  employee_merchants: "rattachements d'employés",
+  employees: "comptes employés",
+  wallet_passes: "cartes Wallet",
+  wallet_registrations: "appareils enregistrés",
+  auth_tokens: "jetons de connexion",
+};
+
 export default function AdminPage() {
   const [tab, setTab] = useState<"restaurants" | "clients" | "errors" | "messages">("restaurants");
   const [users, setUsers] = useState<TenantUser[]>([]);
@@ -156,6 +192,13 @@ export default function AdminPage() {
   const [deletingClient, setDeletingClient] = useState<string | null>(null);
   const [certInfo, setCertInfo] = useState<CertInfo | null>(null);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+
+  // Suppression de compte commerçant
+  const [deleteTarget, setDeleteTarget] = useState<MerchantImpact | null>(null);
+  const [loadingImpact, setLoadingImpact] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   // Messages support
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -179,6 +222,44 @@ export default function AdminPage() {
     await navigator.clipboard.writeText(url);
     setCopiedLink(url);
     setTimeout(() => setCopiedLink(null), 1500);
+  };
+
+  /** Ouvre la confirmation après avoir demandé au serveur ce qui serait perdu. */
+  const askDelete = async (userId: string) => {
+    setLoadingImpact(userId);
+    setDeleteError("");
+    setDeleteConfirm("");
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`);
+      const data = await res.json();
+      if (!res.ok) { setDeleteError(data.error ?? "Impossible de lire ce compte."); setLoadingImpact(null); return; }
+      setDeleteTarget(data);
+    } catch {
+      setDeleteError("Erreur réseau.");
+    }
+    setLoadingImpact(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const res = await fetch(`/api/admin/users/${deleteTarget.merchantId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: deleteConfirm }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setDeleteError(data.error ?? "Suppression impossible."); setDeleting(false); return; }
+      setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.merchantId));
+      setDeleteTarget(null);
+      setDeleting(false);
+      load(true);
+    } catch {
+      setDeleteError("Erreur réseau.");
+      setDeleting(false);
+    }
   };
 
   const handleAccess = async (userId: string) => {
@@ -649,14 +730,24 @@ export default function AdminPage() {
                     </span>
                   )}
                 </div>
-                <button
-                  onClick={() => handleAccess(u.id)}
-                  disabled={impersonating === u.id}
-                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] py-2.5 text-[12.5px] font-medium text-slate-300 transition-colors hover:border-green-500/30 hover:bg-green-600/20 hover:text-green-300 disabled:opacity-40"
-                >
-                  {impersonating === u.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogIn className="h-3.5 w-3.5" />}
-                  Accéder au compte
-                </button>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => handleAccess(u.id)}
+                    disabled={impersonating === u.id}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] py-2.5 text-[12.5px] font-medium text-slate-300 transition-colors hover:border-green-500/30 hover:bg-green-600/20 hover:text-green-300 disabled:opacity-40"
+                  >
+                    {impersonating === u.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogIn className="h-3.5 w-3.5" />}
+                    Accéder au compte
+                  </button>
+                  <button
+                    onClick={() => askDelete(u.id)}
+                    disabled={loadingImpact === u.id}
+                    aria-label={`Supprimer ${u.storeName}`}
+                    className="flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] px-3.5 text-slate-400 transition-colors hover:border-red-500/30 hover:bg-red-600/20 hover:text-red-300 disabled:opacity-40"
+                  >
+                    {loadingImpact === u.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -761,6 +852,16 @@ export default function AdminPage() {
                               MDP
                             </button>
                           )}
+                          <button
+                            onClick={() => askDelete(u.id)}
+                            disabled={loadingImpact === u.id}
+                            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-medium text-slate-400 transition-colors hover:border-red-500/30 hover:bg-red-600/20 hover:text-red-300 disabled:opacity-40"
+                          >
+                            {loadingImpact === u.id
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <Trash2 className="h-3 w-3" />}
+                            Supprimer
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1061,6 +1162,101 @@ export default function AdminPage() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation de suppression. L'écran énumère ce qui disparaît :
+          sur un compte de test la liste est vide et un clic suffit, sur un
+          vrai commerce elle est longue et le nom doit être saisi. */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() => !deleting && setDeleteTarget(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-red-500/20 bg-[#0f1117] p-5 shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-red-500/15">
+                <Trash2 className="h-4 w-4 text-red-400" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-[15.5px] font-bold text-white">Supprimer {deleteTarget.storeName} ?</h3>
+                <p className="truncate text-[12.5px] text-slate-400">{deleteTarget.email}</p>
+              </div>
+            </div>
+
+            {deleteTarget.totalRows === 0 && !deleteTarget.stripeSubscription ? (
+              <p className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-[12.5px] text-slate-400">
+                Ce compte est vide : aucun client, aucune carte, aucun abonnement.
+                Rien d&apos;autre que le compte lui-même ne sera supprimé.
+              </p>
+            ) : (
+              <div className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Seront supprimés définitivement
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {Object.entries(deleteTarget.rows)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([table, n]) => (
+                      <li key={table} className="flex justify-between gap-3 text-[12.5px] text-slate-300">
+                        <span>{ROW_LABELS[table] ?? table}</span>
+                        <span className="font-semibold text-white">{n}</span>
+                      </li>
+                    ))}
+                </ul>
+                {deleteTarget.stripeSubscription && (
+                  <p className="mt-3 border-t border-white/[0.06] pt-3 text-[12.5px] text-amber-300">
+                    Abonnement Stripe {deleteTarget.stripeSubscription.status === "trialing" ? "en essai" : "actif"} à{" "}
+                    {deleteTarget.stripeSubscription.amount.toLocaleString("fr-FR")} € / mois : il sera annulé,
+                    plus aucun prélèvement n&apos;aura lieu.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {deleteTarget.requiresTyping && (
+              <div className="mt-4">
+                <label className="text-[12px] text-slate-400">
+                  Ce compte a de l&apos;historique. Saisissez{" "}
+                  <strong className="font-semibold text-white">{deleteTarget.storeName}</strong> pour confirmer.
+                </label>
+                <input
+                  value={deleteConfirm}
+                  onChange={(e) => setDeleteConfirm(e.target.value)}
+                  autoFocus
+                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-[13px] text-white outline-none placeholder:text-slate-600 focus:border-red-500/40"
+                  placeholder={deleteTarget.storeName}
+                />
+              </div>
+            )}
+
+            {deleteError && (
+              <p className="mt-3 rounded-xl bg-red-500/10 px-3 py-2 text-[12.5px] text-red-300">{deleteError}</p>
+            )}
+
+            <p className="mt-4 text-[11.5px] text-slate-500">Cette action est irréversible.</p>
+
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="flex-1 rounded-xl border border-white/10 bg-white/[0.05] py-2.5 text-[13px] font-medium text-slate-300 transition-colors hover:bg-white/[0.08] disabled:opacity-40"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleting || (deleteTarget.requiresTyping && deleteConfirm.trim() !== deleteTarget.storeName.trim())}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
+                {deleting ? "Suppression…" : "Supprimer définitivement"}
+              </button>
+            </div>
           </div>
         </div>
       )}
