@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, CreditCard, Store, Loader2, RefreshCw, Euro, LogIn, Key, Check, X, Trash2, ShieldAlert, ShieldCheck, AlertTriangle, Search, ArrowUpDown, Send, MessageCircle, Ban } from "lucide-react";
+import { Users, CreditCard, Store, Loader2, RefreshCw, Euro, LogIn, Key, Check, X, Trash2, ShieldAlert, ShieldCheck, AlertTriangle, Search, ArrowUpDown, Send, MessageCircle, Ban, RotateCcw } from "lucide-react";
 import { signIn } from "next-auth/react";
 import type { PlanId } from "@/types";
 
@@ -160,6 +160,12 @@ function Revenue({ u, size = "sm" }: { u: TenantUser; size?: "sm" | "md" }) {
   );
 }
 
+/** Y a-t-il quelque chose à arrêter — ou une résiliation à reprendre ? */
+function canUnsub(u: TenantUser): boolean {
+  return u.revenueStatus === "payant" || u.revenueStatus === "essai"
+    || u.revenueStatus === "impayé" || u.revenueStatus === "estimé";
+}
+
 function InlinePasswordForm({ onSubmit, loading }: {
   onSubmit: (pwd: string) => void;
   loading: boolean;
@@ -314,8 +320,11 @@ export default function AdminPage() {
     setTimeout(() => setCopiedLink(null), 1500);
   };
 
-  /** Arrête l'abonnement. `immediate` coupe l'accès sur-le-champ. */
-  const confirmUnsub = async (immediate: boolean) => {
+  /**
+   * Agit sur l'abonnement. `immediate` coupe l'accès sur-le-champ,
+   * `resume` annule une résiliation programmée mais pas encore effective.
+   */
+  const confirmUnsub = async (opts: { immediate?: boolean; resume?: boolean } = {}) => {
     if (!unsubTarget || unsubbing) return;
     setUnsubbing(true);
     setUnsubError("");
@@ -323,12 +332,13 @@ export default function AdminPage() {
       const res = await fetch(`/api/admin/users/${unsubTarget.id}/unsubscribe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ immediate }),
+        body: JSON.stringify(opts),
       });
       const data = await res.json();
-      if (!res.ok) { setUnsubError(data.error ?? "Échec de la résiliation."); setUnsubbing(false); return; }
+      if (!res.ok) { setUnsubError(data.error ?? "Échec de l'opération."); setUnsubbing(false); return; }
       setUnsubDone(
-        data.noop ? "Ce compte n'avait aucun abonnement en cours."
+        data.noop ? "Rien à changer sur ce compte."
+        : data.resume ? `${data.storeName} reste abonné, la résiliation est annulée.`
         : data.immediate ? `${data.storeName} est repassé en Starter.`
         : `${data.storeName} ne sera plus prélevé. Accès jusqu'au ${new Date(data.endsAt).toLocaleDateString("fr-FR")}.`,
       );
@@ -884,14 +894,17 @@ export default function AdminPage() {
                     {loadingImpact === u.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                   </button>
                 </div>
-                {(u.revenueStatus === "payant" || u.revenueStatus === "essai"
-                  || u.revenueStatus === "impayé" || u.revenueStatus === "estimé") && !u.cancelAt && (
+                {canUnsub(u) && (
                   <button
                     onClick={() => { setUnsubError(""); setUnsubTarget(u); }}
-                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] py-2.5 text-[12.5px] font-medium text-slate-300 transition-colors hover:border-orange-500/30 hover:bg-orange-600/20 hover:text-orange-300"
+                    className={`mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] py-2.5 text-[12.5px] font-medium transition-colors ${
+                      u.cancelAt
+                        ? "text-emerald-300/80 hover:border-emerald-500/30 hover:bg-emerald-600/20 hover:text-emerald-300"
+                        : "text-slate-300 hover:border-orange-500/30 hover:bg-orange-600/20 hover:text-orange-300"
+                    }`}
                   >
-                    <Ban className="h-3.5 w-3.5" />
-                    Désabonner
+                    {u.cancelAt ? <RotateCcw className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
+                    {u.cancelAt ? "Reprendre" : "Désabonner"}
                   </button>
                 )}
               </div>
@@ -1008,14 +1021,17 @@ export default function AdminPage() {
                               : <Trash2 className="h-3 w-3" />}
                             Supprimer
                           </button>
-                          {(u.revenueStatus === "payant" || u.revenueStatus === "essai"
-                            || u.revenueStatus === "impayé" || u.revenueStatus === "estimé") && !u.cancelAt && (
+                          {canUnsub(u) && (
                             <button
                               onClick={() => { setUnsubError(""); setUnsubTarget(u); }}
-                              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-medium text-slate-400 transition-colors hover:border-orange-500/30 hover:bg-orange-600/20 hover:text-orange-300"
+                              className={`flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                                u.cancelAt
+                                  ? "text-emerald-300/80 hover:border-emerald-500/30 hover:bg-emerald-600/20 hover:text-emerald-300"
+                                  : "text-slate-400 hover:border-orange-500/30 hover:bg-orange-600/20 hover:text-orange-300"
+                              }`}
                             >
-                              <Ban className="h-3 w-3" />
-                              Désabonner
+                              {u.cancelAt ? <RotateCcw className="h-3 w-3" /> : <Ban className="h-3 w-3" />}
+                              {u.cancelAt ? "Reprendre" : "Désabonner"}
                             </button>
                           )}
                         </div>
@@ -1336,17 +1352,28 @@ export default function AdminPage() {
             className="w-full max-w-md rounded-2xl border border-orange-500/20 bg-[#0f1117] p-5 shadow-2xl"
           >
             <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-orange-500/15">
-                <Ban className="h-4 w-4 text-orange-400" />
+              <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl ${unsubTarget.cancelAt ? "bg-emerald-500/15" : "bg-orange-500/15"}`}>
+                {unsubTarget.cancelAt
+                  ? <RotateCcw className="h-4 w-4 text-emerald-400" />
+                  : <Ban className="h-4 w-4 text-orange-400" />}
               </div>
               <div className="min-w-0">
-                <h3 className="text-[15.5px] font-bold text-white">Arrêter l&apos;abonnement de {unsubTarget.storeName} ?</h3>
-                <p className="truncate text-[12.5px] text-slate-400">{unsubTarget.email}</p>
+                <h3 className="text-[15.5px] font-bold text-white">
+                  {unsubTarget.cancelAt
+                    ? `Résiliation prévue le ${new Date(unsubTarget.cancelAt).toLocaleDateString("fr-FR")}`
+                    : `Arrêter l'abonnement de ${unsubTarget.storeName} ?`}
+                </h3>
+                <p className="truncate text-[12.5px] text-slate-400">
+                  {unsubTarget.cancelAt ? `${unsubTarget.storeName} · ${unsubTarget.email}` : unsubTarget.email}
+                </p>
               </div>
             </div>
 
             <p className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-[12.5px] leading-relaxed text-slate-300">
-              {unsubTarget.revenueStatus === "essai" ? (
+              {unsubTarget.cancelAt ? (
+                <>L&apos;abonnement est déjà programmé pour s&apos;arrêter. <strong className="text-white">Le reprendre</strong> annule
+                cette résiliation : les prélèvements continuent normalement, comme si rien ne s&apos;était passé.</>
+              ) : unsubTarget.revenueStatus === "essai" ? (
                 <>L&apos;essai s&apos;arrête : <strong className="text-white">aucun prélèvement n&apos;aura lieu</strong>. Le compte
                 garde son accès jusqu&apos;au terme de l&apos;essai, puis repasse en Starter.</>
               ) : (
@@ -1369,20 +1396,22 @@ export default function AdminPage() {
                 disabled={unsubbing}
                 className="flex-1 rounded-xl border border-white/10 bg-white/[0.05] py-2.5 text-[13px] font-medium text-slate-300 transition-colors hover:bg-white/[0.08] disabled:opacity-40"
               >
-                Annuler
+                Fermer
               </button>
               <button
-                onClick={() => confirmUnsub(false)}
+                onClick={() => confirmUnsub(unsubTarget.cancelAt ? { resume: true } : {})}
                 disabled={unsubbing}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-600 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-orange-700 disabled:opacity-40"
+                className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-semibold text-white transition-colors disabled:opacity-40 ${
+                  unsubTarget.cancelAt ? "bg-emerald-600 hover:bg-emerald-700" : "bg-orange-600 hover:bg-orange-700"
+                }`}
               >
                 {unsubbing && <Loader2 className="h-4 w-4 animate-spin" />}
-                Arrêter l&apos;abonnement
+                {unsubTarget.cancelAt ? "Reprendre l'abonnement" : "Arrêter l'abonnement"}
               </button>
             </div>
 
             <button
-              onClick={() => confirmUnsub(true)}
+              onClick={() => confirmUnsub({ immediate: true })}
               disabled={unsubbing}
               className="mt-2 w-full rounded-xl py-2 text-[12px] text-slate-500 transition-colors hover:text-red-300 disabled:opacity-40"
             >

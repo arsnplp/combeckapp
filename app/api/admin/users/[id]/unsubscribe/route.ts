@@ -15,6 +15,10 @@ import { notifyAdminEmail } from "@/lib/mailer";
  * `immediate` existe pour les cas d'abus : l'abonnement s'arrête sur-le-champ
  * et le compte repasse en Starter dans la foulée.
  *
+ * `resume` fait marche arrière sur une résiliation programmée mais pas encore
+ * effective — une erreur de ligne se rattrape depuis la console, sans passer
+ * par le tableau de bord Stripe.
+ *
  * Rien n'est supprimé : les clients, les cartes et l'historique restent, et
  * le commerçant peut se réabonner quand il veut.
  */
@@ -33,8 +37,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id } = await params;
   let immediate = false;
+  let resume = false;
   try {
-    immediate = Boolean((await req.json())?.immediate);
+    const body = await req.json();
+    immediate = Boolean(body?.immediate);
+    resume = Boolean(body?.resume);
   } catch { /* corps vide : résiliation en fin de période */ }
 
   const sb = supabase();
@@ -55,7 +62,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const subs = await stripe.subscriptions.list({ customer: m.stripe_customer_id, limit: 10 });
       for (const s of subs.data) {
         if (s.status === "canceled" || s.status === "incomplete_expired") continue;
-        if (immediate) {
+        if (resume) {
+          // Rien à reprendre si aucune résiliation n'était programmée.
+          if (!s.cancel_at_period_end) continue;
+          await stripe.subscriptions.update(s.id, { cancel_at_period_end: false });
+        } else if (immediate) {
           await stripe.subscriptions.cancel(s.id);
         } else {
           const updated = await stripe.subscriptions.update(s.id, { cancel_at_period_end: true });
@@ -80,7 +91,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const wasPaying = m.plan === "pro" || m.plan === "business";
 
-  if (immediate) {
+  if (resume) {
+    // Reprise : le plan et sa date d'échéance sont déjà corrects, c'est
+    // `invoice.paid` qui les repoussera au prochain prélèvement. Surtout,
+    // ne rien redescendre ici — ce bloc sert à arrêter, pas à reprendre.
+  } else if (immediate) {
     // Bascule tout de suite en Starter. `trial_ends_at` est remis à zéro :
     // sinon l'interface continuerait d'annoncer un essai en cours.
     await sb.from("merchants")
@@ -100,14 +115,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .eq("id", id);
   }
 
-  console.log(`[admin] Désabonnement ${immediate ? "immédiat" : "en fin de période"} : ${m.store_name} <${m.email}> (${canceled} abonnement(s))`);
-  notifyAdminEmail("Abonnement arrêté", {
+  const action = resume ? "Reprise d'abonnement" : "Abonnement arrêté";
+  console.log(`[admin] ${action} : ${m.store_name} <${m.email}> (${canceled} abonnement(s))`);
+  notifyAdminEmail(action, {
     Commerce: m.store_name ?? "—",
     Email: m.email,
-    "Plan au moment de l'arrêt": m.plan ?? "—",
-    Effet: immediate ? "immédiat" : endsAt ? `fin de période (${endsAt.slice(0, 10)})` : "immédiat",
-    "Abonnements Stripe résiliés": String(canceled),
-    "Arrêté par": session.user?.email ?? "admin",
+    Plan: m.plan ?? "—",
+    Effet: resume ? "résiliation annulée" : immediate ? "immédiat" : endsAt ? `fin de période (${endsAt.slice(0, 10)})` : "immédiat",
+    "Abonnements concernés": String(canceled),
+    "Par": session.user?.email ?? "admin",
   }).catch(() => {});
 
   return NextResponse.json({
@@ -115,9 +131,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     storeName: m.store_name,
     canceled,
     immediate,
+    resume,
     endsAt,
     // Rien côté Stripe ni côté plan : il n'y avait tout simplement pas
-    // d'abonnement à arrêter.
-    noop: canceled === 0 && !wasPaying,
+    // d'abonnement à arrêter, ou pas de résiliation à reprendre.
+    noop: canceled === 0 && (resume || !wasPaying),
   });
 }
