@@ -29,6 +29,8 @@ export interface MerchantRevenue {
   discountLabel: string | null;
   /** Mensuel ou annuel, pour l'afficher sans se tromper. */
   interval: "month" | "year" | null;
+  /** Résiliation déjà programmée : il paie encore, mais il part. */
+  cancelAt: string | null;
 }
 
 type StripeLike = {
@@ -41,6 +43,10 @@ interface StripeSub {
   id: string;
   status: string;
   customer: string | { id: string };
+  cancel_at_period_end?: boolean;
+  cancel_at?: number | null;
+  current_period_end?: number;
+  trial_end?: number | null;
   items?: { data?: Array<{ quantity?: number; price?: { unit_amount?: number; recurring?: { interval?: string; interval_count?: number } } }> };
   discount?: { coupon?: { percent_off?: number | null; amount_off?: number | null; duration?: string; duration_in_months?: number | null } } | null;
 }
@@ -112,7 +118,18 @@ export function revenueFromSubscription(sub: StripeSub): MerchantRevenue {
     : sub.status === "active" ? "payant"
     : "aucun";
 
-  return { monthly, monthlyFull, status, discountLabel: label, interval };
+  // Résiliation programmée : l'échéance est `cancel_at` quand Stripe l'a
+  // posée, sinon la fin de la période en cours.
+  const cancelTs = sub.cancel_at ?? (sub.cancel_at_period_end ? sub.current_period_end ?? null : null);
+
+  return {
+    // Un abonnement résilié ou expiré ne rapporte plus rien : le montant
+    // doit tomber à zéro, sinon la ligne affiche un encaissement qui
+    // n'existe plus. `monthlyFull` garde le prix pour mémoire.
+    monthly: status === "aucun" ? 0 : monthly,
+    monthlyFull, status, discountLabel: label, interval,
+    cancelAt: cancelTs ? new Date(cancelTs * 1000).toISOString() : null,
+  };
 }
 
 /**
@@ -174,6 +191,7 @@ export async function revenueByMerchant(
       status: price > 0 ? "estimé" : "aucun",
       discountLabel: null,
       interval: price > 0 ? "month" : null,
+      cancelAt: null,
     });
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, CreditCard, Store, Loader2, RefreshCw, Euro, LogIn, Key, Check, X, Trash2, ShieldAlert, ShieldCheck, AlertTriangle, Search, ArrowUpDown, Send, MessageCircle } from "lucide-react";
+import { Users, CreditCard, Store, Loader2, RefreshCw, Euro, LogIn, Key, Check, X, Trash2, ShieldAlert, ShieldCheck, AlertTriangle, Search, ArrowUpDown, Send, MessageCircle, Ban } from "lucide-react";
 import { signIn } from "next-auth/react";
 import type { PlanId } from "@/types";
 
@@ -21,6 +21,8 @@ interface TenantUser {
   revenueStatus: "payant" | "essai" | "impayé" | "estimé" | "aucun";
   discountLabel: string | null;
   billingInterval: "month" | "year" | null;
+  /** Résiliation déjà programmée : il paie encore, mais il part. */
+  cancelAt: string | null;
   createdAt: string;
   clients: number;
   cards: number;
@@ -113,7 +115,13 @@ function Revenue({ u, size = "sm" }: { u: TenantUser; size?: "sm" | "md" }) {
     return (
       <span className="whitespace-nowrap">
         <span className={`${big} font-bold text-amber-400`}>Essai</span>
-        <span className="ml-1 text-[11px] text-slate-500">puis {amount}</span>
+        {u.cancelAt ? (
+          <span className="ml-1 text-[11px] font-medium text-orange-300">
+            résilié · fin le {new Date(u.cancelAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+          </span>
+        ) : (
+          <span className="ml-1 text-[11px] text-slate-500">puis {amount}</span>
+        )}
       </span>
     );
   }
@@ -142,6 +150,11 @@ function Revenue({ u, size = "sm" }: { u: TenantUser; size?: "sm" | "md" }) {
       )}
       {u.revenueStatus === "estimé" && (
         <span className="ml-1 text-[11px] text-slate-500" title="Aucun abonnement Stripe : montant estimé sur le prix du plan">estimé</span>
+      )}
+      {u.cancelAt && (
+        <span className="ml-1 text-[11px] font-medium text-orange-300">
+          résilié · fin le {new Date(u.cancelAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+        </span>
       )}
     </span>
   );
@@ -271,6 +284,12 @@ export default function AdminPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
+  // Arrêt d'abonnement (sans suppression du compte)
+  const [unsubTarget, setUnsubTarget] = useState<TenantUser | null>(null);
+  const [unsubbing, setUnsubbing] = useState(false);
+  const [unsubError, setUnsubError] = useState("");
+  const [unsubDone, setUnsubDone] = useState<string | null>(null);
+
   // Messages support
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loadingConvos, setLoadingConvos] = useState(false);
@@ -293,6 +312,34 @@ export default function AdminPage() {
     await navigator.clipboard.writeText(url);
     setCopiedLink(url);
     setTimeout(() => setCopiedLink(null), 1500);
+  };
+
+  /** Arrête l'abonnement. `immediate` coupe l'accès sur-le-champ. */
+  const confirmUnsub = async (immediate: boolean) => {
+    if (!unsubTarget || unsubbing) return;
+    setUnsubbing(true);
+    setUnsubError("");
+    try {
+      const res = await fetch(`/api/admin/users/${unsubTarget.id}/unsubscribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ immediate }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setUnsubError(data.error ?? "Échec de la résiliation."); setUnsubbing(false); return; }
+      setUnsubDone(
+        data.noop ? "Ce compte n'avait aucun abonnement en cours."
+        : data.immediate ? `${data.storeName} est repassé en Starter.`
+        : `${data.storeName} ne sera plus prélevé. Accès jusqu'au ${new Date(data.endsAt).toLocaleDateString("fr-FR")}.`,
+      );
+      setUnsubTarget(null);
+      setUnsubbing(false);
+      load(true);
+      setTimeout(() => setUnsubDone(null), 8000);
+    } catch {
+      setUnsubError("Erreur réseau.");
+      setUnsubbing(false);
+    }
   };
 
   /** Ouvre la confirmation après avoir demandé au serveur ce qui serait perdu. */
@@ -837,6 +884,16 @@ export default function AdminPage() {
                     {loadingImpact === u.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                   </button>
                 </div>
+                {(u.revenueStatus === "payant" || u.revenueStatus === "essai"
+                  || u.revenueStatus === "impayé" || u.revenueStatus === "estimé") && !u.cancelAt && (
+                  <button
+                    onClick={() => { setUnsubError(""); setUnsubTarget(u); }}
+                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] py-2.5 text-[12.5px] font-medium text-slate-300 transition-colors hover:border-orange-500/30 hover:bg-orange-600/20 hover:text-orange-300"
+                  >
+                    <Ban className="h-3.5 w-3.5" />
+                    Désabonner
+                  </button>
+                )}
               </div>
             );
           })}
@@ -951,6 +1008,16 @@ export default function AdminPage() {
                               : <Trash2 className="h-3 w-3" />}
                             Supprimer
                           </button>
+                          {(u.revenueStatus === "payant" || u.revenueStatus === "essai"
+                            || u.revenueStatus === "impayé" || u.revenueStatus === "estimé") && !u.cancelAt && (
+                            <button
+                              onClick={() => { setUnsubError(""); setUnsubTarget(u); }}
+                              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-medium text-slate-400 transition-colors hover:border-orange-500/30 hover:bg-orange-600/20 hover:text-orange-300"
+                            >
+                              <Ban className="h-3 w-3" />
+                              Désabonner
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1252,6 +1319,82 @@ export default function AdminPage() {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Confirmation de résiliation. Deux issues bien distinctes : arrêter
+          les prélèvements en laissant courir ce qui est payé, ou couper
+          l'accès tout de suite. La date de fin est affichée pour qu'il n'y
+          ait aucun doute sur ce qui est choisi. */}
+      {unsubTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() => !unsubbing && setUnsubTarget(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl border border-orange-500/20 bg-[#0f1117] p-5 shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-orange-500/15">
+                <Ban className="h-4 w-4 text-orange-400" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-[15.5px] font-bold text-white">Arrêter l&apos;abonnement de {unsubTarget.storeName} ?</h3>
+                <p className="truncate text-[12.5px] text-slate-400">{unsubTarget.email}</p>
+              </div>
+            </div>
+
+            <p className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-[12.5px] leading-relaxed text-slate-300">
+              {unsubTarget.revenueStatus === "essai" ? (
+                <>L&apos;essai s&apos;arrête : <strong className="text-white">aucun prélèvement n&apos;aura lieu</strong>. Le compte
+                garde son accès jusqu&apos;au terme de l&apos;essai, puis repasse en Starter.</>
+              ) : (
+                <><strong className="text-white">Plus aucun prélèvement.</strong> Le compte garde le plan déjà réglé
+                jusqu&apos;à la fin de la période en cours, puis repasse en Starter tout seul.</>
+              )}
+              <br />
+              <span className="text-slate-500">
+                Rien n&apos;est supprimé : clients, cartes et historique restent en place, et il peut se réabonner quand il veut.
+              </span>
+            </p>
+
+            {unsubError && (
+              <p className="mt-3 rounded-xl bg-red-500/10 px-3 py-2 text-[12.5px] text-red-300">{unsubError}</p>
+            )}
+
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setUnsubTarget(null)}
+                disabled={unsubbing}
+                className="flex-1 rounded-xl border border-white/10 bg-white/[0.05] py-2.5 text-[13px] font-medium text-slate-300 transition-colors hover:bg-white/[0.08] disabled:opacity-40"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => confirmUnsub(false)}
+                disabled={unsubbing}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-600 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-orange-700 disabled:opacity-40"
+              >
+                {unsubbing && <Loader2 className="h-4 w-4 animate-spin" />}
+                Arrêter l&apos;abonnement
+              </button>
+            </div>
+
+            <button
+              onClick={() => confirmUnsub(true)}
+              disabled={unsubbing}
+              className="mt-2 w-full rounded-xl py-2 text-[12px] text-slate-500 transition-colors hover:text-red-300 disabled:opacity-40"
+            >
+              Couper l&apos;accès tout de suite (sans remboursement)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {unsubDone && (
+        <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-green-500/25 bg-[#0f1117] px-4 py-3 text-[13px] text-green-300 shadow-2xl">
+          {unsubDone}
         </div>
       )}
 

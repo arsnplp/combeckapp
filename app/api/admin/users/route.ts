@@ -68,6 +68,7 @@ export async function GET() {
       revenueStatus: rev?.status ?? "aucun",
       discountLabel: rev?.discountLabel ?? null,
       billingInterval: rev?.interval ?? null,
+      cancelAt: rev?.cancelAt ?? null,
       createdAt: u.createdAt,
       planExpiresAt: u.planExpiresAt ?? null,
       daysLeft,

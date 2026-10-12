@@ -1,0 +1,123 @@
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { supabase } from "@/lib/supabase";
+import { notifyAdminEmail } from "@/lib/mailer";
+
+/**
+ * Arrête l'abonnement d'un commerçant sans supprimer son compte.
+ *
+ * Par défaut la résiliation prend effet à la fin de la période déjà réglée :
+ * plus aucun prélèvement, mais le commerçant garde le plan qu'il a payé
+ * jusqu'à son terme, puis retombe sur Starter. Couper immédiatement
+ * quelqu'un qui vient de régler son mois, c'est la demande de remboursement
+ * ou la contestation bancaire assurée.
+ *
+ * `immediate` existe pour les cas d'abus : l'abonnement s'arrête sur-le-champ
+ * et le compte repasse en Starter dans la foulée.
+ *
+ * Rien n'est supprimé : les clients, les cartes et l'historique restent, et
+ * le commerçant peut se réabonner quand il veut.
+ */
+
+function getStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) return null;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require("stripe")(process.env.STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" });
+}
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) {
+    return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
+  }
+
+  const { id } = await params;
+  let immediate = false;
+  try {
+    immediate = Boolean((await req.json())?.immediate);
+  } catch { /* corps vide : résiliation en fin de période */ }
+
+  const sb = supabase();
+  const { data: m } = await sb
+    .from("merchants")
+    .select("id, email, store_name, plan, is_admin, stripe_customer_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (!m) return NextResponse.json({ error: "Compte introuvable." }, { status: 404 });
+  if (m.is_admin) return NextResponse.json({ error: "Compte administrateur." }, { status: 400 });
+
+  const stripe = getStripe();
+  let canceled = 0;
+  let endsAt: string | null = null;
+
+  if (stripe && m.stripe_customer_id) {
+    try {
+      const subs = await stripe.subscriptions.list({ customer: m.stripe_customer_id, limit: 10 });
+      for (const s of subs.data) {
+        if (s.status === "canceled" || s.status === "incomplete_expired") continue;
+        if (immediate) {
+          await stripe.subscriptions.cancel(s.id);
+        } else {
+          const updated = await stripe.subscriptions.update(s.id, { cancel_at_period_end: true });
+          // Un essai en cours se termine à `trial_end`, pas à la fin d'une
+          // période facturée qui n'existe pas encore.
+          const ts = updated.cancel_at ?? updated.trial_end ?? updated.current_period_end;
+          if (ts) {
+            const d = new Date(ts * 1000).toISOString();
+            if (!endsAt || d > endsAt) endsAt = d;
+          }
+        }
+        canceled++;
+      }
+    } catch (e) {
+      console.error("[unsubscribe] Stripe", e);
+      return NextResponse.json(
+        { error: "Stripe a refusé la résiliation. Rien n'a été changé." },
+        { status: 502 },
+      );
+    }
+  }
+
+  const wasPaying = m.plan === "pro" || m.plan === "business";
+
+  if (immediate) {
+    // Bascule tout de suite en Starter. `trial_ends_at` est remis à zéro :
+    // sinon l'interface continuerait d'annoncer un essai en cours.
+    await sb.from("merchants")
+      .update({ plan: "starter", plan_expires_at: null, trial_ends_at: null })
+      .eq("id", id);
+  } else if (canceled > 0 && endsAt) {
+    // L'accès court jusqu'à la date déjà réglée. Trois jours de battement,
+    // comme pour un paiement, pour qu'un décalage d'horloge ne coupe pas
+    // l'accès une heure trop tôt.
+    const until = new Date(new Date(endsAt).getTime() + 3 * 86400_000).toISOString();
+    await sb.from("merchants").update({ plan_expires_at: until }).eq("id", id);
+  } else if (canceled === 0 && wasPaying) {
+    // Plan payant accordé à la main, sans abonnement Stripe : il n'y a rien
+    // à résilier chez Stripe, seul le plan en base est à redescendre.
+    await sb.from("merchants")
+      .update({ plan: "starter", plan_expires_at: null })
+      .eq("id", id);
+  }
+
+  console.log(`[admin] Désabonnement ${immediate ? "immédiat" : "en fin de période"} : ${m.store_name} <${m.email}> (${canceled} abonnement(s))`);
+  notifyAdminEmail("Abonnement arrêté", {
+    Commerce: m.store_name ?? "—",
+    Email: m.email,
+    "Plan au moment de l'arrêt": m.plan ?? "—",
+    Effet: immediate ? "immédiat" : endsAt ? `fin de période (${endsAt.slice(0, 10)})` : "immédiat",
+    "Abonnements Stripe résiliés": String(canceled),
+    "Arrêté par": session.user?.email ?? "admin",
+  }).catch(() => {});
+
+  return NextResponse.json({
+    ok: true,
+    storeName: m.store_name,
+    canceled,
+    immediate,
+    endsAt,
+    // Rien côté Stripe ni côté plan : il n'y avait tout simplement pas
+    // d'abonnement à arrêter.
+    noop: canceled === 0 && !wasPaying,
+  });
+}
