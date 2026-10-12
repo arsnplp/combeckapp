@@ -171,8 +171,6 @@ export async function createUser(
   if (await getUserByEmail(normalized)) throw new Error("EMAIL_EXISTS");
   const passwordHash = await bcrypt.hash(password, 12);
   const verificationToken = randomBytes(32).toString("hex");
-  const trialEnd = new Date();
-  trialEnd.setDate(trialEnd.getDate() + 30);
   const user: DbUser = {
     id: `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     email: normalized,
@@ -180,8 +178,12 @@ export async function createUser(
     storeName: storeName.trim(),
     city: city?.trim(),
     phone: phone?.trim(),
-    plan: "free",
-    planExpiresAt: trialEnd.toISOString(),
+    // Starter, gratuit à vie. Le compte naissait avec 30 jours au niveau
+    // Business sans carte : si le commerçant abandonnait la page de paiement
+    // qui suit, il repartait avec un essai gratuit que personne ne lui avait
+    // promis et qui ne se transforme jamais en abonnement.
+    plan: "starter",
+    planExpiresAt: null,
     createdAt: new Date().toISOString(),
     emailVerified: false,
     emailVerificationToken: verificationToken,
@@ -193,8 +195,8 @@ export async function createUser(
     store_name: user.storeName,
     city: user.city ?? "",
     phone: user.phone ?? "",
-    plan: "free",
-    plan_expires_at: user.planExpiresAt,
+    plan: "starter",
+    plan_expires_at: null,
     created_at: user.createdAt,
     email_verified: false,
     email_verification_token: verificationToken,
