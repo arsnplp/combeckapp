@@ -99,15 +99,18 @@ export async function createUserFromGoogle(email: string, name: string): Promise
   const normalized = email.toLowerCase().trim();
   const existing = await getUserByEmail(normalized);
   if (existing) return existing;
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 30);
   const user: DbUser = {
     id: `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     email: normalized,
     passwordHash: "",
     storeName: name.trim() || "",
-    plan: "free", // essai gratuit standard, comme toute inscription
-    planExpiresAt: expiresAt.toISOString(),
+    // Starter, gratuit à vie — comme l'inscription par formulaire. L'essai
+    // Business de 30 jours ne s'accorde plus ici : il passe par Stripe avec
+    // saisie de carte (0 € prélevé), activable depuis la page des plans.
+    // Sans ça, s'inscrire avec Google rouvrait l'ancien essai sans carte,
+    // qui ne se transforme jamais en abonnement.
+    plan: "starter",
+    planExpiresAt: null,
     createdAt: new Date().toISOString(),
     emailVerified: true,
     googleId: normalized,

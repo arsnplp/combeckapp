@@ -23,6 +23,8 @@ interface TenantUser {
   billingInterval: "month" | "year" | null;
   /** Résiliation déjà programmée : il paie encore, mais il part. */
   cancelAt: string | null;
+  /** Prochain prélèvement : fin d'essai, ou prochaine échéance. */
+  nextChargeAt: string | null;
   createdAt: string;
   clients: number;
   cards: number;
@@ -110,6 +112,8 @@ function StatCard({ icon: Icon, label, value, sub, color }: {
 function Revenue({ u, size = "sm" }: { u: TenantUser; size?: "sm" | "md" }) {
   const amount = `${formatEuros(u.monthlyRevenue)} €`;
   const big = size === "md" ? "text-[15px]" : "text-[13px]";
+  const jour = (iso: string) =>
+    new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 
   if (u.revenueStatus === "essai") {
     return (
@@ -117,10 +121,12 @@ function Revenue({ u, size = "sm" }: { u: TenantUser; size?: "sm" | "md" }) {
         <span className={`${big} font-bold text-amber-400`}>Essai</span>
         {u.cancelAt ? (
           <span className="ml-1 text-[11px] font-medium text-orange-300">
-            résilié · fin le {new Date(u.cancelAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+            résilié · fin le {jour(u.cancelAt)}
           </span>
         ) : (
-          <span className="ml-1 text-[11px] text-slate-500">puis {amount}</span>
+          <span className="ml-1 text-[11px] text-slate-500">
+            {amount}{u.nextChargeAt ? ` le ${jour(u.nextChargeAt)}` : ""}
+          </span>
         )}
       </span>
     );
@@ -151,11 +157,13 @@ function Revenue({ u, size = "sm" }: { u: TenantUser; size?: "sm" | "md" }) {
       {u.revenueStatus === "estimé" && (
         <span className="ml-1 text-[11px] text-slate-500" title="Aucun abonnement Stripe : montant estimé sur le prix du plan">estimé</span>
       )}
-      {u.cancelAt && (
+      {u.cancelAt ? (
         <span className="ml-1 text-[11px] font-medium text-orange-300">
-          résilié · fin le {new Date(u.cancelAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+          résilié · fin le {jour(u.cancelAt)}
         </span>
-      )}
+      ) : u.nextChargeAt ? (
+        <span className="ml-1 text-[11px] text-slate-500">le {jour(u.nextChargeAt)}</span>
+      ) : null}
     </span>
   );
 }
@@ -872,7 +880,7 @@ export default function AdminPage() {
                   <span>· inscrit le {formatDate(u.createdAt)}</span>
                   {u.daysLeft !== null && u.plan === "free" && (
                     <span className={u.daysLeft <= 0 ? "text-red-400" : u.daysLeft <= 10 ? "text-amber-400" : "text-emerald-400"}>
-                      · {u.daysLeft <= 0 ? "essai expiré" : `essai J-${u.daysLeft}`}
+                      · {u.daysLeft <= 0 ? "essai sans carte expiré" : `essai sans carte J-${u.daysLeft}`}
                     </span>
                   )}
                 </div>
@@ -957,7 +965,12 @@ export default function AdminPage() {
                             : u.daysLeft <= 10 ? "bg-amber-500/10 text-amber-400"
                             : "bg-emerald-500/10 text-emerald-400"
                           }`}>
-                            {u.daysLeft <= 0 ? "Essai expiré" : `Essai · J-${u.daysLeft}`}
+                            {/* Ancien essai : 30 jours sans carte, qui ne se
+                                transforme pas en abonnement. À ne pas confondre
+                                avec l'essai Business adossé à une carte, qui
+                                porte la pastille du plan et une date de
+                                prélèvement. */}
+                            {u.daysLeft <= 0 ? "Essai sans carte · expiré" : `Essai sans carte · J-${u.daysLeft}`}
                           </span>
                         ) : (
                           <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${planStyle.class}`}>

@@ -31,6 +31,8 @@ export interface MerchantRevenue {
   interval: "month" | "year" | null;
   /** Résiliation déjà programmée : il paie encore, mais il part. */
   cancelAt: string | null;
+  /** Prochain prélèvement : fin d'essai, ou prochaine échéance. */
+  nextChargeAt: string | null;
 }
 
 type StripeLike = {
@@ -122,6 +124,14 @@ export function revenueFromSubscription(sub: StripeSub): MerchantRevenue {
   // posée, sinon la fin de la période en cours.
   const cancelTs = sub.cancel_at ?? (sub.cancel_at_period_end ? sub.current_period_end ?? null : null);
 
+  // Date du prochain prélèvement : la fin de l'essai pour un essai, la fin
+  // de la période en cours sinon. Nulle si une résiliation est programmée :
+  // il n'y aura justement plus de prélèvement.
+  const nextTs = cancelTs ? null
+    : sub.status === "trialing" ? sub.trial_end ?? sub.current_period_end ?? null
+    : sub.status === "active" ? sub.current_period_end ?? null
+    : null;
+
   return {
     // Un abonnement résilié ou expiré ne rapporte plus rien : le montant
     // doit tomber à zéro, sinon la ligne affiche un encaissement qui
@@ -129,6 +139,7 @@ export function revenueFromSubscription(sub: StripeSub): MerchantRevenue {
     monthly: status === "aucun" ? 0 : monthly,
     monthlyFull, status, discountLabel: label, interval,
     cancelAt: cancelTs ? new Date(cancelTs * 1000).toISOString() : null,
+    nextChargeAt: nextTs ? new Date(nextTs * 1000).toISOString() : null,
   };
 }
 
@@ -192,6 +203,7 @@ export async function revenueByMerchant(
       discountLabel: null,
       interval: price > 0 ? "month" : null,
       cancelAt: null,
+      nextChargeAt: null,
     });
   }
 
