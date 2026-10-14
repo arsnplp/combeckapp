@@ -115,56 +115,41 @@ function Revenue({ u, size = "sm" }: { u: TenantUser; size?: "sm" | "md" }) {
   const jour = (iso: string) =>
     new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 
-  if (u.revenueStatus === "essai") {
-    return (
-      <span className="whitespace-nowrap">
-        <span className={`${big} font-bold text-amber-400`}>Essai</span>
-        {u.cancelAt ? (
-          <span className="ml-1 text-[11px] font-medium text-orange-300">
-            résilié · fin le {jour(u.cancelAt)}
-          </span>
-        ) : (
-          <span className="ml-1 text-[11px] text-slate-500">
-            {amount}{u.nextChargeAt ? ` le ${jour(u.nextChargeAt)}` : ""}
-          </span>
-        )}
+  // Le détail passe sous le montant. En ligne, il élargissait la colonne au
+  // point de pousser « clients » et « cartes » hors de l'écran.
+  let detail: React.ReactNode = null;
+  if (u.cancelAt) {
+    detail = <span className="text-orange-300">résilié · fin le {jour(u.cancelAt)}</span>;
+  } else if (u.revenueStatus === "essai") {
+    detail = <span>{amount}{u.nextChargeAt ? ` le ${jour(u.nextChargeAt)}` : ""}</span>;
+  } else if (u.discountLabel) {
+    detail = (
+      <span>
+        <span className="line-through">{formatEuros(u.monthlyFull)} €</span>
+        <span className="ml-1 text-violet-300">{u.discountLabel}</span>
       </span>
     );
+  } else if (u.revenueStatus === "impayé") {
+    detail = <span className="text-red-400/80">prélèvement en échec</span>;
+  } else if (u.revenueStatus === "estimé") {
+    detail = <span title="Aucun abonnement Stripe : montant estimé sur le prix du plan">estimé</span>;
+  } else if (u.nextChargeAt) {
+    detail = <span>le {jour(u.nextChargeAt)}</span>;
+  } else if (u.billingInterval === "year") {
+    detail = <span>annuel</span>;
   }
-  if (u.revenueStatus === "impayé") {
-    return (
-      <span className="whitespace-nowrap">
-        <span className={`${big} font-bold text-red-400`}>{amount}</span>
-        <span className="ml-1 text-[11px] text-red-400/70">impayé</span>
-      </span>
-    );
-  }
-  if (u.monthlyRevenue === 0) {
-    return <span className={`${big} font-bold text-slate-500`}>{amount}</span>;
-  }
+
+  const principal =
+    u.revenueStatus === "essai" ? <span className={`${big} font-bold text-amber-400`}>Essai</span>
+    : u.revenueStatus === "impayé" ? <span className={`${big} font-bold text-red-400`}>{amount}</span>
+    : u.monthlyRevenue === 0 ? <span className={`${big} font-bold text-slate-500`}>{amount}</span>
+    : <span className={`${big} font-bold text-green-400`}>{amount}</span>;
+
   return (
-    <span className="whitespace-nowrap">
-      <span className={`${big} font-bold text-green-400`}>{amount}</span>
-      {u.discountLabel && (
-        <>
-          <span className="ml-1 text-[11px] text-slate-500 line-through">{formatEuros(u.monthlyFull)} €</span>
-          <span className="ml-1 text-[11px] font-medium text-violet-300">{u.discountLabel}</span>
-        </>
-      )}
-      {u.billingInterval === "year" && (
-        <span className="ml-1 text-[11px] text-slate-500">annuel</span>
-      )}
-      {u.revenueStatus === "estimé" && (
-        <span className="ml-1 text-[11px] text-slate-500" title="Aucun abonnement Stripe : montant estimé sur le prix du plan">estimé</span>
-      )}
-      {u.cancelAt ? (
-        <span className="ml-1 text-[11px] font-medium text-orange-300">
-          résilié · fin le {jour(u.cancelAt)}
-        </span>
-      ) : u.nextChargeAt ? (
-        <span className="ml-1 text-[11px] text-slate-500">le {jour(u.nextChargeAt)}</span>
-      ) : null}
-    </span>
+    <div className="whitespace-nowrap leading-tight">
+      {principal}
+      {detail && <p className="mt-0.5 text-[11px] text-slate-500">{detail}</p>}
+    </div>
   );
 }
 
@@ -936,7 +921,10 @@ export default function AdminPage() {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b border-white/[0.05]">
-                  {["Établissement", "Email", "Téléphone", "Ville", "Plan", "€/mois", "Clients", "Cartes", "Inscrit le", ""].map((h) => (
+                  {/* Email et ville sont passés sous le nom et sous le téléphone : à dix
+                      colonnes le tableau débordait de 400 px et les chiffres qui comptent
+                      — clients, cartes — sortaient de l'écran. */}
+                  {["Établissement", "Téléphone", "Plan", "€/mois", "Clients", "Cartes", "Inscrit le", ""].map((h) => (
                     <th key={h} className="px-5 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.12em] text-slate-500">{h}</th>
                   ))}
                 </tr>
@@ -952,15 +940,23 @@ export default function AdminPage() {
                           <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-green-600/20 text-[10px] font-bold text-green-400">
                             {initials}
                           </div>
-                          <span className="whitespace-nowrap text-[13px] font-medium text-white">{u.storeName}</span>
+                          <div className="min-w-0">
+                            <p className="whitespace-nowrap text-[13px] font-medium text-white">{u.storeName}</p>
+                            <p className="whitespace-nowrap text-[11.5px] text-slate-500">{u.email}</p>
+                          </div>
                         </div>
                       </td>
-                      <td className="whitespace-nowrap px-5 py-3.5 text-[13px] text-slate-400">{u.email}</td>
-                      <td className="whitespace-nowrap px-5 py-3.5 text-[13px] text-slate-400">{u.phone || "—"}</td>
-                      <td className="whitespace-nowrap px-5 py-3.5 text-[13px] text-slate-400">{u.city || "—"}</td>
+                      <td className="whitespace-nowrap px-5 py-3.5">
+                        <p className="text-[13px] text-slate-400">{u.phone || "—"}</p>
+                        <p className="text-[11.5px] text-slate-500">{u.city || "—"}</p>
+                      </td>
                       <td className="whitespace-nowrap px-5 py-3.5">
                         {u.plan === "free" && u.daysLeft !== null ? (
-                          <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          <span
+                            title={u.daysLeft <= 0
+                              ? "Ancien essai 30 jours sans carte, terminé : le commerçant ne peut plus accéder à son tableau de bord tant qu'il n'a pas choisi un plan."
+                              : "Ancien essai 30 jours sans carte : il ne se transforme pas en abonnement."}
+                            className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                             u.daysLeft <= 0 ? "bg-red-500/10 text-red-400"
                             : u.daysLeft <= 10 ? "bg-amber-500/10 text-amber-400"
                             : "bg-emerald-500/10 text-emerald-400"
@@ -970,7 +966,7 @@ export default function AdminPage() {
                                 avec l'essai Business adossé à une carte, qui
                                 porte la pastille du plan et une date de
                                 prélèvement. */}
-                            {u.daysLeft <= 0 ? "Essai sans carte · expiré" : `Essai sans carte · J-${u.daysLeft}`}
+                            {u.daysLeft <= 0 ? "Bloqué" : `Essai sans carte · J-${u.daysLeft}`}
                           </span>
                         ) : (
                           <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${planStyle.class}`}>
@@ -1056,7 +1052,7 @@ export default function AdminPage() {
               {/* Total row */}
               <tfoot>
                 <tr className="border-t border-white/[0.08] bg-white/[0.02]">
-                  <td colSpan={5} className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total</td>
+                  <td colSpan={3} className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total</td>
                   <td className="px-5 py-3 text-[13px] font-bold text-green-400">{formatEuros(mrr)} €</td>
                   <td className="px-5 py-3 text-[13px] font-bold text-white">{totalClients}</td>
                   <td className="px-5 py-3 text-[13px] font-bold text-white">{totalCards}</td>
