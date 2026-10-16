@@ -12,6 +12,7 @@ function vibrate(pattern: number | number[]) {
 }
 import { useStore } from "@/lib/store-context";
 import { MAX_STAMPS_PER_SCAN } from "@/lib/loyalty-limits";
+import { identifyScan, scanPayload } from "@/lib/scan-code";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -430,7 +431,7 @@ function WalletCamera({ onDetected, onClose }: { onDetected: (raw: string) => vo
 
 // ── Section 1 : Créditer un client ───────────────────────────────────────────
 
-function CreditTab() {
+function CreditTab({ injected }: { injected?: string | null }) {
   const [mode, setMode] = useState<"idle" | "camera" | "transaction" | "search">("idle");
   const [detectedCCId, setDetectedCCId] = useState<string | null>(null);
   const [detectedClientId, setDetectedClientId] = useState<string | null>(null);
@@ -457,6 +458,13 @@ function CreditTab() {
     }
     setMode("idle");
   };
+
+  // Code venu du scanner unique : on repasse par le même chemin que la
+  // caméra de cet onglet, pour qu'il n'y ait qu'une seule logique de lecture.
+  useEffect(() => {
+    if (injected) handleWalletDetected(injected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [injected]);
 
   const reset = () => { setMode("idle"); setDetectedCCId(null); setDetectedClientId(null); };
   // Après un crédit : on enchaîne directement sur le scan du client suivant
@@ -526,7 +534,6 @@ function CreditTab() {
     <div className="space-y-5">
       {/* Scanner carte wallet */}
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">Scanner carte wallet</p>
         {mode === "camera" ? (
           <WalletCamera
             onDetected={handleWalletDetected}
@@ -537,20 +544,7 @@ function CreditTab() {
             {detectedCCId && <TransactionModal customerCardId={detectedCCId} onClose={reset} onScanNext={scanNext} />}
             {detectedClientId && <ClientIdTransactionModal clientId={detectedClientId} onClose={reset} onScanNext={scanNext} />}
           </div>
-        ) : (
-          <button onClick={() => setMode("camera")}
-            className="w-full h-14 flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 text-[15px] font-bold text-white shadow-lg shadow-green-600/25 hover:from-green-700 hover:to-emerald-700 active:scale-[0.99] transition-all">
-            <Camera className="h-5 w-5" />
-            Scanner la carte du client
-          </button>
-        )}
-      </div>
-
-      {/* Séparateur */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 h-px bg-slate-200" />
-        <span className="text-[11px] font-medium text-slate-400">ou chercher manuellement</span>
-        <div className="flex-1 h-px bg-slate-200" />
+        ) : null}
       </div>
 
       {/* Recherche manuelle */}
@@ -672,7 +666,7 @@ function CreditTab() {
 
 // ── Section 2 : Valider une récompense ───────────────────────────────────────
 
-function RewardTab() {
+function RewardTab({ injected }: { injected?: string | null }) {
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScanRewardResult | null>(null);
@@ -735,6 +729,12 @@ function RewardTab() {
 
   const handleScan = async (t: string) => { vibrate(60); setToken(t); await validate(t); };
 
+  // Jeton venu du scanner unique : même traitement que la caméra de l'onglet.
+  useEffect(() => {
+    if (injected) handleScan(injected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [injected]);
+
   const validate = async (t: string) => {
     const tok = t.trim(); if (!tok) return;
     setLoading(true); setResult(null);
@@ -762,16 +762,10 @@ function RewardTab() {
           <X className="h-4 w-4" />
         </button>
       </div>
-      {!cameraActive && (
-        <button onClick={startCamera}
-          className="w-full h-14 flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 text-[15px] font-bold text-white shadow-lg shadow-green-600/25 hover:from-green-700 hover:to-emerald-700 active:scale-[0.99] transition-all">
-          <Camera className="h-5 w-5" /> Scanner le QR de récompense
-        </button>
-      )}
       {cameraError && <p className="text-[12px] text-red-500">{cameraError}</p>}
 
       <div>
-        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400 mb-2">Ou saisir le code manuellement</p>
+        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400 mb-2">Saisir le code de récompense</p>
         <div className="flex gap-2">
           <input ref={inputRef} type="text" value={token}
             onChange={(e) => { setToken(e.target.value); setResult(null); }}
@@ -825,17 +819,66 @@ function RewardTab() {
 
 export default function ScanPage() {
   const [tab, setTab] = useState<"credit" | "reward">("credit");
+  const [scanning, setScanning] = useState(false);
+  const [unknown, setUnknown] = useState("");
+  // Clé incrémentée à chaque scan : remonte un onglet neuf, sinon un
+  // deuxième scan du même code ne relancerait pas le traitement.
+  const [injected, setInjected] = useState<{ value: string; key: number } | null>(null);
+
+  const onDetected = (raw: string) => {
+    const kind = identifyScan(raw);
+    setScanning(false);
+    if (!kind) {
+      setUnknown("Ce QR code n'est ni une carte client ni une récompense ComeBack.");
+      return;
+    }
+    setUnknown("");
+    setTab(kind === "reward" ? "reward" : "credit");
+    setInjected({ value: scanPayload(raw, kind), key: Date.now() });
+  };
 
   return (
     <div className="max-w-sm mx-auto space-y-6">
       <div>
         <h1 className="text-[20px] font-bold text-slate-900">Scanner</h1>
-        <p className="text-[13px] text-slate-500 mt-0.5">Gérez les tampons, points et récompenses</p>
+        <p className="text-[13px] text-slate-500 mt-0.5">
+          Carte client ou récompense — c&apos;est reconnu tout seul
+        </p>
+      </div>
+
+      {/* Scanner unique : plus besoin de choisir le mode à l'avance. */}
+      {scanning ? (
+        <WalletCamera onDetected={onDetected} onClose={() => setScanning(false)} />
+      ) : (
+        <button
+          onClick={() => { setUnknown(""); setScanning(true); }}
+          className="w-full h-16 flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 text-[16px] font-bold text-white shadow-lg shadow-green-600/25 hover:from-green-700 hover:to-emerald-700 active:scale-[0.99] transition-all"
+        >
+          <Camera className="h-5 w-5" />
+          Scanner
+        </button>
+      )}
+
+      {unknown && (
+        <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-[12.5px] text-amber-800">{unknown}</p>
+      )}
+
+      {/* Les deux modes restent accessibles à la main : saisie d'un code au
+          clavier, recherche par nom, ou caméra indisponible. */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-slate-200" />
+        <span className="text-[11px] font-medium text-slate-400">ou faire à la main</span>
+        <div className="flex-1 h-px bg-slate-200" />
       </div>
 
       <div className="flex rounded-xl bg-slate-100 p-1 gap-1">
         {([["credit", "Créditer un client"], ["reward", "Valider récompense"]] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)}
+          <button
+            key={key}
+            // Changement d'onglet à la main : on oublie le dernier scan, sinon
+            // revenir sur l'onglet rejouerait le code précédent et rouvrirait
+            // la fiche d'un client déjà traité.
+            onClick={() => { setInjected(null); setUnknown(""); setTab(key); }}
             className={`flex-1 h-11 rounded-lg text-[13px] font-semibold transition-all ${
               tab === key
                 ? "bg-white text-slate-900 shadow-sm"
@@ -846,7 +889,9 @@ export default function ScanPage() {
         ))}
       </div>
 
-      {tab === "credit" ? <CreditTab /> : <RewardTab />}
+      {tab === "credit"
+        ? <CreditTab key={`c${injected?.key ?? 0}`} injected={tab === "credit" ? injected?.value : null} />
+        : <RewardTab key={`r${injected?.key ?? 0}`} injected={tab === "reward" ? injected?.value : null} />}
     </div>
   );
 }
