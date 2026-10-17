@@ -27,6 +27,10 @@ export default function JeuxPage() {
   const [rewards, setRewards] = useState<RewardRef[]>([]);
   const [moduleEnabled, setModuleEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
+  // `null` tant que la page n'a rien pu charger : sans ça, un appel refusé
+  // produisait un écran qui conseillait de créer des récompenses alors que
+  // le vrai problème était ailleurs.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<"reglages" | "chiffres">("reglages");
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -36,9 +40,20 @@ export default function JeuxPage() {
   const [gameFilter, setGameFilter] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/games/config");
-    const d = await res.json();
-    if (res.ok) { setGames(d.games ?? []); setRewards(d.rewards ?? []); setModuleEnabled(d.moduleEnabled); }
+    try {
+      const res = await fetch("/api/games/config");
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setGames(d.games ?? []); setRewards(d.rewards ?? []);
+        setModuleEnabled(d.moduleEnabled); setLoadError(null);
+      } else if (res.status === 401) {
+        setLoadError("admin");
+      } else {
+        setLoadError(d.error ?? `Chargement impossible (erreur ${res.status}).`);
+      }
+    } catch {
+      setLoadError("Impossible de joindre le serveur.");
+    }
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -116,7 +131,18 @@ export default function JeuxPage() {
 
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p>}
 
-      {tab === "reglages" ? (
+      {loadError === "admin" ? (
+        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-10 text-center">
+          <p className="text-[15px] font-semibold text-slate-800">Cette page appartient à un commerce</p>
+          <p className="mx-auto mt-2 max-w-sm text-[13px] leading-relaxed text-slate-500">
+            Vous êtes connecté avec le compte administrateur, qui n&apos;a ni récompenses
+            ni clients. Ouvrez le compte d&apos;un commerçant depuis la console admin
+            (« Accéder au compte ») pour configurer ses jeux.
+          </p>
+        </div>
+      ) : loadError ? (
+        <p className="rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{loadError}</p>
+      ) : tab === "reglages" ? (
         <div className="space-y-4">
           {rewards.length === 0 && (
             <p className="rounded-xl bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
