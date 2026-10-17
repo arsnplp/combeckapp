@@ -30,6 +30,8 @@ export interface TenantReward {
   mode: "stamps" | "points";
   usageCount?: number;
   active?: boolean;
+  /** Masquée : utilisable comme lot de jeu, invisible pour le client. */
+  hidden?: boolean;
 }
 
 export interface TenantProduct {
@@ -101,7 +103,7 @@ function mapCard(r: CardRow): TenantLoyaltyCard {
 
 interface RewardRow {
   id: string; name: string; description: string; emoji: string;
-  cost: number; mode: string; usage_count: number;
+  cost: number; mode: string; usage_count: number; hidden?: boolean;
 }
 
 function mapReward(r: RewardRow): TenantReward {
@@ -109,6 +111,7 @@ function mapReward(r: RewardRow): TenantReward {
     id: r.id, name: r.name, description: r.description, emoji: r.emoji,
     cost: r.cost, mode: r.mode as "stamps" | "points",
     usageCount: r.usage_count,
+    hidden: Boolean(r.hidden),
     // Pas de colonne DB ni de bascule dans l'UI pour désactiver une récompense
     // aujourd'hui — toujours "active" (évite le badge "Inactif" trompeur après
     // chaque rechargement, qui s'affichait pour tous les commerçants)
@@ -249,6 +252,7 @@ export async function saveTenantSettings(
         cost: Math.min(max, Math.max(1, r.cost ?? 1)),
         mode,
         usage_count: r.usageCount ?? 0,
+        hidden: Boolean(r.hidden),
       };
     }));
   }

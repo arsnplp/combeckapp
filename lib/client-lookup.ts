@@ -99,12 +99,25 @@ export async function findClientCards(email: string): Promise<ClientCard[]> {
 
   // Récompenses de tous les commerces concernés en une requête
   const merchantIds = [...new Set(customers.map((c) => c.merchant_id as string))];
-  const { data: allRewards } = await sb.from("rewards")
-    .select("id, merchant_id, name, description, cost, mode, emoji")
+  // Les récompenses masquées servent de lots de jeu : le client peut les
+  // gagner, mais elles n'apparaissent pas dans ce qu'il peut échanger
+  // directement contre ses tampons.
+  const { data: allRewardRows } = await sb.from("rewards")
+    .select("*")
     .in("merchant_id", merchantIds).order("created_at");
 
-  const rewardsByMerchant = new Map<string, NonNullable<typeof allRewards>>();
-  for (const r of allRewards ?? []) {
+  // Les récompenses masquées servent de lots de jeu : le client peut les
+  // gagner, mais elles n'apparaissent pas dans ce qu'il peut échanger
+  // directement contre ses tampons.
+  //
+  // Le tri se fait ici plutôt qu'en base, et la sélection reste `*` : si la
+  // colonne `hidden` n'existe pas encore sur un environnement, PostgREST
+  // rejetterait la requête entière et l'espace client tomberait. Colonne
+  // absente = rien de masqué, ce qui est le bon comportement.
+  const allRewards = (allRewardRows ?? []).filter((r) => r.hidden !== true);
+
+  const rewardsByMerchant = new Map<string, typeof allRewards>();
+  for (const r of allRewards) {
     const list = rewardsByMerchant.get(r.merchant_id as string) ?? [];
     list.push(r);
     rewardsByMerchant.set(r.merchant_id as string, list);

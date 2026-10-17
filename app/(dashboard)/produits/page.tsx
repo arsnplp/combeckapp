@@ -90,6 +90,12 @@ export default function ProduitsPage() {
     setEditRewardMode(reward.mode as "stamps" | "points");
   };
 
+  /** Masquer une récompense : elle reste gagnable aux jeux, mais le client
+   *  ne peut plus l'échanger contre ses tampons. */
+  const handleToggleHidden = (reward: Reward) => {
+    setRewards((prev) => prev.map((r) => r.id === reward.id ? { ...r, hidden: !r.hidden } : r));
+  };
+
   const handleSaveEditReward = () => {
     if (!editingReward || !editRewardName.trim() || !editRewardCost) return;
     const cost = parseInt(editRewardCost);
@@ -169,7 +175,8 @@ export default function ProduitsPage() {
                 {list.length > 0 ? (
                   <div className="space-y-2">
                     {list.map((reward) => (
-                      <RewardCard key={reward.id} reward={reward} onEdit={openEditReward} onDelete={handleDeleteReward} />
+                      <RewardCard key={reward.id} reward={reward} onEdit={openEditReward}
+                        onDelete={handleDeleteReward} onToggleHidden={handleToggleHidden} />
                     ))}
                   </div>
                 ) : (

@@ -41,6 +41,8 @@ export interface Reward {
   productId?: string;
   usageCount: number;
   active: boolean;
+  /** Masquée : utilisable comme lot de jeu, invisible pour le client. */
+  hidden?: boolean;
 }
 
 export interface Notification {
