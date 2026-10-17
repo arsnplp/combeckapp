@@ -7,11 +7,12 @@ import { motion, AnimatePresence } from "framer-motion";
 const DISMISS_KEY = "cb_a2hs_dismissed";
 const AUTOSHOW_KEY = "cb_a2hs_tuto_shown";
 
-/** Lien du tuto vidéo Android, proposé à ceux qui ne trouvent pas le menu.
- *  Vide = le lien n'est pas affiché, plutôt qu'un lien mort.
+/** Tuto vidéo Android, joué dans la page pour ne pas envoyer le client
+ *  sur YouTube — il n'en reviendrait pas forcément.
+ *  Vide = le bloc vidéo n'apparaît pas, plutôt qu'un lecteur mort.
  *  Vidéo tierce (chaîne « Québec Test ») : si elle disparaît un jour, les
- *  trois étapes écrites au-dessus suffisent, seul le lien sera à retirer. */
-const ANDROID_VIDEO_URL = "https://youtu.be/_rdAhAmL6eg";
+ *  trois étapes écrites suffisent, seul ce bloc sera à retirer. */
+const ANDROID_VIDEO_ID = "_rdAhAmL6eg";
 
 /** Repli écrit quand la vidéo n'est pas disponible. */
 const ANDROID_STEPS = [
@@ -49,6 +50,7 @@ function TutoModal({ startIndex, welcome, installEvent, onInstall, onClose }: {
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(startIndex);
   const [android, setAndroid] = useState(false);
+  const [video, setVideo] = useState(false);
 
   // Détection au montage : `navigator` n'existe pas au rendu serveur.
   useEffect(() => { setAndroid(estAndroid()); }, []);
@@ -133,7 +135,7 @@ function TutoModal({ startIndex, welcome, installEvent, onInstall, onClose }: {
           pas chez lui. Si la vidéo manque, les étapes écrites prennent le
           relais plutôt que de laisser un écran noir. */}
       {android ? (
-        <div className="flex flex-1 flex-col items-center justify-center px-5">
+        <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-5 py-2">
           {/* Encadré blanc : les étapes se lisaient mal, posées en sombre
               sur un fond sombre avec la page qui transparaissait derrière. */}
           <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">
@@ -151,16 +153,30 @@ function TutoModal({ startIndex, welcome, installEvent, onInstall, onClose }: {
               ))}
             </ol>
 
-            {ANDROID_VIDEO_URL && (
-              <a
-                href={ANDROID_VIDEO_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3 text-[13.5px] font-semibold text-slate-700 transition-colors active:scale-[0.99] hover:bg-slate-50"
-              >
-                <PlayCircle className="h-4 w-4 text-green-600" />
-                Vous ne trouvez pas ? Voir le tuto en vidéo
-              </a>
+            {ANDROID_VIDEO_ID && (
+              video ? (
+                // Le lecteur n'est monté qu'au clic : sans ça, YouTube
+                // serait chargé à chaque ouverture du tuto, y compris pour
+                // les clients qui ne regarderont jamais la vidéo.
+                // `nocookie` évite de poser des traceurs avant la lecture.
+                <div className="mt-4 overflow-hidden rounded-2xl bg-black">
+                  <iframe
+                    src={`https://www.youtube-nocookie.com/embed/${ANDROID_VIDEO_ID}?autoplay=1&rel=0&modestbranding=1`}
+                    title="Tuto vidéo — ajouter un raccourci sur Android"
+                    allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                    allowFullScreen
+                    className="aspect-video w-full border-0"
+                  />
+                </div>
+              ) : (
+                <button
+                  onClick={() => setVideo(true)}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3 text-[13.5px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 active:scale-[0.99]"
+                >
+                  <PlayCircle className="h-4 w-4 text-green-600" />
+                  Vous ne trouvez pas ? Voir le tuto en vidéo
+                </button>
+              )
             )}
           </div>
         </div>
