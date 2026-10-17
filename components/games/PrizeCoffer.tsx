@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { ChevronDown, Gift } from "lucide-react";
+import { ChevronDown, Gift, QrCode } from "lucide-react";
 
 export interface Prize {
   merchantId: string;
@@ -17,10 +17,10 @@ export interface Prize {
 /**
  * Le coffre à récompenses de jeu.
  *
- * Replié par défaut : un client qui accumule dix lots ne doit pas avoir à
- * faire défiler dix QR codes pour atteindre les jeux. Chaque lot porte son
- * QR, pas seulement un code à lire à voix haute — c'est le même geste qu'une
- * carte de fidélité, et le commerçant le scanne avec le même scanner.
+ * Deux niveaux de repli, parce qu'un client qui accumule dix lots ne doit
+ * jamais faire défiler dix QR codes : le coffre s'ouvre sur une simple
+ * liste, et c'est en touchant un lot qu'on fait apparaître son QR. Un seul
+ * ouvert à la fois — en caisse, on présente un lot, pas une collection.
  *
  * Le QR encode l'identifiant complet du lot. Les huit caractères affichés
  * dessous ne servent qu'au repli manuel, si la caméra refuse.
@@ -30,18 +30,18 @@ export default function PrizeCoffer({ prizes, defaultOpen = false }: {
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const [qrs, setQrs] = useState<Record<string, string>>({});
+  const [actif, setActif] = useState<string | null>(null);
+  const [qr, setQr] = useState<{ code: string; data: string } | null>(null);
 
+  // Le QR n'est fabriqué que pour le lot réellement ouvert.
   useEffect(() => {
-    if (!open) return;
+    if (!actif) { setQr(null); return; }
     let annule = false;
-    Promise.all(prizes.map(async (p) => [p.code, await QRCode.toDataURL(p.code, {
-      width: 320, margin: 1, color: { dark: "#0f172a", light: "#ffffff" },
-    })] as const))
-      .then((paires) => { if (!annule) setQrs(Object.fromEntries(paires)); })
+    QRCode.toDataURL(actif, { width: 420, margin: 1, color: { dark: "#0f172a", light: "#ffffff" } })
+      .then((data) => { if (!annule) setQr({ code: actif, data }); })
       .catch(() => {});
     return () => { annule = true; };
-  }, [open, prizes]);
+  }, [actif]);
 
   if (prizes.length === 0) return null;
 
@@ -67,31 +67,52 @@ export default function PrizeCoffer({ prizes, defaultOpen = false }: {
       </button>
 
       {open && (
-        <div className="space-y-3 px-4 pb-4">
-          <p className="text-[12px] text-amber-800/70">
-            Faites scanner le QR code en caisse. C&apos;est déjà payé, ça ne vous coûte plus rien.
+        <div className="px-3 pb-3">
+          <p className="px-1 pb-2 text-[12px] text-amber-800/70">
+            Touchez un lot pour afficher son QR code, puis faites-le scanner en caisse.
           </p>
-          {prizes.map((p) => (
-            <div key={p.code} className="rounded-xl bg-white p-4">
-              <div className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate text-[14px] font-semibold text-slate-900">
-                  {p.emoji} {p.name}
-                </span>
-                <span className="flex-shrink-0 text-[11px] text-slate-400">{p.storeName}</span>
-              </div>
-              <div className="mt-3 flex flex-col items-center">
-                {qrs[p.code] ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={qrs[p.code]} alt={`QR code — ${p.name}`} className="h-40 w-40 rounded-lg" />
-                ) : (
-                  <div className="h-40 w-40 animate-pulse rounded-lg bg-slate-100" />
-                )}
-                <p className="mt-2 font-mono text-[12px] tracking-widest text-slate-400">
-                  {p.code.slice(0, 8).toUpperCase()}
-                </p>
-              </div>
-            </div>
-          ))}
+
+          <div className="space-y-1.5">
+            {prizes.map((p) => {
+              const ouvert = actif === p.code;
+              return (
+                <div key={p.code} className="overflow-hidden rounded-xl bg-white">
+                  <button
+                    onClick={() => setActif(ouvert ? null : p.code)}
+                    aria-expanded={ouvert}
+                    className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left"
+                  >
+                    <span className="text-[20px]">{p.emoji}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14px] font-semibold text-slate-900">{p.name}</span>
+                      <span className="block text-[11.5px] text-slate-400">{p.storeName}</span>
+                    </span>
+                    <span className={`flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium transition-colors ${
+                      ouvert ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500"
+                    }`}>
+                      <QrCode className="h-3 w-3" />
+                      {ouvert ? "Masquer" : "Afficher"}
+                    </span>
+                  </button>
+
+                  {ouvert && (
+                    <div className="flex flex-col items-center border-t border-slate-100 px-3.5 pb-4 pt-3.5">
+                      {qr?.code === p.code ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={qr.data} alt={`QR code — ${p.name}`} className="h-48 w-48 rounded-lg" />
+                      ) : (
+                        <div className="h-48 w-48 animate-pulse rounded-lg bg-slate-100" />
+                      )}
+                      <p className="mt-2.5 font-mono text-[13px] tracking-widest text-slate-400">
+                        {p.code.slice(0, 8).toUpperCase()}
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-400">Gagné à {p.game}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
