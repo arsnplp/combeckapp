@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveActor } from "@/lib/actor";
 import { logActivity } from "@/lib/activity-log";
 import { getRedemption, markUsed } from "@/lib/redemptions";
+import { consumePrize, getPrizeByCode } from "@/lib/games-db";
 import { db_deductReward, db_getAll, db_addRedemption, db_incrementRewardUsage } from "@/lib/server-db";
 import { walletNotificationService } from "@/lib/wallet-notification-service";
 import { getUserById } from "@/lib/users";
@@ -37,7 +38,42 @@ export async function POST(req: NextRequest) {
   const r = await getRedemption(tokenKey);
 
   try {
-    if (!r) return NextResponse.json({ error: "QR code invalide ou inexistant." }, { status: 404 });
+    // Lot gagné à un jeu. Il vit dans le stock du client et n'expire pas :
+    // il a déjà payé en jouant, il l'utilise quand il veut. Le scan le
+    // consomme une fois pour toutes.
+    if (!r) {
+      const lot = await getPrizeByCode(tokenKey);
+      if (lot) {
+        if (lot.merchantId !== tenantId) {
+          return NextResponse.json({ error: "Ce lot n'appartient pas à votre établissement." }, { status: 403 });
+        }
+        if (lot.usedAt) {
+          return NextResponse.json({ error: "Ce lot a déjà été utilisé." }, { status: 409 });
+        }
+        const consomme = await consumePrize(tokenKey);
+        if (!consomme) {
+          return NextResponse.json({ error: "Ce lot vient d'être utilisé." }, { status: 409 });
+        }
+        const sb0 = await db_getAll(tenantId);
+        const client = sb0.customers.find((c) => c.id === lot.customerId);
+        await logActivity(tenantId, {
+          type: "reward",
+          customerId: lot.customerId,
+          customerCardId: lot.customerCardId,
+          label: `Lot gagné au jeu : ${lot.rewardName ?? "Récompense"}`,
+        }, actor).catch(() => {});
+        return NextResponse.json({
+          ok: true,
+          customerName: client?.name ?? "Client",
+          rewardName: lot.rewardName ?? "Récompense",
+          rewardEmoji: lot.rewardEmoji ?? "🎁",
+          costType: "game",
+          cost: 0,
+          fromGame: true,
+        });
+      }
+      return NextResponse.json({ error: "QR code invalide ou inexistant." }, { status: 404 });
+    }
     if (r.used) return NextResponse.json({ error: "Ce QR code a déjà été utilisé." }, { status: 409 });
     if (r.exp < Date.now()) return NextResponse.json({ error: "Ce QR code a expiré." }, { status: 410 });
     if (r.tenantId !== tenantId) {

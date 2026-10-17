@@ -74,6 +74,12 @@ export const authConfig = {
         // exige une session commerçant ou un employé toujours rattaché, et
         // répond 401 sinon.
         pathname.startsWith("/api/client/scan") ||
+        // Jeux côté client : ces deux routes s'authentifient elles-mêmes via
+        // la session client (cookie `comeback_client`) et refusent 401 sinon.
+        // La config et les chiffres restent derrière le middleware : ils sont
+        // réservés au commerçant, qui a une session NextAuth.
+        pathname.startsWith("/api/games/me") ||
+        pathname.startsWith("/api/games/play") ||
         pathname.startsWith("/api/client/gdpr") ||
         pathname.startsWith("/api/client/auth/google") ||
         pathname.startsWith("/onboarding") ||

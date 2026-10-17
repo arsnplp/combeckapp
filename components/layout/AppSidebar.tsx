@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   LayoutDashboard, Gift, Users, CreditCard,
-  Bell, BarChart3, Settings, ScanLine, Gem, User, UserCog,
+  Bell, BarChart3, Settings, ScanLine, Gem, User, UserCog, Dices,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { fetchPlanFeatures } from "@/lib/plan-features";
@@ -35,6 +35,7 @@ const navSections = [
     label: "Outils",
     items: [
       { href: "/notifications", label: "Notifications", icon: Bell, tourId: "notifications" },
+      { href: "/jeux", label: "Jeux", icon: Dices },
       { href: "/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/parametres", label: "Paramètres", icon: Settings },
     ],
