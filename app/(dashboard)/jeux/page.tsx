@@ -396,7 +396,10 @@ function Chiffres({ stats, period, setPeriod, gameFilter, setGameFilter }: {
               {/* Repère à mi-hauteur, pour situer les barres moyennes */}
               <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-slate-100" />
               {stats.perDay.map((d) => (
-                <div key={d.date} className="flex min-w-0 flex-1 flex-col items-center justify-end">
+                // `h-full` est indispensable : sans hauteur définie sur la
+                // colonne, la hauteur en pourcentage de la barre n'a aucune
+                // référence et se résout à zéro — les barres disparaissent.
+                <div key={d.date} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end">
                   {d.count > 0 && (
                     <span className="mb-0.5 text-[9.5px] font-medium leading-none text-slate-400">
                       {d.count}

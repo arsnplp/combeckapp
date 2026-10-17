@@ -7,6 +7,22 @@ import { motion, AnimatePresence } from "framer-motion";
 const DISMISS_KEY = "cb_a2hs_dismissed";
 const AUTOSHOW_KEY = "cb_a2hs_tuto_shown";
 
+/** Vidéo du tuto Android. Déposez le fichier ici pour qu'elle s'affiche ;
+ *  en son absence, les étapes écrites ci-dessous prennent le relais. */
+const ANDROID_VIDEO = "/tuto/android.mp4";
+
+/** Repli écrit quand la vidéo n'est pas disponible. */
+const ANDROID_STEPS = [
+  "Appuyez sur le menu ⋮ en haut à droite de Chrome",
+  "Choisissez « Ajouter à l'écran d'accueil »",
+  "Confirmez avec « Installer » — c'est fait !",
+];
+
+function estAndroid(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /android/i.test(navigator.userAgent);
+}
+
 const STEPS = [
   { src: "/tuto/etape-1.jpg", caption: "Ouvrez le menu ••• en bas de Safari" },
   { src: "/tuto/etape-2.jpg", caption: "Appuyez sur « Partager »" },
@@ -30,6 +46,11 @@ function TutoModal({ startIndex, welcome, installEvent, onInstall, onClose }: {
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(startIndex);
+  const [android, setAndroid] = useState(false);
+  const [videoKo, setVideoKo] = useState(false);
+
+  // Détection au montage : `navigator` n'existe pas au rendu serveur.
+  useEffect(() => { setAndroid(estAndroid()); }, []);
 
   // Bloque le scroll de la page derrière
   useEffect(() => {
@@ -106,7 +127,41 @@ function TutoModal({ startIndex, welcome, installEvent, onInstall, onClose }: {
         </div>
       )}
 
-      {/* Carrousel (glissez horizontalement) */}
+      {/* Android : la vidéo, pas les captures de Safari — un utilisateur
+          Android à qui on montre un iPhone cherche un menu qui n'existe
+          pas chez lui. Si la vidéo manque, les étapes écrites prennent le
+          relais plutôt que de laisser un écran noir. */}
+      {android ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6">
+          {videoKo ? (
+            <ol className="w-full max-w-sm space-y-3">
+              {ANDROID_STEPS.map((etape, i) => (
+                <li key={i} className="flex items-start gap-3 rounded-2xl bg-white/5 p-4">
+                  <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-green-500 text-[12px] font-bold text-white">
+                    {i + 1}
+                  </span>
+                  <span className="text-[14px] leading-snug text-white">{etape}</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <video
+              src={ANDROID_VIDEO}
+              onError={() => setVideoKo(true)}
+              autoPlay
+              muted
+              loop
+              playsInline
+              controls
+              className="max-h-[62vh] w-auto max-w-full rounded-2xl border border-white/10 shadow-2xl"
+            />
+          )}
+          <p className="text-center text-[13px] text-white/60">
+            Suivez ces étapes dans Chrome pour ajouter ComeBack à votre écran d&apos;accueil.
+          </p>
+        </div>
+      ) : (
+      /* iPhone : carrousel de captures (glissez horizontalement) */
       <div
         ref={trackRef}
         onScroll={onScroll}
@@ -128,9 +183,10 @@ function TutoModal({ startIndex, welcome, installEvent, onInstall, onClose }: {
           </div>
         ))}
       </div>
+      )}
 
-      {/* Navigation */}
-      <div className="flex items-center justify-center gap-6 px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-2">
+      {/* Navigation — propre au carrousel, donc iPhone seulement */}
+      <div className={`flex items-center justify-center gap-6 px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-2 ${android ? "hidden" : ""}`}>
         <button
           onClick={() => goTo(index - 1)}
           disabled={index === 0}
@@ -176,13 +232,17 @@ export default function AddToHomeScreen() {
   const [visible, setVisible] = useState(false);
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [modal, setModal] = useState<{ index: number; welcome: boolean } | null>(null);
+  const [android, setAndroid] = useState(false);
+  /** L'app est déjà installée : plus rien à proposer, même en bouton. */
+  const [installee, setInstallee] = useState(false);
 
   useEffect(() => {
     // Déjà installée (mode standalone) → rien à proposer
     const standalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       (navigator as Navigator & { standalone?: boolean }).standalone === true;
-    if (standalone) return;
+    if (standalone) { setInstallee(true); return; }
+    setAndroid(estAndroid());
 
     // Android/Chrome : intercepter l'événement d'installation natif
     const handler = (e: Event) => {
@@ -239,22 +299,26 @@ export default function AddToHomeScreen() {
             </div>
           </div>
 
-          {/* Mini-carrousel du tuto — cliquez pour voir en grand */}
-          <div className="mt-3 flex gap-2">
-            {STEPS.map((step, i) => (
-              <button
-                key={i}
-                onClick={() => setModal({ index: i, welcome: false })}
-                className="relative min-w-0 flex-1 overflow-hidden rounded-lg border border-white/20 active:scale-95 transition-transform"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={step.src} alt={`Étape ${i + 1}`} className="h-20 w-full object-cover object-top" loading="lazy" />
-                <span className="absolute bottom-1 left-1 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-green-600 text-[10px] font-bold text-white">
-                  {i + 1}
-                </span>
-              </button>
-            ))}
-          </div>
+          {/* Vignettes du tuto iPhone. Masquées sur Android : ce sont des
+              captures de Safari, elles montreraient un menu qui n'existe
+              pas sur ce téléphone. */}
+          {!android && (
+            <div className="mt-3 flex gap-2">
+              {STEPS.map((step, i) => (
+                <button
+                  key={i}
+                  onClick={() => setModal({ index: i, welcome: false })}
+                  className="relative min-w-0 flex-1 overflow-hidden rounded-lg border border-white/20 active:scale-95 transition-transform"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={step.src} alt={`Étape ${i + 1}`} className="h-20 w-full object-cover object-top" loading="lazy" />
+                  <span className="absolute bottom-1 left-1 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-green-600 text-[10px] font-bold text-white">
+                    {i + 1}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {installEvent ? (
             <button
@@ -272,6 +336,18 @@ export default function AddToHomeScreen() {
             </button>
           )}
         </div>
+      )}
+
+      {/* Bandeau refermé : un bouton discret reste, sinon le tuto devenait
+          définitivement inaccessible — c'était un aller simple. */}
+      {!visible && !installee && (
+        <button
+          onClick={() => setModal({ index: 0, welcome: false })}
+          className="mb-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-green-200 bg-green-50 py-3 text-[13.5px] font-semibold text-green-700 transition-colors active:scale-[0.99] hover:bg-green-100"
+        >
+          <Smartphone className="h-4 w-4" />
+          Ajouter l&apos;app à mon téléphone
+        </button>
       )}
 
       <AnimatePresence>
