@@ -373,13 +373,56 @@ function Chiffres({ stats, period, setPeriod, gameFilter, setGameFilter }: {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <p className="mb-3 text-[13px] font-semibold text-slate-900">Parties par jour</p>
-        <div className="flex h-28 items-end gap-[2px]">
-          {stats.perDay.map((d) => (
-            <div key={d.date} title={`${d.date} — ${d.count} partie${d.count > 1 ? "s" : ""}`}
-              className="flex-1 rounded-t bg-green-500/80 transition-all hover:bg-green-600"
-              style={{ height: `${Math.max(2, (d.count / max) * 100)}%` }} />
-          ))}
+        {/* Les barres seules ne disaient rien : ni échelle, ni dates, ni
+            valeurs, et l'infobulle au survol n'existe pas sur téléphone.
+            Le compte est écrit au-dessus de chaque barre non vide, et les
+            dates jalonnent l'axe. */}
+        <div className="mb-3 flex items-baseline justify-between">
+          <p className="text-[13px] font-semibold text-slate-900">Parties par jour</p>
+          <p className="text-[12px] text-slate-400">
+            {stats.kpi.plays} au total · pointe à {max}
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          {/* Échelle verticale */}
+          <div className="flex h-32 w-5 flex-col justify-between text-right text-[10px] text-slate-300">
+            <span>{max}</span>
+            <span>0</span>
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="relative flex h-32 items-end gap-[2px] border-b border-slate-100">
+              {/* Repère à mi-hauteur, pour situer les barres moyennes */}
+              <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-slate-100" />
+              {stats.perDay.map((d) => (
+                <div key={d.date} className="flex min-w-0 flex-1 flex-col items-center justify-end">
+                  {d.count > 0 && (
+                    <span className="mb-0.5 text-[9.5px] font-medium leading-none text-slate-400">
+                      {d.count}
+                    </span>
+                  )}
+                  <div
+                    title={`${new Date(d.date).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} — ${d.count} partie${d.count > 1 ? "s" : ""}`}
+                    className={`w-full rounded-t transition-all ${d.count > 0 ? "bg-green-500/80 hover:bg-green-600" : "bg-slate-100"}`}
+                    style={{ height: `${d.count > 0 ? Math.max(6, (d.count / max) * 88) : 3}%` }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Trois repères de date suffisent : trente étiquettes seraient
+                illisibles et se chevaucheraient. */}
+            <div className="mt-1.5 flex justify-between text-[10px] text-slate-400">
+              {[0, Math.floor(stats.perDay.length / 2), stats.perDay.length - 1]
+                .filter((i, k, arr) => i >= 0 && arr.indexOf(i) === k)
+                .map((i) => (
+                  <span key={i}>
+                    {new Date(stats.perDay[i].date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                  </span>
+                ))}
+            </div>
+          </div>
         </div>
       </div>
 
