@@ -13,6 +13,7 @@ import { signOut, useSession } from "next-auth/react";
 import SubscriptionSection from "@/components/settings/SubscriptionSection";
 import CurrentPlanCard from "@/components/settings/CurrentPlanCard";
 import PasswordSection from "@/components/settings/PasswordSection";
+import ProximitySection from "@/components/settings/ProximitySection";
 
 export default function ParametresPage() {
   const { settings, updateSettings } = useStore();
@@ -132,6 +133,9 @@ export default function ParametresPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Notification de proximité — Apple Wallet uniquement */}
+      <ProximitySection />
 
       {/* Plan actuel (données réelles) */}
       <CurrentPlanCard />

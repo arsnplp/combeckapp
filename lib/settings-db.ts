@@ -42,9 +42,25 @@ export interface TenantProduct {
   description?: string;
 }
 
+/**
+ * Notification de proximité, Apple Wallet uniquement.
+ * Rangée dans `wallet_config`, qui est déjà un JSONB libre : pas de
+ * migration de schéma, donc rien à dérouler sur la base de production.
+ */
+export interface GeofencingConfig {
+  enabled: boolean;
+  latitude?: number;
+  longitude?: number;
+  message?: string;
+  /** Adresse normalisée par le géocodeur, réaffichée au commerçant. */
+  label?: string;
+  geocodedAt?: string;
+}
+
 export interface TenantSettingsBlob {
   settings: Record<string, unknown>;
   walletConfig: Record<string, unknown>;
+  geofencing?: GeofencingConfig;
   loyaltyCards: TenantLoyaltyCard[];
   rewards: TenantReward[];
   products: TenantProduct[];
@@ -138,6 +154,8 @@ export async function getTenantSettings(tenantId: string): Promise<TenantSetting
       logoUrl: m.data?.logo_url ?? base.logoUrl ?? "",
     },
     walletConfig: (m.data?.wallet_config ?? {}) as Record<string, unknown>,
+    geofencing: ((m.data?.wallet_config ?? {}) as Record<string, unknown>)
+      .geofencing as GeofencingConfig | undefined,
     loyaltyCards: ((cards.data ?? []) as CardRow[]).map(mapCard),
     rewards: ((rewards.data ?? []) as RewardRow[]).map(mapReward),
     products: ((products.data ?? []) as ProductRow[]).map(mapProduct),
@@ -178,7 +196,13 @@ export async function saveTenantSettings(
     website: (s.website as string) ?? undefined,
     logo_url: (s.logoUrl as string) ?? undefined,
     settings: s,
-    wallet_config: blob.walletConfig ?? {},
+    // La config de proximité vit dans wallet_config. On la réinjecte ici
+    // plutôt que de la laisser à l'appelant : sinon une sauvegarde partielle
+    // de réglages l'effacerait sans que personne ne s'en aperçoive.
+    wallet_config: {
+      ...(blob.walletConfig ?? {}),
+      ...(blob.geofencing ? { geofencing: blob.geofencing } : {}),
+    },
   }).eq("id", tenantId);
 
   // Cartes : upsert celles envoyées ; seule la liste explicite deletions.cardIds

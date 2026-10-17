@@ -205,6 +205,10 @@ export interface ClientPassOptions {
   webServiceURL?: string;    // must be HTTPS in production
   campaignMessage?: string;  // shown in backFields + triggers changeMessage notification
   referralCount?: number;
+  /** Notification de proximité : iOS remonte la carte sur l'écran verrouillé. */
+  locations?: Array<{ latitude: number; longitude: number; relevantText: string }>;
+  /** Rayon de déclenchement en mètres. */
+  maxDistance?: number;
 }
 
 function toRgbStr(hex: string): string {
@@ -244,6 +248,15 @@ function buildPassJSON(opts: ClientPassOptions): object {
   if (opts.webServiceURL && opts.authenticationToken) {
     base.webServiceURL = opts.webServiceURL;
     base.authenticationToken = opts.authenticationToken;
+  }
+
+  // Notification de proximité. Apple en accepte dix au maximum et rejette le
+  // passe au-delà — on tronque plutôt que de risquer un passe illisible.
+  // Absent du JSON quand il n'y a pas de lieu : un tableau vide suffirait à
+  // faire échouer la validation sur certaines versions d'iOS.
+  if (opts.locations?.length) {
+    base.locations = opts.locations.slice(0, 10);
+    if (opts.maxDistance) base.maxDistance = opts.maxDistance;
   }
 
   // Message de campagne : affiché en header sur le devant (sans changeMessage —

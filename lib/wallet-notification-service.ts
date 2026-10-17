@@ -14,6 +14,7 @@ import { db_getAll, findTenantByCustomerCardId } from "./server-db";
 import { generateClientPass } from "./apple-wallet";
 import { updateGoogleWalletObject, addGoogleWalletMessage, updateGoogleWalletClass } from "./google-wallet";
 import { getTenantSettings } from "./settings-db";
+import { buildPassLocations, PROXIMITY_RADIUS_M } from "./geofencing";
 import { logSystemError } from "./system-errors";
 
 // ── Certificate cache ─────────────────────────────────────────────────────────
@@ -154,6 +155,17 @@ export async function regeneratePass(passId: string): Promise<Buffer | null> {
     } catch { /* garde les valeurs sauvegardées */ }
   }
 
+  // Notification de proximité (Apple uniquement). Recalculée à chaque
+  // régénération : le texte suit donc le solde réel du client.
+  const locations = await buildPassLocations(found?.tenantId, {
+    storeName,
+    clientName: opts.clientName,
+    stamps: cc?.stamps ?? 0,
+    stampsRequired: stampsRequired ?? 0,
+    points: cc?.points ?? 0,
+    loyaltyMode: opts.type === "stamps" ? "stamps" : "points",
+  });
+
   return generateClientPass({
     tenantId: found?.tenantId,
     type: opts.type,
@@ -174,6 +186,7 @@ export async function regeneratePass(passId: string): Promise<Buffer | null> {
     webServiceURL: process.env.WALLET_WEB_SERVICE_URL,
     campaignMessage: walletPass.campaignMessage,
     referralCount: (cc as { referralCount?: number } | undefined)?.referralCount ?? 0,
+    ...(locations ? { locations, maxDistance: PROXIMITY_RADIUS_M } : {}),
   });
 }
 

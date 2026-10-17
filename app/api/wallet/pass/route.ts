@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { generateClientPass } from "@/lib/apple-wallet";
 import { walletDb_upsertPass, walletDb_getPassBySerial } from "@/lib/wallet-db";
 import { findTenantByCustomerCardId } from "@/lib/server-db";
+import { buildPassLocations, PROXIMITY_RADIUS_M } from "@/lib/geofencing";
 
 export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams;
@@ -43,11 +44,18 @@ export async function GET(req: NextRequest) {
     ? (await findTenantByCustomerCardId(customerCardId))?.tenantId
     : undefined;
 
+  // Notification de proximité (Apple uniquement), dès la première installation.
+  const locations = await buildPassLocations(tenantId, {
+    storeName, clientName, stamps, stampsRequired, points,
+    loyaltyMode: type === "stamps" ? "stamps" : "points",
+  });
+
   try {
     const buffer = await generateClientPass({
       tenantId, type, clientName, clientId, customerCardId, passOrigin,
       stamps, stampsRequired, points, nextReward, storeName, accentColor, bgColor, stripPreset,
       serialNumber, authenticationToken, webServiceURL,
+      ...(locations ? { locations, maxDistance: PROXIMITY_RADIUS_M } : {}),
     });
 
     // Persist pass metadata so the web service can regenerate it on update
