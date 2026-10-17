@@ -66,6 +66,14 @@ export const authConfig = {
         pathname.startsWith("/api/client/cards/wallet") ||
         pathname.startsWith("/api/client/cards") ||
         pathname.startsWith("/api/client/redeem") ||
+        // Validation d'une récompense : le middleware la bloquait, alors que
+        // la route accepte le commerçant ET l'employé. Un employé scannant un
+        // QR de récompense était renvoyé vers la page de connexion — l'onglet
+        // Récompense de l'espace employé n'a jamais fonctionné.
+        // Laisser passer n'ouvre rien : la route appelle `resolveActor`, qui
+        // exige une session commerçant ou un employé toujours rattaché, et
+        // répond 401 sinon.
+        pathname.startsWith("/api/client/scan") ||
         pathname.startsWith("/api/client/gdpr") ||
         pathname.startsWith("/api/client/auth/google") ||
         pathname.startsWith("/onboarding") ||

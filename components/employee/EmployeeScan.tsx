@@ -3,9 +3,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Camera, X, Loader2, Stamp, Star, Gift, Search, CheckCircle,
+  Camera, X, Loader2, Stamp, Star, Search, CheckCircle,
   ChevronRight, LogOut, AlertCircle,
 } from "lucide-react";
+import { identifyScan, scanPayload } from "@/lib/scan-code";
 
 function vibrate(p: number | number[]) { try { navigator.vibrate?.(p); } catch { /* ignoré */ } }
 
@@ -112,7 +113,6 @@ function Cam({ onDetected, onClose, hint }: { onDetected: (raw: string) => void;
 
 export default function EmployeeScan({ storeName }: { storeName: string }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"credit" | "reward">("credit");
   const [mode, setMode] = useState<"idle" | "camera">("idle");
 
   // Client sélectionné (par scan ou recherche)
@@ -141,14 +141,23 @@ export default function EmployeeScan({ storeName }: { storeName: string }) {
     } catch { setError("Erreur réseau."); }
   };
 
+  /**
+   * Un seul scanner : carte du client ou récompense, c'est reconnu tout seul.
+   * L'employé n'a plus à choisir le bon mode avant de viser — au comptoir,
+   * se tromper d'onglet donnait un scan qui « ne marche pas ».
+   */
   const onDetected = (raw: string) => {
     setMode("idle");
-    let path = raw;
-    try { path = new URL(raw).pathname; } catch { /* déjà un chemin ou un id */ }
-    const m = path.match(/^\/process\/(.+)$/);
-    if (m) { loadCard(m[1]); return; }
-    if (!raw.includes("/") && raw.startsWith("cc")) { loadCard(raw); return; }
-    setError("QR non reconnu — c'est la carte du client qu'il faut scanner.");
+    const kind = identifyScan(raw);
+    if (kind === "reward") { validateReward(scanPayload(raw, "reward")); return; }
+    if (kind === "credit") {
+      let path = raw.trim();
+      try { path = new URL(path).pathname; } catch { /* déjà un chemin ou un id */ }
+      const m = path.match(/^\/process\/(.+)$/);
+      loadCard(m ? m[1] : raw.trim());
+      return;
+    }
+    setError("QR non reconnu — scannez la carte du client ou son QR de récompense.");
   };
 
   const search = async (q: string) => {
@@ -238,19 +247,6 @@ export default function EmployeeScan({ storeName }: { storeName: string }) {
         </button>
       </div>
 
-      {/* Deux actions, rien d'autre */}
-      <div className="mb-5 grid grid-cols-2 gap-2">
-        {([["credit", "Tampons / Points", Stamp], ["reward", "Récompense", Gift]] as const).map(([k, label, Icon]) => (
-          <button key={k} onClick={() => { setTab(k); reset(); setMode("idle"); }}
-            className={`flex flex-col items-center gap-1.5 rounded-2xl border-2 py-4 transition-all ${
-              tab === k ? "border-slate-900 bg-slate-900 text-white" : "border-gray-100 bg-white text-gray-600"
-            }`}>
-            <Icon className="h-5 w-5" />
-            <span className="text-[13px] font-semibold">{label}</span>
-          </button>
-        ))}
-      </div>
-
       {error && (
         <p className="mb-3 flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2.5 text-[12.5px] text-red-600">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {error}
@@ -258,7 +254,7 @@ export default function EmployeeScan({ storeName }: { storeName: string }) {
       )}
 
       {/* ── Client sélectionné : créditer ── */}
-      {tab === "credit" && cc && cust ? (
+      {cc && cust ? (
         <div className="rounded-2xl border border-gray-100 bg-white p-5">
           <p className="text-[15px] font-bold text-gray-900">{cust.name}</p>
           <p className="mb-4 text-[12.5px] text-gray-400">
@@ -268,7 +264,7 @@ export default function EmployeeScan({ storeName }: { storeName: string }) {
           {isStamps ? (
             remaining <= 0 ? (
               <p className="rounded-xl bg-amber-50 px-3 py-3 text-center text-[13px] font-medium text-amber-700">
-                Carte pleine — passez à l&apos;onglet Récompense.
+                Carte pleine — scannez son QR de récompense.
               </p>
             ) : (
               <>
@@ -303,19 +299,19 @@ export default function EmployeeScan({ storeName }: { storeName: string }) {
           <button onClick={reset} className="mt-3 w-full text-[12.5px] text-gray-400 underline">Changer de client</button>
         </div>
       ) : mode === "camera" ? (
-        <Cam onDetected={tab === "credit" ? onDetected : (raw) => { setMode("idle"); validateReward(raw.trim()); }}
+        <Cam onDetected={onDetected}
           onClose={() => setMode("idle")}
-          hint={tab === "credit" ? "Scannez la carte wallet du client" : "Scannez le QR de récompense du client"} />
+          hint="Carte du client ou récompense" />
       ) : (
         <button onClick={() => { setError(""); setMode("camera"); }}
           className="flex h-16 w-full items-center justify-center gap-2.5 rounded-2xl bg-slate-900 text-[16px] font-bold text-white shadow-lg active:scale-[0.99]">
           <Camera className="h-5 w-5" />
-          {tab === "credit" ? "Scanner la carte du client" : "Scanner la récompense"}
+          Scanner
         </button>
       )}
 
       {/* Recherche manuelle (crédit uniquement) */}
-      {tab === "credit" && !cc && (
+      {!cc && (
         <div className="mt-5">
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
