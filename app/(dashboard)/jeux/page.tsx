@@ -69,15 +69,30 @@ export default function JeuxPage() {
   const patch = (key: string, p: Partial<GameConfig>) =>
     setGames((g) => g.map((x) => (x.gameKey === key ? { ...x, ...p } : x)));
 
-  const save = async (g: GameConfig) => {
-    setSaving(g.gameKey); setError("");
+  const envoyer = async (config: GameConfig) => {
     const res = await fetch("/api/games/config", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ config: g }),
+      body: JSON.stringify({ config }),
     });
-    const d = await res.json();
-    if (!res.ok) { setError(d.error ?? "Enregistrement impossible."); patch(g.gameKey, { enabled: false }); }
-    else setGames(d.games ?? []);
+    return { ok: res.ok, status: res.status, data: await res.json().catch(() => ({})) };
+  };
+
+  const save = async (g: GameConfig) => {
+    setSaving(g.gameKey); setError("");
+    let r = await envoyer(g);
+
+    // Le serveur refuse d'activer un jeu dont le total n'est pas à 100 %.
+    // Retirer un lot d'un jeu actif tombe forcément dans ce cas : plutôt
+    // que de perdre la modification, on met le jeu en pause et on
+    // l'enregistre quand même. Le commerçant règle ses pourcentages puis
+    // réactive, sans avoir à ressaisir quoi que ce soit.
+    if (!r.ok && r.status === 422 && g.enabled) {
+      r = await envoyer({ ...g, enabled: false });
+      if (r.ok) setError("Jeu mis en pause : le total des chances doit faire 100 % pour le réactiver.");
+    }
+
+    if (r.ok) setGames(r.data.games ?? []);
+    else setError(r.data.error ?? "Enregistrement impossible.");
     setSaving(null);
   };
 
@@ -151,7 +166,7 @@ export default function JeuxPage() {
           )}
           {games.map((g) => (
             <GameCard key={g.gameKey} g={g} rewards={rewards} saving={saving === g.gameKey}
-              onPatch={(p) => patch(g.gameKey, p)} onSave={() => save(g)} />
+              onPatch={(p) => patch(g.gameKey, p)} onSave={(c) => save(c ?? g)} />
           ))}
         </div>
       ) : (
@@ -164,7 +179,7 @@ export default function JeuxPage() {
 
 function GameCard({ g, rewards, saving, onPatch, onSave }: {
   g: GameConfig; rewards: RewardRef[]; saving: boolean;
-  onPatch: (p: Partial<GameConfig>) => void; onSave: () => void;
+  onPatch: (p: Partial<GameConfig>) => void; onSave: (config?: GameConfig) => void;
 }) {
   const [open, setOpen] = useState(false);
   const total = g.prizes.reduce((s, p) => s + p.probability, 0) + g.loseProbability;
@@ -186,7 +201,15 @@ function GameCard({ g, rewards, saving, onPatch, onSave }: {
           )}
         </button>
         <button
-          onClick={() => { const next = !g.enabled; onPatch({ enabled: next }); setTimeout(onSave, 0); if (next) setOpen(true); }}
+          onClick={() => {
+            // La config patchée est transmise directement : s'appuyer sur
+            // l'état mis à jour enverrait encore la version précédente, et
+            // la réponse du serveur écraserait la modification à l'écran.
+            const suivant = { ...g, enabled: !g.enabled };
+            onPatch({ enabled: suivant.enabled });
+            onSave(suivant);
+            if (suivant.enabled) setOpen(true);
+          }}
           disabled={saving}
           role="switch" aria-checked={g.enabled} aria-label={`Activer ${g.name}`}
           className={`relative mt-1 h-7 w-12 flex-shrink-0 rounded-full transition-colors disabled:opacity-50 ${g.enabled ? "bg-green-600" : "bg-slate-300"}`}
@@ -209,14 +232,14 @@ function GameCard({ g, rewards, saving, onPatch, onSave }: {
               <span className="text-[12px] font-semibold uppercase tracking-wide text-slate-400">Coût (tampons)</span>
               <input type="number" min={1} value={g.cost}
                 onChange={(e) => onPatch({ cost: Math.max(1, +e.target.value || 1) })}
-                onBlur={onSave}
+                onBlur={() => onSave()}
                 className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-[14px] outline-none focus:border-green-500" />
             </label>
             <label className="block">
               <span className="text-[12px] font-semibold uppercase tracking-wide text-slate-400">Parties / jour</span>
               <input type="number" min={1} value={g.dailyLimit}
                 onChange={(e) => onPatch({ dailyLimit: Math.max(1, +e.target.value || 1) })}
-                onBlur={onSave}
+                onBlur={() => onSave()}
                 className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-[14px] outline-none focus:border-green-500" />
             </label>
           </div>
@@ -233,15 +256,19 @@ function GameCard({ g, rewards, saving, onPatch, onSave }: {
                     </span>
                     <input type="number" min={1} max={100} value={p.probability}
                       onChange={(e) => setPrize(p.rewardId, { probability: Math.min(100, Math.max(0, +e.target.value || 0)) })}
-                      onBlur={onSave}
+                      onBlur={() => onSave()}
                       className="h-9 w-16 rounded-lg border border-slate-200 px-2 text-center text-[13px] outline-none focus:border-green-500" />
                     <span className="text-[12px] text-slate-400">%</span>
                     <input type="number" min={0} placeholder="∞" value={p.stock ?? ""}
                       onChange={(e) => setPrize(p.rewardId, { stock: e.target.value === "" ? null : Math.max(0, +e.target.value) })}
-                      onBlur={onSave}
+                      onBlur={() => onSave()}
                       title="Stock maximum gagnable, vide = illimité"
                       className="h-9 w-16 rounded-lg border border-slate-200 px-2 text-center text-[13px] outline-none focus:border-green-500" />
-                    <button onClick={() => { onPatch({ prizes: g.prizes.filter((x) => x.rewardId !== p.rewardId) }); setTimeout(onSave, 0); }}
+                    <button onClick={() => {
+                      const suivant = { ...g, prizes: g.prizes.filter((x) => x.rewardId !== p.rewardId) };
+                      onPatch({ prizes: suivant.prizes });
+                      onSave(suivant);
+                    }}
                       className="text-[12px] text-slate-400 hover:text-red-500">retirer</button>
                   </div>
                 );
@@ -251,7 +278,7 @@ function GameCard({ g, rewards, saving, onPatch, onSave }: {
                 <span className="min-w-0 flex-1 text-[13px] text-slate-700">🙈 Perdu</span>
                 <input type="number" min={0} max={100} value={g.loseProbability}
                   onChange={(e) => onPatch({ loseProbability: Math.min(100, Math.max(0, +e.target.value || 0)) })}
-                  onBlur={onSave}
+                  onBlur={() => onSave()}
                   className="h-9 w-16 rounded-lg border border-slate-200 px-2 text-center text-[13px] outline-none focus:border-green-500" />
                 <span className="text-[12px] text-slate-400">%</span>
                 <span className="w-16" />
@@ -264,8 +291,12 @@ function GameCard({ g, rewards, saving, onPatch, onSave }: {
                 value=""
                 onChange={(e) => {
                   if (!e.target.value) return;
-                  onPatch({ prizes: [...g.prizes, { rewardId: e.target.value, probability: 10, stock: null, wonCount: 0 }] });
-                  setTimeout(onSave, 0);
+                  const suivant = {
+                    ...g,
+                    prizes: [...g.prizes, { rewardId: e.target.value, probability: 10, stock: null, wonCount: 0 }],
+                  };
+                  onPatch({ prizes: suivant.prizes });
+                  onSave(suivant);
                 }}
                 className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] text-slate-600 outline-none focus:border-green-500"
               >
