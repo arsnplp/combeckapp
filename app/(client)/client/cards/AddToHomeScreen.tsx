@@ -8,8 +8,10 @@ const DISMISS_KEY = "cb_a2hs_dismissed";
 const AUTOSHOW_KEY = "cb_a2hs_tuto_shown";
 
 /** Lien du tuto vidéo Android, proposé à ceux qui ne trouvent pas le menu.
- *  Vide = le lien n'est pas affiché, plutôt qu'un lien mort. */
-const ANDROID_VIDEO_URL = "";
+ *  Vide = le lien n'est pas affiché, plutôt qu'un lien mort.
+ *  Vidéo tierce (chaîne « Québec Test ») : si elle disparaît un jour, les
+ *  trois étapes écrites au-dessus suffisent, seul le lien sera à retirer. */
+const ANDROID_VIDEO_URL = "https://youtu.be/_rdAhAmL6eg";
 
 /** Repli écrit quand la vidéo n'est pas disponible. */
 const ANDROID_STEPS = [
