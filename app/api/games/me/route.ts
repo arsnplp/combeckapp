@@ -74,6 +74,7 @@ export async function GET() {
 
     const mesLots = await getClientPrizes(cust.id as string);
     prizes = prizes.concat(mesLots.map((p) => ({
+      merchantId: p.merchantId,
       code: p.prizeCode,
       name: p.rewardName,
       emoji: p.rewardEmoji,

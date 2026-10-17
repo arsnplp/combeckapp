@@ -10,6 +10,7 @@ import WalletButton from "./WalletButton";
 import AutoRefresh from "./AutoRefresh";
 import ReferralSection from "./ReferralSection";
 import LeaveStoreButton from "./LeaveStoreButton";
+import ShopGames from "@/components/games/ShopGames";
 
 export default async function TenantCardPage({
   params,
@@ -171,6 +172,10 @@ export default async function TenantCardPage({
       <RedeemSection card={card} customerCardId={card.customerCardId} />
 
       <WalletButton ccId={card.customerCardId} walletAdded={card.walletAdded} />
+
+      {/* Jeux du commerce + coffre à récompenses. Ne s'affiche que si le
+          commerçant en propose. */}
+      <ShopGames tenantId={tenantId} />
 
       {(card.referral?.enabled || card.referralCount > 0 || card.pendingReferrals > 0) && (
         <ReferralSection
