@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { X, ChevronLeft, ChevronRight, Smartphone, Sparkles } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Smartphone, Sparkles, PlayCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const DISMISS_KEY = "cb_a2hs_dismissed";
 const AUTOSHOW_KEY = "cb_a2hs_tuto_shown";
 
-/** Vidéo du tuto Android. Déposez le fichier ici pour qu'elle s'affiche ;
- *  en son absence, les étapes écrites ci-dessous prennent le relais. */
-const ANDROID_VIDEO = "/tuto/android.mp4";
+/** Lien du tuto vidéo Android, proposé à ceux qui ne trouvent pas le menu.
+ *  Vide = le lien n'est pas affiché, plutôt qu'un lien mort. */
+const ANDROID_VIDEO_URL = "";
 
 /** Repli écrit quand la vidéo n'est pas disponible. */
 const ANDROID_STEPS = [
@@ -47,7 +47,6 @@ function TutoModal({ startIndex, welcome, installEvent, onInstall, onClose }: {
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(startIndex);
   const [android, setAndroid] = useState(false);
-  const [videoKo, setVideoKo] = useState(false);
 
   // Détection au montage : `navigator` n'existe pas au rendu serveur.
   useEffect(() => { setAndroid(estAndroid()); }, []);
@@ -132,33 +131,36 @@ function TutoModal({ startIndex, welcome, installEvent, onInstall, onClose }: {
           pas chez lui. Si la vidéo manque, les étapes écrites prennent le
           relais plutôt que de laisser un écran noir. */}
       {android ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6">
-          {videoKo ? (
-            <ol className="w-full max-w-sm space-y-3">
+        <div className="flex flex-1 flex-col items-center justify-center px-5">
+          {/* Encadré blanc : les étapes se lisaient mal, posées en sombre
+              sur un fond sombre avec la page qui transparaissait derrière. */}
+          <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">
+            <p className="text-[13px] font-semibold text-slate-900">
+              Dans Chrome, en trois étapes
+            </p>
+            <ol className="mt-3 space-y-2.5">
               {ANDROID_STEPS.map((etape, i) => (
-                <li key={i} className="flex items-start gap-3 rounded-2xl bg-white/5 p-4">
+                <li key={i} className="flex items-start gap-3 rounded-2xl bg-slate-50 p-3.5">
                   <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-green-500 text-[12px] font-bold text-white">
                     {i + 1}
                   </span>
-                  <span className="text-[14px] leading-snug text-white">{etape}</span>
+                  <span className="text-[14px] leading-snug text-slate-800">{etape}</span>
                 </li>
               ))}
             </ol>
-          ) : (
-            <video
-              src={ANDROID_VIDEO}
-              onError={() => setVideoKo(true)}
-              autoPlay
-              muted
-              loop
-              playsInline
-              controls
-              className="max-h-[62vh] w-auto max-w-full rounded-2xl border border-white/10 shadow-2xl"
-            />
-          )}
-          <p className="text-center text-[13px] text-white/60">
-            Suivez ces étapes dans Chrome pour ajouter ComeBack à votre écran d&apos;accueil.
-          </p>
+
+            {ANDROID_VIDEO_URL && (
+              <a
+                href={ANDROID_VIDEO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3 text-[13.5px] font-semibold text-slate-700 transition-colors active:scale-[0.99] hover:bg-slate-50"
+              >
+                <PlayCircle className="h-4 w-4 text-green-600" />
+                Vous ne trouvez pas ? Voir le tuto en vidéo
+              </a>
+            )}
+          </div>
         </div>
       ) : (
       /* iPhone : carrousel de captures (glissez horizontalement) */
