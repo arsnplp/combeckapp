@@ -70,18 +70,18 @@ export default function GamesClient() {
                 <div className="flex items-center gap-3">
                   <span className="text-[30px]">{g.emoji}</span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[15px] font-bold text-slate-900">{g.name}</p>
-                    <p className="text-[12px] text-slate-500">{g.tagline}</p>
+                    <p className="truncate text-[15px] font-bold text-slate-900">{g.name}</p>
+                    <p className="text-[12px] leading-snug text-slate-500">{g.tagline}</p>
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-[11.5px]">
-                  <span className="rounded-lg bg-slate-100 px-2 py-1 font-medium text-slate-600">
+                  <span className="whitespace-nowrap rounded-lg bg-slate-100 px-2 py-1 font-medium text-slate-600">
                     {g.cost} tampons
                   </span>
-                  <span className={`rounded-lg px-2 py-1 font-medium ${reste > 0 ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-400"}`}>
+                  <span className={`whitespace-nowrap rounded-lg px-2 py-1 font-medium ${reste > 0 ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-400"}`}>
                     {reste > 0 ? `${reste} partie${reste > 1 ? "s" : ""} aujourd'hui` : "Limite atteinte"}
                   </span>
-                  {!assez && <span className="rounded-lg bg-amber-50 px-2 py-1 font-medium text-amber-700">Pas assez de tampons</span>}
+                  {!assez && <span className="whitespace-nowrap rounded-lg bg-amber-50 px-2 py-1 font-medium text-amber-700">Pas assez de tampons</span>}
                 </div>
               </button>
             );

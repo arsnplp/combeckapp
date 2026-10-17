@@ -66,7 +66,10 @@ export default async function CardsPage() {
               href={`/client/cards/${card.tenantId}?ccid=${card.customerCardId}`}
               className="block rounded-2xl bg-white border border-gray-100 p-4 hover:border-gray-200 hover:shadow-sm transition-all active:scale-[0.99]"
             >
-              <div className="flex items-start justify-between mb-3">
+              {/* Le nom et les pastilles sur deux lignes : côte à côte, les
+                  pastilles refusaient de rétrécir et écrasaient le nom du
+                  commerce sur trois lignes dès qu'il était un peu long. */}
+              <div className="mb-3">
                 <div className="flex items-center gap-3">
                   <div
                     className="h-10 w-10 rounded-xl flex items-center justify-center text-white text-[13px] font-bold flex-shrink-0"
@@ -74,27 +77,28 @@ export default async function CardsPage() {
                   >
                     {card.storeName.slice(0, 2).toUpperCase()}
                   </div>
-                  <div>
-                    <p className="text-[14px] font-semibold text-gray-900">{card.storeName}</p>
-                    {card.storeCity && <p className="text-[12px] text-gray-400">{card.storeCity}</p>}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[14px] font-semibold text-gray-900">{card.storeName}</p>
+                    {card.storeCity && <p className="truncate text-[12px] text-gray-400">{card.storeCity}</p>}
                   </div>
+                  <ChevronRight className="h-4 w-4 flex-shrink-0 text-gray-300" />
                 </div>
-                <div className="flex items-center gap-1.5">
+
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   {canRedeem && (
-                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-0.5">
+                    <span className="whitespace-nowrap rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
                       Récompense dispo
                     </span>
                   )}
                   {card.walletAdded ? (
-                    <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-0.5">
+                    <span className="whitespace-nowrap rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600">
                       ✓ Wallet
                     </span>
                   ) : (
-                    <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5">
+                    <span className="whitespace-nowrap rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-600">
                       📲 À ajouter au Wallet
                     </span>
                   )}
-                  <ChevronRight className="h-4 w-4 text-gray-300" />
                 </div>
               </div>
 
