@@ -19,6 +19,9 @@ const tabs = [
   { href: "/carte", label: "Cartes", icon: CreditCard, exact: false, scanner: false, tourId: "cartes" },
 ];
 
+/** Mêmes nouveautés signalées que dans le menu du bureau. */
+const NOUVEAUTES = new Set(["/notifications", "/jeux"]);
+
 const menuItems = [
   { href: "/produits", label: "Récompenses", icon: Gift },
   { href: "/employes", label: "Employés", icon: UserCog },
@@ -152,7 +155,12 @@ export default function MobileNav() {
                       }`}
                     >
                       <NavIcon icon={Icon} className={`h-5 w-5 ${active ? "text-green-600" : "text-slate-400"}`} />
-                      {item.label}
+                      <span className="min-w-0 flex-1">{item.label}</span>
+                      {NOUVEAUTES.has(item.href) && (
+                        <span className="flex-shrink-0 rounded-full bg-red-500 px-1.5 py-[1px] text-[9.5px] font-bold uppercase tracking-wide text-white">
+                          Nouveau
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

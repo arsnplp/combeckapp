@@ -12,6 +12,10 @@ import {
 import { useStore } from "@/lib/store-context";
 import { fetchPlanFeatures } from "@/lib/plan-features";
 
+/** Pages signalées comme nouvelles dans le menu. À vider quand elles ne le
+ *  seront plus — une pastille permanente finit par ne plus rien dire. */
+const NOUVEAUTES = new Set(["/notifications", "/jeux"]);
+
 const navSections = [
   {
     items: [{ href: "/dashboard", label: "Vue d'ensemble", icon: LayoutDashboard }],
@@ -108,6 +112,14 @@ export default function AppSidebar() {
                   >
                     <NavIcon icon={Icon} className={`h-[15px] w-[15px] flex-shrink-0 transition-colors ${isActive ? "text-green-600" : "text-slate-400 group-hover:text-slate-600"}`} />
                     <span className="truncate">{item.label}</span>
+                    {NOUVEAUTES.has(item.href) && (
+                      <span
+                        className="ml-auto flex-shrink-0 rounded-full bg-red-500 px-1.5 py-[1px] text-[9.5px] font-bold uppercase tracking-wide text-white"
+                        title="Nouveauté"
+                      >
+                        Nouveau
+                      </span>
+                    )}
                     {item.href === "/carte" && !hasLogo && (
                       <span
                         className="ml-auto flex h-[17px] w-[17px] flex-shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
