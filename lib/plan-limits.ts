@@ -15,7 +15,7 @@ export const PLAN_LIMITS: Record<PlanId, {
   free: {
     clients: Infinity,
     notifs: Infinity,
-    cards: 2,
+    cards: 1,
     employees: Infinity,
     targetingAdvanced: true,
     referralEnabled: true,
@@ -38,7 +38,7 @@ export const PLAN_LIMITS: Record<PlanId, {
   pro: {
     clients: 100,
     notifs: 10000,
-    cards: 2,
+    cards: 1,
     employees: 3,
     targetingAdvanced: true,
     referralEnabled: true,
@@ -48,7 +48,7 @@ export const PLAN_LIMITS: Record<PlanId, {
   business: {
     clients: Infinity,
     notifs: Infinity,
-    cards: 2,
+    cards: 1,
     employees: Infinity,
     targetingAdvanced: true,
     referralEnabled: true,

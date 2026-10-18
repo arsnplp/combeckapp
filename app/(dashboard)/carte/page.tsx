@@ -257,7 +257,13 @@ export default function CartePage() {
   const openCreate = () => {
     setLimitError("");
     if (loyaltyCards.length >= maxCards) {
-      setLimitError(`Limite du plan atteinte : maximum ${maxCards} carte${maxCards > 1 ? 's' : ''}. Passez au plan supérieur pour en ajouter plus.`);
+      // Plus de renvoi vers « un plan supérieur » : aucun plan ne permet
+      // désormais plus d'une carte, promettre le contraire serait mentir.
+      setLimitError(
+        maxCards === 1
+          ? "Une seule carte de fidélité par commerce. Modifiez celle-ci plutôt que d'en créer une autre."
+          : `Limite atteinte : maximum ${maxCards} cartes.`,
+      );
       return;
     }
     const f = defaultForm();
@@ -359,7 +365,7 @@ export default function CartePage() {
           <div>
             <p className="text-[12px] font-semibold text-green-600">Cartes</p>
             <h2 className="text-[17px] font-semibold text-slate-900">Mes cartes fidélité</h2>
-            <p className="text-[11px] text-slate-400 mt-0.5">Max 1 tampons + 1 points</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Une carte par commerce</p>
           </div>
           <Button size="sm" className="gap-1.5" onClick={openCreate}>
             <Plus className="h-3.5 w-3.5" /> Créer

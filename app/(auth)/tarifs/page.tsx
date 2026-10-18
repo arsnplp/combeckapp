@@ -30,7 +30,7 @@ const PLANS = [
     features: [
       "100 clients maximum",
       "10 000 notifications / mois",
-      "2 cartes de fidélité (tampons + points)",
+      "Carte de fidélité personnalisée (tampons ou points)",
       "Ciblage avancé (par rang client, inactifs)",
       "Notifications automatiques récurrentes",
       "Stats historique complet + export CSV",
@@ -46,7 +46,7 @@ const PLANS = [
     features: [
       "Clients illimités",
       "Notifications illimitées",
-      "2 cartes de fidélité (tampons + points)",
+      "Carte de fidélité personnalisée (tampons ou points)",
       "Ciblage avancé (par rang client, inactifs)",
       "Notifications automatiques récurrentes",
       "Stats historique complet + export CSV",
