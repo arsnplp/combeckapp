@@ -80,29 +80,55 @@ export function Wheel({ segments, outcome, onDone }: {
 
   return (
     <div className="relative mx-auto aspect-square w-full max-w-[300px]">
-      <div className="absolute left-1/2 top-[-6px] z-10 h-0 w-0 -translate-x-1/2
-        border-l-[11px] border-r-[11px] border-t-[20px] border-l-transparent border-r-transparent border-t-slate-900" />
-      <svg viewBox="0 0 200 200" className="h-full w-full drop-shadow-xl"
+      {/* Aiguille : arrondie et ombrée, elle mordait le bord de la roue */}
+      <div className="absolute left-1/2 top-[-10px] z-20 -translate-x-1/2 drop-shadow-md">
+        <svg width="26" height="30" viewBox="0 0 26 30">
+          <path d="M13 29 L2 6 A13 13 0 0 1 24 6 Z" fill="#0f172a" />
+          <circle cx="13" cy="8" r="3.5" fill="#fff" />
+        </svg>
+      </div>
+
+      {/* Jante fixe : la roue tourne à l'intérieur */}
+      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-slate-800 to-slate-900 shadow-[0_18px_40px_-12px_rgba(15,23,42,0.5)]" />
+      <div className="absolute inset-[7px] rounded-full bg-white/90" />
+
+      <svg viewBox="0 0 200 200" className="absolute inset-[9px] h-[calc(100%-18px)] w-[calc(100%-18px)]"
         style={{ transform: `rotate(${angle}deg)`, transition: "transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99)" }}>
+        <defs>
+          <radialGradient id="lustre" cx="35%" cy="25%">
+            <stop offset="0%" stopColor="#fff" stopOpacity="0.35" />
+            <stop offset="70%" stopColor="#fff" stopOpacity="0" />
+          </radialGradient>
+        </defs>
         {segments.map((s, i) => {
           const a0 = (i * pas - 90) * (Math.PI / 180);
           const a1 = ((i + 1) * pas - 90) * (Math.PI / 180);
           const grand = pas > 180 ? 1 : 0;
           const d = `M100,100 L${100 + 98 * Math.cos(a0)},${100 + 98 * Math.sin(a0)} A98,98 0 ${grand},1 ${100 + 98 * Math.cos(a1)},${100 + 98 * Math.sin(a1)} Z`;
           const am = ((i + 0.5) * pas - 90) * (Math.PI / 180);
+          const rotTexte = (i + 0.5) * pas;
           return (
             <g key={i}>
-              <path d={d} fill={COULEURS[i % COULEURS.length]} stroke="#fff" strokeWidth="1.5" />
-              <text x={100 + 62 * Math.cos(am)} y={100 + 62 * Math.sin(am)}
-                textAnchor="middle" dominantBaseline="middle" fontSize="15"
-                transform={`rotate(${(i + 0.5) * pas} ${100 + 62 * Math.cos(am)} ${100 + 62 * Math.sin(am)})`}>
-                {s.emoji}
-              </text>
+              <path d={d} fill={COULEURS[i % COULEURS.length]} stroke="#ffffff" strokeWidth="2" />
+              <g transform={`rotate(${rotTexte} 100 100)`}>
+                <text x="100" y="38" textAnchor="middle" fontSize="19">{s.emoji}</text>
+                {/* Le pourcentage sous l'emoji : la roue annonce elle-même
+                    les chances, sans avoir à déplier la liste en dessous. */}
+                <text x="100" y="53" textAnchor="middle" fontSize="9"
+                  fill="#ffffff" fillOpacity="0.85" fontWeight="600">
+                  {s.percent} %
+                </text>
+              </g>
             </g>
           );
         })}
-        <circle cx="100" cy="100" r="15" fill="#fff" stroke="#e2e8f0" strokeWidth="2" />
+        <circle cx="100" cy="100" r="98" fill="url(#lustre)" pointerEvents="none" />
       </svg>
+
+      {/* Moyeu */}
+      <div className="absolute left-1/2 top-1/2 z-10 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-lg ring-4 ring-slate-900">
+        <div className="absolute inset-[7px] rounded-full bg-gradient-to-br from-green-500 to-emerald-600" />
+      </div>
     </div>
   );
 }
@@ -128,13 +154,38 @@ export function Scratch({ children, onRevealed }: { children: React.ReactNode; o
     const w = c.offsetWidth, h = c.offsetHeight;
     c.width = w; c.height = h;
 
+    // Métal brossé plutôt qu'un aplat gris : le dégradé en biais et le
+    // grain donnent l'impression d'une vraie carte à gratter.
     const g = ctx.createLinearGradient(0, 0, w, h);
-    g.addColorStop(0, "#94a3b8"); g.addColorStop(0.5, "#cbd5e1"); g.addColorStop(1, "#94a3b8");
+    g.addColorStop(0, "#64748b"); g.addColorStop(0.35, "#cbd5e1");
+    g.addColorStop(0.5, "#e2e8f0"); g.addColorStop(0.65, "#cbd5e1");
+    g.addColorStop(1, "#64748b");
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = "rgba(255,255,255,0.75)";
-    ctx.font = "600 15px system-ui, sans-serif";
+
+    ctx.save();
+    ctx.globalAlpha = 0.14;
+    for (let i = 0; i < 1400; i++) {
+      ctx.fillStyle = Math.random() > 0.5 ? "#fff" : "#475569";
+      ctx.fillRect(Math.random() * w, Math.random() * h, 1.6, 1.6);
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.1, h); ctx.lineTo(w * 0.35, 0);
+    ctx.lineTo(w * 0.55, 0); ctx.lineTo(w * 0.1, h);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = "rgba(15,23,42,0.45)";
+    ctx.font = "700 13px system-ui, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("Grattez avec le doigt", w / 2, h / 2);
+    ctx.fillText("GRATTEZ ICI", w / 2, h / 2 - 2);
+    ctx.font = "500 11px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(15,23,42,0.3)";
+    ctx.fillText("avec le doigt", w / 2, h / 2 + 15);
 
     const point = (e: PointerEvent) => {
       const r = c.getBoundingClientRect();
@@ -144,12 +195,17 @@ export function Scratch({ children, onRevealed }: { children: React.ReactNode; o
       ctx.fill();
     };
 
-    // Le pourcentage gratté est mesuré sur un échantillon d'un pixel sur
-    // seize : relire tout le canvas à chaque mouvement saccadait sur mobile.
+    // Mesuré au CENTRE seulement, là où le lot est dessiné. Sur toute la
+    // surface, il fallait gratter jusqu'aux coins alors que le résultat
+    // était déjà lisible depuis longtemps — on grattait pour rien.
+    // Un pixel sur seize : relire tout le canvas à chaque mouvement
+    // saccadait sur mobile.
+    const cx = Math.floor(w * 0.25), cy = Math.floor(h * 0.25);
+    const cw = Math.max(1, Math.floor(w * 0.5)), ch = Math.max(1, Math.floor(h * 0.5));
     const pourcentage = () => {
-      const d = ctx.getImageData(0, 0, w, h).data;
+      const d = ctx.getImageData(cx, cy, cw, ch).data;
       let vides = 0, total = 0;
-      for (let i = 3; i < d.length; i += 4 * 16) { total++; if (d[i] === 0) vides++; }
+      for (let i = 3; i < d.length; i += 4 * 8) { total++; if (d[i] === 0) vides++; }
       return total ? vides / total : 0;
     };
 
@@ -158,7 +214,8 @@ export function Scratch({ children, onRevealed }: { children: React.ReactNode; o
       if (!dessine.current) return;
       e.preventDefault();
       point(e);
-      if (pourcentage() > 0.6) reveler();
+      // Dès que le lot apparaît au centre, inutile d'insister.
+      if (pourcentage() > 0.38) reveler();
     };
     const up = () => { dessine.current = false; };
 
@@ -174,14 +231,14 @@ export function Scratch({ children, onRevealed }: { children: React.ReactNode; o
 
   return (
     <div className="relative mx-auto w-full max-w-[320px]">
-      <div className="flex aspect-[5/3] items-center justify-center rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="flex aspect-[5/3] items-center justify-center rounded-2xl bg-gradient-to-br from-amber-50 via-white to-green-50 shadow-inner ring-1 ring-slate-200">
         {children}
       </div>
       <canvas ref={ref}
-        className={`absolute inset-0 h-full w-full touch-none rounded-2xl transition-opacity duration-500 ${revele ? "pointer-events-none opacity-0" : "cursor-grab"}`} />
+        className={`absolute inset-0 h-full w-full touch-none rounded-2xl shadow-lg transition-opacity duration-700 ${revele ? "pointer-events-none opacity-0" : "cursor-grab active:cursor-grabbing"}`} />
       {!revele && (
         <button onClick={reveler}
-          className="mt-3 w-full rounded-xl bg-slate-100 py-2.5 text-[13px] font-medium text-slate-600">
+          className="mt-3 w-full rounded-xl bg-slate-100 py-2.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-200">
           Tout révéler
         </button>
       )}
@@ -205,34 +262,67 @@ export function Chests({ segments, outcome, onDone }: {
   const choisir = (i: number) => {
     if (choisi !== null || !outcome) return;
     setChoisi(i);
-    setTimeout(() => setOuverts(true), 700);
-    setTimeout(onDone, 1700);
+    setTimeout(() => setOuverts(true), 750);
+    setTimeout(onDone, 1800);
   };
 
   return (
-    <div className="grid w-full max-w-[340px] grid-cols-3 gap-3">
-      {[0, 1, 2].map((i) => {
-        const estChoisi = choisi === i;
-        const contenu = estChoisi ? outcome : garnis[i < (choisi ?? 3) ? 0 : 1];
-        const ouvert = estChoisi ? choisi !== null : ouverts;
-        return (
-          <button key={i} onClick={() => choisir(i)} disabled={choisi !== null}
-            className={`flex aspect-[3/4] flex-col items-center justify-center rounded-2xl border-2 transition-all duration-500 ${
-              estChoisi ? "scale-105 border-green-500 bg-green-50 shadow-lg"
-              : choisi !== null ? "border-slate-200 bg-slate-50 opacity-60"
-              : "border-slate-200 bg-white hover:-translate-y-1 hover:border-green-400 hover:shadow-md"
-            }`}>
-            <span className={`text-[34px] transition-transform duration-500 ${estChoisi ? "scale-110" : ""}`}>
-              {ouvert && contenu ? (contenu.emoji || "🎁") : "🎁"}
-            </span>
-            {ouvert && contenu && (
-              <span className="mt-1 px-1 text-center text-[10.5px] font-medium leading-tight text-slate-600">
-                {contenu.label}
+    <div className="w-full max-w-[340px]">
+      <div className="grid grid-cols-3 gap-3">
+        {[0, 1, 2].map((i) => {
+          const estChoisi = choisi === i;
+          const contenu = estChoisi ? outcome : garnis[i < (choisi ?? 3) ? 0 : 1];
+          const ouvert = estChoisi ? choisi !== null : ouverts;
+          const enAttente = choisi === null;
+          return (
+            <button
+              key={i}
+              onClick={() => choisir(i)}
+              disabled={!enAttente}
+              style={enAttente ? { animationDelay: `${i * 160}ms` } : undefined}
+              className={`relative flex aspect-[3/4] flex-col items-center justify-center overflow-hidden rounded-2xl border-2 transition-all duration-500 ${
+                estChoisi
+                  ? "-translate-y-1 scale-105 border-amber-400 bg-gradient-to-b from-amber-50 to-amber-100 shadow-[0_16px_32px_-10px_rgba(245,158,11,0.55)]"
+                  : choisi !== null
+                    ? "border-slate-200 bg-slate-50 opacity-45"
+                    : "border-slate-200 bg-gradient-to-b from-white to-slate-50 shadow-sm hover:-translate-y-1.5 hover:border-amber-300 hover:shadow-lg active:scale-95"
+              } ${enAttente ? "animate-[flotte_2.6s_ease-in-out_infinite]" : ""}`}
+            >
+              {/* Halo doré derrière le coffre choisi */}
+              {estChoisi && (
+                <span className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(251,191,36,0.4),transparent_65%)]" />
+              )}
+              <span className={`relative text-[36px] transition-transform duration-500 ${estChoisi ? "scale-110" : ""}`}>
+                {ouvert && contenu ? (contenu.emoji || "🎁") : "🎁"}
               </span>
-            )}
-          </button>
-        );
-      })}
+              {ouvert && contenu ? (
+                <span className="relative mt-1.5 px-1.5 text-center text-[10.5px] font-semibold leading-tight text-slate-700">
+                  {contenu.label}
+                </span>
+              ) : (
+                <span className="relative mt-1.5 text-[11px] font-medium text-slate-400">
+                  {i + 1}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {choisi === null && (
+        <p className="mt-4 text-center text-[13px] text-slate-500">
+          Choisissez un coffre
+        </p>
+      )}
+
+      {/* Flottement léger : trois coffres immobiles font vignette, trois
+          coffres qui respirent donnent envie d'en toucher un. */}
+      <style jsx>{`
+        @keyframes flotte {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
+        }
+      `}</style>
     </div>
   );
 }

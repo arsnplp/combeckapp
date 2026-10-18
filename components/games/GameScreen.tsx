@@ -57,19 +57,23 @@ export default function GameScreen({ store, game, onBack }: { store: Store; game
       </button>
 
       <div className="text-center">
-        <h1 className="text-[20px] font-bold text-slate-900">{game.emoji} {game.name}</h1>
-        <p className="mt-0.5 text-[12.5px] text-slate-500">
-          {solde} tampons · {restantes} partie{restantes > 1 ? "s" : ""} aujourd&apos;hui
-        </p>
+        <h1 className="text-[21px] font-bold text-slate-900">{game.emoji} {game.name}</h1>
+        <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[12px] font-medium text-slate-600">
+          <span className="whitespace-nowrap">{solde} tampons</span>
+          <span className="h-3 w-px bg-slate-300" />
+          <span className="whitespace-nowrap">{restantes} partie{restantes > 1 ? "s" : ""} aujourd&apos;hui</span>
+        </div>
       </div>
 
-      <div className="relative my-6 flex flex-1 items-center justify-center">
+      <div className="relative my-5 flex flex-1 items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-b from-slate-50 to-white px-4 py-6 ring-1 ring-slate-100">
         {phase === "result" ? (
           <div className="relative w-full text-center">
             {gagne && <Confetti />}
             <div className="relative z-10">
-              <p className="text-[64px] leading-none">{gagne ? outcome?.reward?.emoji ?? "🎉" : "🙈"}</p>
-              <p className="mt-3 text-[21px] font-bold text-slate-900">
+              <p className={`mx-auto flex h-24 w-24 items-center justify-center rounded-full text-[52px] leading-none ${
+                gagne ? "bg-gradient-to-br from-amber-100 to-amber-200 shadow-[0_12px_30px_-8px_rgba(245,158,11,0.6)]" : "bg-slate-100"
+              }`}>{gagne ? outcome?.reward?.emoji ?? "🎉" : "🙈"}</p>
+              <p className="mt-4 text-[22px] font-bold text-slate-900">
                 {gagne ? "Gagné !" : "Perdu cette fois"}
               </p>
               {gagne ? (
@@ -104,8 +108,9 @@ export default function GameScreen({ store, game, onBack }: { store: Store; game
             </div>
           </Scratch>
         ) : (
-          <div className="flex aspect-[5/3] w-full max-w-[320px] items-center justify-center rounded-2xl bg-slate-100">
-            <span className="text-[44px] opacity-30">{game.emoji}</span>
+          <div className="flex aspect-[5/3] w-full max-w-[320px] flex-col items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 ring-1 ring-slate-200">
+            <span className="text-[52px] drop-shadow-sm">{game.emoji}</span>
+            <span className="text-[12.5px] text-slate-400">{game.tagline}</span>
           </div>
         )}
       </div>
@@ -116,7 +121,7 @@ export default function GameScreen({ store, game, onBack }: { store: Store; game
         <div className="space-y-2">
           {restantes > 0 && solde >= game.cost && (
             <button onClick={rejouer}
-              className="h-14 w-full rounded-2xl bg-green-600 text-[16px] font-bold text-white active:scale-[0.99]">
+              className="h-14 w-full rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 text-[16px] font-bold text-white shadow-lg shadow-green-600/25 active:scale-[0.99]">
               Rejouer · {game.cost} tampons
             </button>
           )}
@@ -127,7 +132,7 @@ export default function GameScreen({ store, game, onBack }: { store: Store; game
       ) : (
         <button onClick={jouer}
           disabled={phase !== "idle" || solde < game.cost || restantes <= 0}
-          className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-green-600 text-[16px] font-bold text-white transition-all active:scale-[0.99] disabled:bg-slate-200 disabled:text-slate-400">
+          className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 text-[16px] font-bold text-white shadow-lg shadow-green-600/25 transition-all active:scale-[0.99] disabled:bg-slate-200 disabled:bg-none disabled:text-slate-400 disabled:shadow-none">
           {phase === "loading" && <Loader2 className="h-5 w-5 animate-spin" />}
           {restantes <= 0 ? "Limite du jour atteinte"
             : solde < game.cost ? `Il faut ${game.cost} tampons`
