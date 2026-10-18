@@ -29,7 +29,12 @@ export default async function ClientLayout({ children }: { children: ReactNode }
 
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
-      <header className="bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-10">
+      {/* En-tête opaque. En `bg-white/80`, la carte de fidélité — fond
+          sombre — transparaissait au défilement : ses pastilles de tampons
+          semblaient flotter par-dessus le logo. Le flou d'arrière-plan ne
+          suffit pas, il n'est pas appliqué partout. Z-index relevé pour
+          repasser au-dessus des éléments internes de la carte. */}
+      <header className="sticky top-0 z-30 border-b border-gray-100 bg-white">
         <div className="max-w-md mx-auto px-4 h-14 flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Comeback" className="h-6 w-auto object-contain" />
