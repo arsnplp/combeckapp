@@ -15,6 +15,12 @@ import { notifyAdminEmail } from "@/lib/mailer";
  * `immediate` existe pour les cas d'abus : l'abonnement s'arrête sur-le-champ
  * et le compte repasse en Starter dans la foulée.
  *
+ * À NE PAS CONFONDRE avec la fin de période : là, le cron d'expiration
+ * repasse le plan à `free`, et un compte `free` expiré est redirigé vers
+ * /bloque jusqu'à ce que le commerçant choisisse un plan. C'est voulu
+ * (voir app/bloque/page.tsx) : Starter y est gratuit et se prend en un
+ * clic, les données restent intactes.
+ *
  * `resume` fait marche arrière sur une résiliation programmée mais pas encore
  * effective — une erreur de ligne se rattrape depuis la console, sans passer
  * par le tableau de bord Stripe.

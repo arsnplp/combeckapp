@@ -1384,10 +1384,13 @@ export default function AdminPage() {
                 cette résiliation : les prélèvements continuent normalement, comme si rien ne s&apos;était passé.</>
               ) : unsubTarget.revenueStatus === "essai" ? (
                 <>L&apos;essai s&apos;arrête : <strong className="text-white">aucun prélèvement n&apos;aura lieu</strong>. Le compte
-                garde son accès jusqu&apos;au terme de l&apos;essai, puis repasse en Starter.</>
+                garde son accès jusqu&apos;au terme de l&apos;essai. Ensuite, le commerçant devra choisir
+                un plan pour retrouver son tableau de bord — Starter reste gratuit et se prend en un clic.</>
               ) : (
                 <><strong className="text-white">Plus aucun prélèvement.</strong> Le compte garde le plan déjà réglé
-                jusqu&apos;à la fin de la période en cours, puis repasse en Starter tout seul.</>
+                jusqu&apos;à la fin de la période en cours. Ensuite, le commerçant devra choisir un plan
+                pour retrouver son tableau de bord — Starter reste gratuit et se prend en un clic.
+                Ses données sont conservées dans tous les cas.</>
               )}
               <br />
               <span className="text-slate-500">

@@ -5,16 +5,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { estNouveau } from "@/lib/nouveautes";
 import {
   LayoutDashboard, Gift, Users, CreditCard,
   Bell, BarChart3, Settings, ScanLine, Gem, User, UserCog, Dices,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { fetchPlanFeatures } from "@/lib/plan-features";
-
-/** Pages signalées comme nouvelles dans le menu. À vider quand elles ne le
- *  seront plus — une pastille permanente finit par ne plus rien dire. */
-const NOUVEAUTES = new Set(["/notifications", "/jeux"]);
 
 const navSections = [
   {
@@ -112,7 +109,7 @@ export default function AppSidebar() {
                   >
                     <NavIcon icon={Icon} className={`h-[15px] w-[15px] flex-shrink-0 transition-colors ${isActive ? "text-green-600" : "text-slate-400 group-hover:text-slate-600"}`} />
                     <span className="truncate">{item.label}</span>
-                    {NOUVEAUTES.has(item.href) && (
+                    {estNouveau(item.href) && (
                       <span
                         className="ml-auto flex-shrink-0 rounded-full bg-red-500 px-1.5 py-[1px] text-[9.5px] font-bold uppercase tracking-wide text-white"
                         title="Nouveauté"

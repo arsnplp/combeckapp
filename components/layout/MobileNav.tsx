@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useStore } from "@/lib/store-context";
+import { estNouveau } from "@/lib/nouveautes";
 
 const tabs = [
   { href: "/dashboard", label: "Accueil", icon: LayoutDashboard, exact: true, scanner: false },
@@ -18,9 +19,6 @@ const tabs = [
   { href: "/dashboard/scan", label: "Scanner", icon: ScanLine, exact: false, scanner: true, tourId: "scanner" },
   { href: "/carte", label: "Cartes", icon: CreditCard, exact: false, scanner: false, tourId: "cartes" },
 ];
-
-/** Mêmes nouveautés signalées que dans le menu du bureau. */
-const NOUVEAUTES = new Set(["/notifications", "/jeux"]);
 
 const menuItems = [
   { href: "/produits", label: "Récompenses", icon: Gift },
@@ -156,7 +154,7 @@ export default function MobileNav() {
                     >
                       <NavIcon icon={Icon} className={`h-5 w-5 ${active ? "text-green-600" : "text-slate-400"}`} />
                       <span className="min-w-0 flex-1">{item.label}</span>
-                      {NOUVEAUTES.has(item.href) && (
+                      {estNouveau(item.href) && (
                         <span className="flex-shrink-0 rounded-full bg-red-500 px-1.5 py-[1px] text-[9.5px] font-bold uppercase tracking-wide text-white">
                           Nouveau
                         </span>

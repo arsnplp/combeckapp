@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { MapPin, Loader2, Check, Apple, Info } from "lucide-react";
+import { periodeNouveauteActive } from "@/lib/nouveautes";
 
 interface GeofencingState {
   enabled: boolean;
@@ -68,9 +69,11 @@ export default function ProximitySection() {
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <MapPin className="h-4 w-4 flex-shrink-0 text-green-600" />
         <h3 className="text-[15px] font-bold text-slate-900">Notification de proximité</h3>
-        <span className="flex-shrink-0 rounded-full bg-red-500 px-1.5 py-[1px] text-[9.5px] font-bold uppercase tracking-wide text-white">
-          Nouveau
-        </span>
+        {periodeNouveauteActive() && (
+          <span className="flex-shrink-0 rounded-full bg-red-500 px-1.5 py-[1px] text-[9.5px] font-bold uppercase tracking-wide text-white">
+            Nouveau
+          </span>
+        )}
         {/* Étiquette raccourcie : « — pas sur Android » la faisait passer
             sur deux lignes dès qu'on réduisait la fenêtre. La précision
             reste dans la description, visible une fois la fonction active. */}
