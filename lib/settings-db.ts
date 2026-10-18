@@ -185,6 +185,12 @@ export async function saveTenantSettings(
 ): Promise<void> {
   const sb = supabase();
   const s = (blob.settings ?? {}) as Record<string, unknown>;
+
+  // Relu en base juste avant l'écriture : c'est la seule version à jour.
+  const { data: ligneActuelle } = await sb.from("merchants")
+    .select("wallet_config").eq("id", tenantId).maybeSingle();
+  const walletConfigActuel = (ligneActuelle?.wallet_config ?? {}) as Record<string, unknown>;
+
   // Un numéro invalide en cours de frappe ne doit pas être persisté (le champ
   // reste tel qu'il était en base) — le retour visuel se fait côté UI, pas en
   // rejetant toute la sauvegarde automatique (qui couvre aussi le reste du blob).
@@ -199,12 +205,21 @@ export async function saveTenantSettings(
     website: (s.website as string) ?? undefined,
     logo_url: (s.logoUrl as string) ?? undefined,
     settings: s,
-    // La config de proximité vit dans wallet_config. On la réinjecte ici
-    // plutôt que de la laisser à l'appelant : sinon une sauvegarde partielle
-    // de réglages l'effacerait sans que personne ne s'en aperçoive.
+    // `wallet_config` est partagé par trois écrans : les réglages, la
+    // notification de proximité et l'interrupteur du module Jeux. Le
+    // reconstruire à partir de la copie envoyée par le navigateur écrasait
+    // les clés modifiées ailleurs entre-temps — un onglet Paramètres resté
+    // ouvert suffisait à rallumer ou éteindre les jeux à l'insu du
+    // commerçant. On repart donc de ce qui est réellement en base et on ne
+    // touche qu'à ce que cet appel apporte.
     wallet_config: {
+      ...walletConfigActuel,
       ...(blob.walletConfig ?? {}),
       ...(blob.geofencing ? { geofencing: blob.geofencing } : {}),
+      // Ces deux clés n'appartiennent pas à cet écran : elles gardent leur
+      // valeur en base, quoi que le navigateur ait envoyé.
+      ...(walletConfigActuel.games ? { games: walletConfigActuel.games } : {}),
+      ...(blob.geofencing ? {} : walletConfigActuel.geofencing ? { geofencing: walletConfigActuel.geofencing } : {}),
     },
   }).eq("id", tenantId);
 
