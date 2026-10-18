@@ -23,7 +23,19 @@ export async function GET(req: NextRequest) {
   const depuis = jours ? new Date(Date.now() - jours * 86400_000).toISOString() : undefined;
 
   const [toutes, configs] = await Promise.all([getPlays(tenantId, depuis), getGameConfigs(tenantId)]);
-  const plays = jeu ? toutes.filter((p) => p.gameKey === jeu) : toutes;
+
+  // Les totaux ne décrivent que ce qui tourne : un jeu arrêté gonflerait
+  // les chiffres d'une activité qui n'existe plus. Son historique reste
+  // consultable en cliquant sur sa carte, qui le filtre explicitement.
+  const actifs = new Set(configs.filter((c) => c.enabled).map((c) => c.gameKey));
+  const plays = jeu
+    ? toutes.filter((p) => p.gameKey === jeu)
+    : toutes.filter((p) => actifs.has(p.gameKey));
+
+  // Ce qui a été écarté, pour le dire à l'écran plutôt que de laisser
+  // croire à une baisse d'activité.
+  const exclues = jeu ? 0 : toutes.length - plays.length;
+  const jeuxExclus = jeu ? 0 : configs.filter((c) => !c.enabled && toutes.some((p) => p.gameKey === c.gameKey)).length;
 
   const gagnantes = plays.filter((p) => p.resultType === "win");
   const participants = new Set(plays.map((p) => p.customerId)).size;
@@ -39,7 +51,7 @@ export async function GET(req: NextRequest) {
     parRecompense.set(cle, e);
   }
 
-  const configsVisibles = jeu ? configs.filter((c) => c.gameKey === jeu) : configs;
+  const configsVisibles = jeu ? configs.filter((c) => c.gameKey === jeu) : configs.filter((c) => c.enabled);
 
   // La probabilité réglée n'est comparable au taux observé que sur UN jeu :
   // additionner les réglages des trois jeux donnerait un « 75 % » qui ne
@@ -100,6 +112,7 @@ export async function GET(req: NextRequest) {
   );
 
   return NextResponse.json({
+    excluded: { plays: exclues, games: jeuxExclus },
     kpi: {
       plays: plays.length,
       participants,

@@ -14,6 +14,8 @@ interface GameConfig {
 }
 
 interface Stats {
+  /** Parties écartées des totaux parce que leur jeu est désactivé. */
+  excluded: { plays: number; games: number };
   kpi: { plays: number; participants: number; spent: number; wins: number; winRate: number; used: number; pending: number };
   perDay: Array<{ date: string; count: number }>;
   breakdown: Array<{ rewardId: string; name: string; emoji: string; count: number; observed: number; configured: number | null }>;
@@ -413,6 +415,19 @@ function Chiffres({ stats, period, setPeriod, gameFilter, setGameFilter }: {
         <Kpi icon={Stamp} label="Tampons dépensés" value={stats.kpi.spent} />
         <Kpi icon={Percent} label="Taux de gain" value={`${stats.kpi.winRate} %`} />
       </div>
+
+      {stats.excluded.plays > 0 && (
+        // Dire ce qui n'est pas compté : sans ça, les chiffres chutent le
+        // jour où le commerçant arrête un jeu et il croit à une baisse
+        // d'activité.
+        <p className="rounded-xl bg-slate-100 px-4 py-2.5 text-[12.5px] text-slate-500">
+          Ces chiffres ne comptent que les jeux en service.{" "}
+          <strong className="font-semibold text-slate-600">
+            {stats.excluded.plays} partie{stats.excluded.plays > 1 ? "s" : ""}
+          </strong>{" "}
+          d&apos;un jeu désactivé {stats.excluded.plays > 1 ? "sont écartées" : "est écartée"} — cliquez sur sa carte grisée pour les voir.
+        </p>
+      )}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <p className="text-[13px] font-semibold text-slate-900">Lots gagnés</p>
