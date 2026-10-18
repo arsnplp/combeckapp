@@ -80,8 +80,19 @@ function formatEuros(amount: number): string {
   return amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/**
+ * Toutes les dates de la console sont affichées à l'heure de Paris.
+ *
+ * Sans `timeZone`, le navigateur applique le fuseau de la machine : une
+ * inscription du 15 octobre à 05:51 heure française s'affichait « 14 oct. »
+ * depuis un ordinateur réglé sur un fuseau américain. Quatre comptes sur
+ * vingt-neuf reculaient ainsi d'un jour. La date d'inscription d'un
+ * commerçant français est une date française, où qu'on la consulte.
+ */
+const FUSEAU = "Europe/Paris";
+
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+  return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", timeZone: FUSEAU });
 }
 
 function StatCard({ icon: Icon, label, value, sub, color }: {
@@ -113,7 +124,7 @@ function Revenue({ u, size = "sm" }: { u: TenantUser; size?: "sm" | "md" }) {
   const amount = `${formatEuros(u.monthlyRevenue)} €`;
   const big = size === "md" ? "text-[15px]" : "text-[13px]";
   const jour = (iso: string) =>
-    new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", timeZone: FUSEAU });
 
   // Le détail passe sous le montant. En ligne, il élargissait la colonne au
   // point de pousser « clients » et « cartes » hors de l'écran.
@@ -218,7 +229,7 @@ interface SupportMsg {
 }
 
 function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: FUSEAU });
 }
 
 /** Ce que la suppression d'un compte emporterait — renvoyé par l'API. */
@@ -333,7 +344,7 @@ export default function AdminPage() {
         data.noop ? "Rien à changer sur ce compte."
         : data.resume ? `${data.storeName} reste abonné, la résiliation est annulée.`
         : data.immediate ? `${data.storeName} est repassé en Starter.`
-        : `${data.storeName} ne sera plus prélevé. Accès jusqu'au ${new Date(data.endsAt).toLocaleDateString("fr-FR")}.`,
+        : `${data.storeName} ne sera plus prélevé. Accès jusqu'au ${new Date(data.endsAt).toLocaleDateString("fr-FR", { timeZone: FUSEAU })}.`,
       );
       setUnsubTarget(null);
       setUnsubbing(false);
@@ -717,7 +728,7 @@ export default function AdminPage() {
                 : `Certificat Apple Wallet valide — expire dans ${certInfo.daysLeft} jours`}
             </p>
             <p className="mt-0.5 text-[11.5px] text-slate-400">
-              {certInfo.subject} · expire le {new Date(certInfo.expiresAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}
+              {certInfo.subject} · expire le {new Date(certInfo.expiresAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric", timeZone: FUSEAU })}
             </p>
           </div>
           {certInfo.daysLeft <= 30 && (

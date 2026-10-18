@@ -126,7 +126,7 @@ export default function AdminAffiliatesPage() {
                         {aff?.name ?? "?"} <span className="text-slate-500">({aff?.commerce ?? "?"})</span>
                       </p>
                       <p className="text-[12px] text-slate-400">
-                        {eur(w.amount)} · {w.bankMethod} · demandé le {new Date(w.requestedAt).toLocaleDateString("fr-FR")}
+                        {eur(w.amount)} · {w.bankMethod} · demandé le {new Date(w.requestedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}
                       </p>
                       <p className="mt-0.5 text-[11.5px] text-slate-500">{bank}</p>
                       {w.status === "approved" && (
