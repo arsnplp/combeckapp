@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Check, AlertTriangle, Trophy, Users, Stamp, Percent } from "lucide-react";
+import { Loader2, Check, AlertTriangle, Trophy, Users, Stamp, Percent, ChevronDown } from "lucide-react";
 
 interface RewardRef { id: string; name: string; emoji: string }
 interface PrizeConfig { rewardId: string; probability: number; stock: number | null; wonCount: number }
@@ -319,6 +319,56 @@ function GameCard({ g, rewards, saving, onPatch, onSave }: {
   );
 }
 
+
+/**
+ * Bloc de liste plafonné.
+ *
+ * Sans plafond, « Dernières parties » déroulait vingt-cinq lignes pendant
+ * que « Stock restant » en tenait deux : la page sautait d'une taille à
+ * l'autre selon l'activité, et le bas du tableau de bord devenait
+ * inatteignable. Chaque bloc part donc à la même hauteur, le reste se
+ * déplie à la demande.
+ */
+function BlocListe<T>({ titre, items, limite = 5, vide, render }: {
+  titre: string;
+  items: T[];
+  limite?: number;
+  vide?: string;
+  render: (item: T, i: number) => React.ReactNode;
+}) {
+  const [deplie, setDeplie] = useState(false);
+  const caches = Math.max(0, items.length - limite);
+  const visibles = deplie ? items : items.slice(0, limite);
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <p className="text-[13px] font-semibold text-slate-900">{titre}</p>
+        {items.length > 0 && (
+          <span className="text-[11.5px] text-slate-400">{items.length}</span>
+        )}
+      </div>
+
+      {items.length === 0 ? (
+        <p className="py-4 text-center text-[12.5px] text-slate-400">{vide ?? "Rien à afficher."}</p>
+      ) : (
+        <>
+          <div>{visibles.map(render)}</div>
+          {caches > 0 && (
+            <button
+              onClick={() => setDeplie((d) => !d)}
+              className="mt-2 flex w-full items-center justify-center gap-1 rounded-xl bg-slate-50 py-2 text-[12.5px] font-medium text-slate-500 transition-colors hover:bg-slate-100"
+            >
+              {deplie ? "Voir moins" : `Voir les ${caches} autres`}
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${deplie ? "rotate-180" : ""}`} />
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function Kpi({ icon: Icon, label, value, sub }: { icon: React.ElementType; label: string; value: string | number; sub?: string }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -444,59 +494,66 @@ function Chiffres({ stats, period, setPeriod, gameFilter, setGameFilter }: {
         ))}
       </div>
 
-      {stats.breakdown.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="mb-3 text-[13px] font-semibold text-slate-900">Ce qui a été gagné</p>
-          <div className="space-y-2.5">
-            {stats.breakdown.map((b) => (
-              <div key={b.rewardId}>
-                <div className="flex justify-between text-[12.5px]">
-                  <span className="text-slate-700">{b.emoji} {b.name}</span>
-                  <span className="text-slate-500">
-                    {b.count}× · {b.observed} %
-                    {b.configured !== null && <span className="text-slate-400"> (réglé {b.configured} %)</span>}
-                  </span>
-                </div>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full bg-green-500" style={{ width: `${Math.min(100, b.observed)}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {stats.stocks.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="mb-2 text-[13px] font-semibold text-slate-900">Stock restant</p>
-          {stats.stocks.map((s) => (
-            <div key={`${s.gameKey}-${s.rewardId}`} className="flex justify-between py-1 text-[12.5px]">
-              <span className="text-slate-600">{s.name} <span className="text-slate-400">· {s.gameName}</span></span>
-              <span className={s.remaining === 0 ? "font-semibold text-red-500" : "text-slate-500"}>
-                {s.remaining} / {s.stock}
+      <BlocListe
+        titre="Ce qui a été gagné"
+        items={stats.breakdown}
+        limite={4}
+        vide="Aucun lot gagné sur la période."
+        render={(b) => (
+          <div key={b.rewardId} className="py-1.5">
+            <div className="flex justify-between gap-3 text-[12.5px]">
+              <span className="min-w-0 truncate text-slate-700">{b.emoji} {b.name}</span>
+              <span className="flex-shrink-0 whitespace-nowrap text-slate-500">
+                {b.count}× · {b.observed} %
+                {b.configured !== null && <span className="text-slate-400"> (réglé {b.configured} %)</span>}
               </span>
             </div>
-          ))}
-        </div>
-      )}
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full bg-green-500" style={{ width: `${Math.min(100, b.observed)}%` }} />
+            </div>
+          </div>
+        )}
+      />
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <p className="mb-2 text-[13px] font-semibold text-slate-900">Dernières parties</p>
-        {stats.recent.length === 0 ? (
-          <p className="py-4 text-center text-[12.5px] text-slate-400">Aucune partie sur la période.</p>
-        ) : stats.recent.map((r, i) => (
-          <div key={i} className="flex items-center justify-between border-t border-slate-100 py-2 text-[12.5px] first:border-0">
-            <span className="text-slate-400">{new Date(r.playedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}</span>
-            <span className="min-w-0 flex-1 truncate px-3 text-slate-600">{r.game}</span>
-            <span className={r.win ? "font-medium text-green-600" : "text-slate-400"}>{r.result}</span>
+      <BlocListe
+        titre="Stock restant"
+        items={stats.stocks}
+        limite={4}
+        vide="Aucun lot à stock limité."
+        render={(s) => (
+          <div key={`${s.gameKey}-${s.rewardId}`} className="flex justify-between gap-3 py-1.5 text-[12.5px]">
+            <span className="min-w-0 truncate text-slate-600">
+              {s.name} <span className="text-slate-400">· {s.gameName}</span>
+            </span>
+            <span className={`flex-shrink-0 whitespace-nowrap ${s.remaining === 0 ? "font-semibold text-red-500" : "text-slate-500"}`}>
+              {s.remaining} / {s.stock}
+            </span>
+          </div>
+        )}
+      />
+
+      <BlocListe
+        titre="Dernières parties"
+        items={stats.recent}
+        limite={5}
+        vide="Aucune partie sur la période."
+        render={(r, i) => (
+          <div key={i} className="flex items-center justify-between gap-2 border-t border-slate-100 py-2 text-[12.5px] first:border-0">
+            <span className="flex-shrink-0 whitespace-nowrap text-slate-400">
+              {new Date(r.playedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-slate-600">{r.game}</span>
+            <span className={`flex-shrink-0 whitespace-nowrap ${r.win ? "font-medium text-green-600" : "text-slate-400"}`}>
+              {r.result}
+            </span>
             {r.code && (
-              <span className={`ml-2 rounded px-1.5 py-0.5 font-mono text-[10.5px] ${r.used ? "bg-slate-100 text-slate-400 line-through" : "bg-amber-50 text-amber-700"}`}>
+              <span className={`flex-shrink-0 rounded px-1.5 py-0.5 font-mono text-[10.5px] ${r.used ? "bg-slate-100 text-slate-400 line-through" : "bg-amber-50 text-amber-700"}`}>
                 {r.code}
               </span>
             )}
           </div>
-        ))}
-      </div>
+        )}
+      />
     </div>
   );
 }
