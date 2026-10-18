@@ -112,11 +112,15 @@ export default function JeuxPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      {/* Pas de titre ici : la barre du haut le porte déjà, comme sur les
+          autres pages. L'interrupteur du module reste, avec son libellé. */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[22px] font-bold text-slate-900">Jeux</h1>
-          <p className="mt-0.5 text-[13px] text-slate-500">
-            Vos clients dépensent des tampons pour tenter de gagner vos récompenses.
+        <div className="min-w-0">
+          <p className="text-[14px] font-semibold text-slate-900">Module Jeux</p>
+          <p className="mt-0.5 text-[12.5px] text-slate-500">
+            {moduleEnabled
+              ? "Vos clients voient les jeux que vous avez activés."
+              : "Désactivé : vos clients ne voient aucun jeu."}
           </p>
         </div>
         <button
@@ -129,12 +133,6 @@ export default function JeuxPage() {
           <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${moduleEnabled ? "left-6" : "left-1"}`} />
         </button>
       </div>
-
-      {!moduleEnabled && (
-        <p className="rounded-xl bg-slate-100 px-4 py-3 text-[13px] text-slate-600">
-          Module désactivé — vos clients ne voient aucun jeu. Activez-le pour commencer.
-        </p>
-      )}
 
       <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
         {([["reglages", "Réglages"], ["chiffres", "Chiffres"]] as const).map(([k, label]) => (

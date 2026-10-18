@@ -13,6 +13,7 @@ const pageMeta: Record<string, { title: string; subtitle: string }> = {
   "/clients": { title: "Clients", subtitle: "Gérez votre base de clients" },
   "/carte": { title: "Carte Wallet", subtitle: "Personnalisez votre carte de fidélité" },
   "/notifications": { title: "Notifications", subtitle: "Communiquez avec vos clients" },
+  "/jeux": { title: "Jeux", subtitle: "Vos clients dépensent des tampons pour tenter de gagner" },
   "/analytics": { title: "Analytics", subtitle: "Analysez vos performances" },
   "/parametres": { title: "Paramètres", subtitle: "Configurez votre établissement" },
 };

@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Users, CreditCard, ScanLine, Menu, X,
-  Gift, Bell, BarChart3, Settings, Gem, LogOut, UserCog,
+  Gift, Bell, BarChart3, Settings, Gem, LogOut, UserCog, Dices,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useStore } from "@/lib/store-context";
@@ -23,6 +23,7 @@ const menuItems = [
   { href: "/produits", label: "Récompenses", icon: Gift },
   { href: "/employes", label: "Employés", icon: UserCog },
   { href: "/notifications", label: "Notifications", icon: Bell, tourId: "notifications" },
+  { href: "/jeux", label: "Jeux", icon: Dices },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/parametres", label: "Paramètres", icon: Settings },
 ];
