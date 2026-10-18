@@ -7,6 +7,7 @@ import { computeRank } from "@/lib/rank";
 import NotificationHistory from "@/components/notifications/NotificationHistory";
 import RecurringNotifications from "@/components/notifications/RecurringNotifications";
 import QuotaCard from "@/components/notifications/QuotaCard";
+import ProximitySection from "@/components/settings/ProximitySection";
 import type { AudienceType, RankType } from "@/types";
 
 // ── Suggestions persistées ────────────────────────────────────────────────────
@@ -149,6 +150,12 @@ export default function NotificationsPage() {
 
       {/* ── Notifications automatiques ── */}
       <RecurringNotifications />
+
+      {/* ── Notification de proximité ──
+          Posée ici et non dans les Réglages : le commerçant la cherche du
+          côté des notifications, puisque c'en est une. Dans Paramètres elle
+          se retrouvait derrière le thème sombre, et restait introuvable. */}
+      <ProximitySection />
 
       {/* ── Composer ── */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
