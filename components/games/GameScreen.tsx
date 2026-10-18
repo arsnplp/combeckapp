@@ -51,9 +51,15 @@ export default function GameScreen({ store, game, onBack }: { store: Store; game
     : null;
 
   return (
-    <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col px-4 py-6">
-      <button onClick={onBack} className="mb-4 flex items-center gap-1.5 self-start text-[13px] text-slate-400">
-        <ArrowLeft className="h-3.5 w-3.5" /> Retour
+    // Plus de hauteur d'écran forcée : l'aire de jeu s'étirait pour remplir
+    // le téléphone et laissait un grand vide au-dessus des coffres. Tout se
+    // dimensionne maintenant sur son contenu.
+    <div className="mx-auto max-w-md px-4 py-5">
+      <button
+        onClick={onBack}
+        className="mb-4 flex items-center gap-1.5 rounded-xl bg-slate-100 py-2 pl-2.5 pr-3.5 text-[13.5px] font-semibold text-slate-700 transition-colors hover:bg-slate-200 active:scale-[0.98]"
+      >
+        <ArrowLeft className="h-4 w-4" /> Retour
       </button>
 
       <div className="text-center">
@@ -65,7 +71,7 @@ export default function GameScreen({ store, game, onBack }: { store: Store; game
         </div>
       </div>
 
-      <div className="relative my-5 flex flex-1 items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-b from-slate-50 to-white px-4 py-6 ring-1 ring-slate-100">
+      <div className="relative my-4 flex items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-b from-slate-50 to-white px-4 py-5 ring-1 ring-slate-100">
         {phase === "result" ? (
           <div className="relative w-full text-center">
             {gagne && <Confetti />}
