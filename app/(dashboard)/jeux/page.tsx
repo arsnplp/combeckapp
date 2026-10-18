@@ -480,18 +480,34 @@ function Chiffres({ stats, period, setPeriod, gameFilter, setGameFilter }: {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        {stats.perGame.map((g) => (
-          <button key={g.gameKey} onClick={() => setGameFilter(gameFilter === g.gameKey ? null : g.gameKey)}
-            className={`rounded-2xl border p-4 text-left transition-colors ${
-              gameFilter === g.gameKey ? "border-green-400 bg-green-50" : "border-slate-200 bg-white hover:border-slate-300"}`}>
-            <p className="text-[13.5px] font-semibold text-slate-900">{g.emoji} {g.name}</p>
-            <p className="mt-1 text-[20px] font-bold text-slate-900">{g.plays}</p>
-            <p className="text-[11.5px] text-slate-400">
-              parties · {g.wins} gains · {g.spent} tampons
-              {!g.enabled && " · désactivé"}
-            </p>
-          </button>
-        ))}
+        {stats.perGame.map((g) => {
+          const actif = g.enabled;
+          return (
+            // Un jeu désactivé reste cliquable — son historique a de la
+            // valeur — mais il est grisé : le voir au même niveau que les
+            // jeux en service laissait croire qu'il tourne encore.
+            <button key={g.gameKey} onClick={() => setGameFilter(gameFilter === g.gameKey ? null : g.gameKey)}
+              className={`rounded-2xl border p-4 text-left transition-colors ${
+                gameFilter === g.gameKey ? "border-green-400 bg-green-50"
+                : actif ? "border-slate-200 bg-white hover:border-slate-300"
+                : "border-slate-200 bg-slate-50 hover:border-slate-300"}`}>
+              <div className="flex items-start justify-between gap-2">
+                <p className={`text-[13.5px] font-semibold ${actif ? "text-slate-900" : "text-slate-400"}`}>
+                  <span className={actif ? "" : "opacity-50"}>{g.emoji}</span> {g.name}
+                </p>
+                {!actif && (
+                  <span className="flex-shrink-0 whitespace-nowrap rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                    Désactivé
+                  </span>
+                )}
+              </div>
+              <p className={`mt-1 text-[20px] font-bold ${actif ? "text-slate-900" : "text-slate-400"}`}>{g.plays}</p>
+              <p className={`text-[11.5px] ${actif ? "text-slate-400" : "text-slate-400/70"}`}>
+                parties · {g.wins} gains · {g.spent} tampons
+              </p>
+            </button>
+          );
+        })}
       </div>
 
       <BlocListe
