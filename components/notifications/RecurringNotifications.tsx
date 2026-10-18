@@ -131,7 +131,7 @@ export default function RecurringNotifications() {
             </div>
             <div className="min-w-0">
               <p className="text-[14px] font-semibold text-slate-900">Notifications automatiques</p>
-              <p className="text-[12px] text-slate-500">Envois récurrents programmés — comptent dans votre quota mensuel</p>
+              <p className="text-[12px] leading-snug text-slate-500">Envois récurrents programmés — comptent dans votre quota mensuel</p>
             </div>
           </div>
           <span
@@ -142,22 +142,28 @@ export default function RecurringNotifications() {
           </span>
         </button>
       ) : (
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <div className="border-b border-slate-100 px-5 py-4">
+          {/* Le bouton était posé à côté du texte et refusait de rétrécir :
+              la description se repliait sur trois lignes sur un téléphone.
+              Titre et bouton tiennent maintenant la même ligne, la
+              description passe dessous sur toute la largeur. */}
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-50">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-green-50">
               <Repeat className="h-4 w-4 text-green-600" />
             </div>
-            <div>
-              <p className="text-[14px] font-semibold text-slate-900">Notifications automatiques</p>
-              <p className="text-[12px] text-slate-500">Envois récurrents programmés — comptent dans votre quota mensuel</p>
-            </div>
+            <p className="min-w-0 flex-1 truncate text-[14px] font-semibold text-slate-900">
+              Notifications automatiques
+            </p>
+            <button
+              onClick={() => setShowForm((v) => !v)}
+              className="flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-green-600 px-3 py-1.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-green-700"
+            >
+              <Plus className="h-3.5 w-3.5" /> Nouvelle
+            </button>
           </div>
-          <button
-            onClick={() => setShowForm((v) => !v)}
-            className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-[12.5px] font-semibold text-white hover:bg-green-700 transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" /> Nouvelle
-          </button>
+          <p className="mt-1.5 text-[12px] leading-snug text-slate-500">
+            Envois récurrents programmés — comptent dans votre quota mensuel
+          </p>
         </div>
       )}
 
