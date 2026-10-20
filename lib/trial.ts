@@ -63,8 +63,23 @@ export async function getTrialState(merchantId: string): Promise<TrialState> {
  */
 export async function markTrialUsed(merchantId: string, days = TRIAL_DAYS): Promise<void> {
   const endsAt = new Date(Date.now() + days * 86400_000);
+  // Trois jours de battement après le terme, comme pour une résiliation : un
+  // webhook en retard ou une horloge décalée ne doit pas couper l'accès une
+  // heure trop tôt. `invoice.paid` repoussera la date au premier prélèvement.
+  const expiresAt = new Date(endsAt.getTime() + 3 * 86400_000);
   await supabase()
     .from("merchants")
-    .update({ trial_used_at: new Date().toISOString(), trial_ends_at: endsAt.toISOString() })
+    .update({
+      trial_used_at: new Date().toISOString(),
+      trial_ends_at: endsAt.toISOString(),
+      // L'essai donne le niveau Business — encore faut-il le poser sur le
+      // plan. Sans ça le commerçant gardait les limites de son plan de
+      // départ (Starter depuis l'inscription) : 30 clients, pas de ciblage
+      // avancé, pas d'export, stats sur 7 jours. L'essai « toutes
+      // fonctionnalités débloquées » ne débloquait rien, et la page des
+      // tarifs grisait Starter comme « votre plan actuel ».
+      plan: TRIAL_PLAN,
+      plan_expires_at: expiresAt.toISOString(),
+    })
     .eq("id", merchantId);
 }

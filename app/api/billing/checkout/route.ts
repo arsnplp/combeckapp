@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { stripePriceId, activateStarterFree } from "@/lib/plan-billing";
 import { notifyAdminEmail } from "@/lib/mailer";
 import { getUpsellState, ensureLoyaltyCoupon } from "@/lib/upsell";
+import { listLiveSubscriptions } from "@/lib/stripe-subs";
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) return null;
@@ -53,8 +54,12 @@ export async function POST(req: NextRequest) {
     if (plan === "starter") {
       const stripeForCancel = getStripe();
       if (stripeForCancel && merchant.stripe_customer_id) {
-        const subs = await stripeForCancel.subscriptions.list({ customer: merchant.stripe_customer_id, status: "active", limit: 10 });
-        for (const s of subs.data) {
+        // `listLiveSubscriptions` inclut les essais en cours (statut
+        // `trialing`) : sans ça, un commerçant qui passait à Starter pendant
+        // son essai gardait son abonnement Business et se faisait prélever
+        // 39,99 € au bout des 30 jours.
+        const live = await listLiveSubscriptions(stripeForCancel, merchant.stripe_customer_id);
+        for (const s of live) {
           try {
             await stripeForCancel.subscriptions.cancel(s.id);
           } catch (e) {
@@ -97,9 +102,10 @@ export async function POST(req: NextRequest) {
       await sb.from("merchants").update({ stripe_customer_id: customerId }).eq("id", merchant.id);
     }
 
-    // Déjà abonné ? → portail de gestion plutôt qu'un deuxième abonnement
-    const subs = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 1 });
-    if (subs.data.length > 0) {
+    // Déjà abonné ? → portail de gestion plutôt qu'un deuxième abonnement.
+    // Un essai en cours compte : il porte déjà une carte et un abonnement.
+    const live = await listLiveSubscriptions(stripe, customerId);
+    if (live.length > 0) {
       const portal = await stripe.billingPortal.sessions.create({
         customer: customerId,
         return_url: `${appUrl}/parametres`,

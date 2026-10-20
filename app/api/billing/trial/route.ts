@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { supabase } from "@/lib/supabase";
 import { stripePriceId } from "@/lib/plan-billing";
 import { getTrialState, TRIAL_DAYS, TRIAL_PLAN } from "@/lib/trial";
+import { listLiveSubscriptions } from "@/lib/stripe-subs";
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) return null;
@@ -68,13 +69,17 @@ export async function POST(req: NextRequest) {
         email: merchant.email ?? session.user?.email ?? undefined,
         metadata: { merchantId: merchant.id },
       });
-      customerId = customer.id;
+      customerId = customer.id as string;
       await sb.from("merchants").update({ stripe_customer_id: customerId }).eq("id", merchant.id);
     }
+    if (!customerId) {
+      return NextResponse.json({ error: "Client Stripe indisponible." }, { status: 503 });
+    }
 
-    // Déjà un abonnement actif : il n'y a pas d'essai à démarrer par-dessus.
-    const subs = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 1 });
-    if (subs.data.length > 0) {
+    // Déjà un abonnement en cours : il n'y a pas d'essai à démarrer par-dessus.
+    // Essai compris — un abonnement `trialing` est un abonnement.
+    const live = await listLiveSubscriptions(stripe, customerId);
+    if (live.length > 0) {
       return NextResponse.json({ error: "Vous avez déjà un abonnement en cours." }, { status: 409 });
     }
 

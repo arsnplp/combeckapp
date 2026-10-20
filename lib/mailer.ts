@@ -6,6 +6,26 @@ function getResend() {
   return new Resend(key);
 }
 
+/**
+ * Envoi d'un email, erreur comprise.
+ *
+ * Le SDK Resend ne LÈVE PAS d'exception quand l'API refuse l'envoi : il
+ * renvoie `{ data: null, error }`. Un `await resend.emails.send(...)` nu
+ * réussit donc toujours du point de vue de l'appelant, et un domaine non
+ * vérifié, une clé révoquée ou une adresse invalide passaient totalement
+ * inaperçus — l'utilisateur n'avait jamais son email et rien n'apparaissait
+ * dans les logs. On transforme l'erreur en exception pour que l'appelant,
+ * qui a déjà un try/catch, puisse la journaliser.
+ */
+async function envoyer(payload: Parameters<ReturnType<typeof getResend>["emails"]["send"]>[0]) {
+  const { data, error } = await getResend().emails.send(payload);
+  if (error) {
+    const dest = Array.isArray(payload.to) ? payload.to.join(", ") : String(payload.to);
+    throw new Error(`Resend a refusé l'envoi à ${dest} : ${error.message ?? JSON.stringify(error)}`);
+  }
+  return data;
+}
+
 const FROM = process.env.RESEND_FROM_EMAIL ?? "ComeBack <noreply@getcomeback.fr>";
 const APP_URL = process.env.AUTH_URL ?? "https://app.getcomeback.fr";
 
@@ -35,7 +55,7 @@ function html(title: string, body: string): string {
 
 export async function sendEmailVerification(to: string, token: string): Promise<void> {
   const url = `${APP_URL}/verify-email?token=${token}`;
-  await getResend().emails.send({
+  await envoyer({
     from: FROM,
     to,
     subject: "Vérifiez votre adresse email — ComeBack",
@@ -51,7 +71,7 @@ export async function sendEmailVerification(to: string, token: string): Promise<
 
 export async function sendPasswordResetClient(to: string, token: string): Promise<void> {
   const url = `${APP_URL}/client/reset-password?token=${token}`;
-  await getResend().emails.send({
+  await envoyer({
     from: FROM,
     to,
     subject: "Réinitialiser votre mot de passe — ComeBack",
@@ -67,7 +87,7 @@ export async function sendPasswordResetClient(to: string, token: string): Promis
 
 export async function sendWelcomeClient(to: string, clientName: string, storeName: string): Promise<void> {
   const url = `${APP_URL}/client/cards`;
-  await getResend().emails.send({
+  await envoyer({
     from: FROM,
     to,
     subject: `Votre carte ${storeName} est activée — ComeBack`,
@@ -90,7 +110,7 @@ export async function sendWelcomeClient(to: string, clientName: string, storeNam
 
 export async function sendPasswordResetRestaurant(to: string, token: string): Promise<void> {
   const url = `${APP_URL}/reset-password?token=${token}`;
-  await getResend().emails.send({
+  await envoyer({
     from: FROM,
     to,
     subject: "Réinitialiser votre mot de passe — ComeBack",
@@ -109,7 +129,7 @@ export async function sendPasswordResetRestaurant(to: string, token: string): Pr
 // ═══════════════════════════════════════════════════════════════════
 
 export async function sendAffiliateWelcome(to: string, name: string, refLink: string): Promise<void> {
-  await getResend().emails.send({
+  await envoyer({
     from: FROM, to,
     subject: "Bienvenue dans le programme partenaires ComeBack 🤝",
     html: html("Bienvenue",
@@ -124,7 +144,7 @@ export async function sendAffiliateWelcome(to: string, name: string, refLink: st
 }
 
 export async function sendAffiliateCommissionEmail(to: string, p: { clientName: string; amount: number; unlockDate: string }): Promise<void> {
-  await getResend().emails.send({
+  await envoyer({
     from: FROM, to,
     subject: `🎉 +${p.amount.toFixed(2)} € de commission !`,
     html: html("Commission gagnée",
@@ -138,7 +158,7 @@ export async function sendAffiliateCommissionEmail(to: string, p: { clientName: 
 }
 
 export async function sendAffiliateUnlockedEmail(to: string, amount: number): Promise<void> {
-  await getResend().emails.send({
+  await envoyer({
     from: FROM, to,
     subject: `✅ ${amount.toFixed(2)} € disponibles au retrait`,
     html: html("Commission débloquée",
@@ -151,7 +171,7 @@ export async function sendAffiliateUnlockedEmail(to: string, amount: number): Pr
 }
 
 export async function sendAffiliateRefundEmail(to: string, p: { amount: number }): Promise<void> {
-  await getResend().emails.send({
+  await envoyer({
     from: FROM, to,
     subject: "⚠️ Commission annulée",
     html: html("Commission annulée",
@@ -173,7 +193,7 @@ export async function sendAffiliateWithdrawalEmail(to: string, status: "approved
     paid: "Votre retrait a été payé. Merci pour votre partenariat !",
     rejected: `Votre demande de retrait a été refusée${notes ? ` : ${notes}` : ""}. Le montant a été recrédité sur votre cagnotte.`,
   };
-  await getResend().emails.send({
+  await envoyer({
     from: FROM, to,
     subject: subjects[status],
     html: html("Retrait",
@@ -184,7 +204,7 @@ export async function sendAffiliateWithdrawalEmail(to: string, status: "approved
 
 export async function sendAffiliateTierEmail(to: string, tier: string): Promise<void> {
   const labels: Record<string, string> = { gold: "Gold 🥇", platinum: "Platinum 💎" };
-  await getResend().emails.send({
+  await envoyer({
     from: FROM, to,
     subject: `🎉 Vous êtes passé ${labels[tier] ?? tier} !`,
     html: html("Nouveau palier",
@@ -201,7 +221,7 @@ export async function notifyAdminEmail(subject: string, fields: Record<string, s
   if (!admin) return;
   const rows = Object.entries(fields)
     .map(([k, v]) => `<p style="margin:0 0 6px;font-size:14px;color:#334155"><strong>${k} :</strong> ${v}</p>`).join("");
-  await getResend().emails.send({
+  await envoyer({
     from: FROM, to: admin, subject: `[Admin] ${subject}`,
     html: html("Notification admin",
       `<h1 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#111827">${subject}</h1>${rows}`),
@@ -231,7 +251,7 @@ export async function sendTrialReminder(
        </div>`
     : "";
 
-  await getResend().emails.send({
+  await envoyer({
     from: FROM, to,
     subject,
     html: html("Fin d'essai",

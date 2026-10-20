@@ -22,9 +22,14 @@ export async function POST(req: NextRequest) {
     try {
       const token = await createResetToken(normalizedEmail, "client");
       await sendPasswordResetClient(normalizedEmail, token);
+      console.log(`[forgot-password/client] email envoyé à ${normalizedEmail}`);
     } catch (e) {
-      console.error("[forgot-password/client]", e);
+      console.error("[forgot-password/client] échec pour", normalizedEmail, e);
     }
+  } else {
+    // Réponse volontairement identique quand l'adresse est inconnue : le
+    // trace sert à distinguer « pas de carte à cette adresse » d'une panne.
+    console.log(`[forgot-password/client] aucune carte pour ${normalizedEmail} — rien envoyé`);
   }
 
   return NextResponse.json({ ok: true });

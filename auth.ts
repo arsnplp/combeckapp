@@ -114,6 +114,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // Google sign-in : trouver ou créer le compte marchand
         const existing = await getUserByEmail(user.email);
         const dbUser = existing ?? (await createUserFromGoogle(user.email, user.name ?? ""));
+        // Compte ouvert par formulaire puis jamais vérifié, dont le
+        // propriétaire se connecte ensuite avec Google : Google a vérifié
+        // l'adresse pour nous. Sans cette mise à jour, le compte restait
+        // `email_verified: false` et la connexion par mot de passe
+        // continuait d'être refusée — on pouvait entrer par Google mais
+        // plus jamais par son propre mot de passe.
+        if (existing && existing.emailVerified === false) {
+          try {
+            const { supabase } = await import("@/lib/supabase");
+            await supabase().from("merchants")
+              .update({ email_verified: true, email_verification_token: null })
+              .eq("id", existing.id);
+          } catch (e) {
+            console.error("[auth] vérification email via Google", e);
+          }
+        }
         // Attribution affilié (cookie posé par /ref/{code}) : uniquement à la
         // création du compte — même logique que /api/auth/signup, sinon un
         // filleul qui s'inscrit via Google ne rapporte jamais rien à l'affilié.

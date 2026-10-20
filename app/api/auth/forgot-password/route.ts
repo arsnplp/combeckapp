@@ -22,9 +22,16 @@ export async function POST(req: NextRequest) {
     try {
       const token = await createResetToken(normalizedEmail, "restaurant");
       await sendPasswordResetRestaurant(normalizedEmail, token);
+      console.log(`[forgot-password/restaurant] email envoyé à ${normalizedEmail}`);
     } catch (e) {
-      console.error("[forgot-password/restaurant]", e);
+      console.error("[forgot-password/restaurant] échec pour", normalizedEmail, e);
     }
+  } else {
+    // Aucun compte commerçant sur cette adresse : on répond quand même « ok »
+    // pour ne pas révéler qui est inscrit, mais on le trace côté serveur.
+    // Sans cette ligne, « je ne reçois pas l'email » était indiagnosticable :
+    // rien ne distinguait une adresse inconnue d'une panne d'envoi.
+    console.log(`[forgot-password/restaurant] aucun compte pour ${normalizedEmail} — rien envoyé`);
   }
 
   return NextResponse.json({ ok: true });
