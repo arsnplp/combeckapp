@@ -19,9 +19,18 @@
 /** Statuts qui donnent (ou donneront) lieu à un prélèvement. */
 const STATUTS_VIVANTS = new Set(["trialing", "active", "past_due", "unpaid"]);
 
-interface StripeSub { id: string; status: string }
+export interface StripeSub {
+  id: string;
+  status: string;
+  items?: { data?: Array<{ id: string }> };
+}
 interface StripeLike {
   subscriptions: { list(p: { customer: string; limit: number }): Promise<{ data: StripeSub[] }> };
+}
+
+/** Un essai en cours : il porte deja une carte, rien n'a encore ete preleve. */
+export function enEssai(sub: StripeSub | undefined): boolean {
+  return sub?.status === "trialing";
 }
 
 export async function listLiveSubscriptions(

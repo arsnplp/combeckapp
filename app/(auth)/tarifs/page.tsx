@@ -111,8 +111,9 @@ export default function TarifsPage() {
         body: JSON.stringify({ plan: planId, billingCycle: billing }),
       });
       const data = await res.json();
-      // Starter (gratuit) : activé directement, pas de paiement Stripe
-      if (res.ok && data.activated) { router.push("/dashboard"); router.refresh(); return; }
+      // Starter (gratuit) activé directement, ou essai converti en abonnement
+      // payant sur place : dans les deux cas il n'y a pas de page Stripe à ouvrir.
+      if (res.ok && (data.activated || data.converted)) { router.push("/dashboard"); router.refresh(); return; }
       if (res.ok && data.url) { window.location.href = data.url; return; }
       setPayError(data?.error ?? "Paiement indisponible pour le moment.");
     } catch {
@@ -120,6 +121,8 @@ export default function TarifsPage() {
     }
     setPaying(null);
   };
+
+  const essaiEnCours = trial?.status === "active";
 
   return (
     <div className="min-h-screen bg-white">
@@ -234,7 +237,12 @@ export default function TarifsPage() {
         )}
         <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
           {PLANS.map((plan) => {
-            const isCurrent = loggedIn && currentPlan === plan.id;
+            // Pendant l'essai, aucun plan n'est grisé : le commerçant doit
+            // pouvoir prendre Business tout de suite pour passer en payant
+            // sans attendre la fin des 30 jours. Son plan en base vaut déjà
+            // « business » le temps de l'essai — le griser l'aurait enfermé.
+            const isCurrent = loggedIn && currentPlan === plan.id && !essaiEnCours;
+            const demarrerMaintenant = essaiEnCours && currentPlan === plan.id;
             return (
               <div
                 key={plan.id}
@@ -307,7 +315,9 @@ export default function TarifsPage() {
                     }`}
                   >
                     {paying === plan.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    {isCurrent ? "Votre plan actuel" : `Passer au plan ${plan.name}`}
+                    {isCurrent ? "Votre plan actuel"
+                      : demarrerMaintenant ? "Démarrer l'abonnement maintenant"
+                      : `Passer au plan ${plan.name}`}
                   </button>
                 ) : (
                   <Link

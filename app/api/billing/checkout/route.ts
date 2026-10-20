@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { stripePriceId, activateStarterFree } from "@/lib/plan-billing";
 import { notifyAdminEmail } from "@/lib/mailer";
 import { getUpsellState, ensureLoyaltyCoupon } from "@/lib/upsell";
-import { listLiveSubscriptions } from "@/lib/stripe-subs";
+import { listLiveSubscriptions, enEssai } from "@/lib/stripe-subs";
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) return null;
@@ -105,6 +105,43 @@ export async function POST(req: NextRequest) {
     // Déjà abonné ? → portail de gestion plutôt qu'un deuxième abonnement.
     // Un essai en cours compte : il porte déjà une carte et un abonnement.
     const live = await listLiveSubscriptions(stripe, customerId);
+
+    // ── Essai en cours : on bascule en payant tout de suite ─────────────
+    // Le commerçant qui choisit un plan pendant son essai veut démarrer son
+    // abonnement maintenant, pas attendre la fin des 30 jours. L'envoyer
+    // vers le portail Stripe ne lui offre aucun moyen évident de le faire.
+    // On met donc l'abonnement d'essai au tarif choisi et on termine l'essai
+    // sur-le-champ : Stripe émet la facture dans la foulée avec la carte
+    // déjà enregistrée. `proration_behavior: "none"` parce qu'un essai n'a
+    // jamais été facturé — il n'y a rien à proratiser, le commerçant paie
+    // simplement sa première période pleine.
+    const essai = live.find((s) => enEssai(s));
+    if (essai) {
+      const itemId = essai.items?.data?.[0]?.id;
+      if (!itemId) {
+        return NextResponse.json({ error: "Abonnement d'essai illisible." }, { status: 502 });
+      }
+      try {
+        await stripe.subscriptions.update(essai.id, {
+          items: [{ id: itemId, price: priceId }],
+          trial_end: "now",
+          proration_behavior: "none",
+          metadata: { merchantId: merchant.id, plan, billingCycle },
+        });
+      } catch (e) {
+        console.error("[checkout] fin d'essai anticipée", e);
+        return NextResponse.json(
+          { error: "Impossible de démarrer l'abonnement maintenant. Réessayez ou contactez-nous." },
+          { status: 502 },
+        );
+      }
+      // `invoice.paid` posera le plan et son échéance, comme pour tout
+      // paiement. On ne touche pas à la base ici : si le prélèvement échoue,
+      // le commerçant ne doit pas se retrouver avec un plan qu'il n'a pas payé.
+      console.log(`[checkout] essai converti en abonnement payant : ${merchant.email} → ${plan} (${billingCycle})`);
+      return NextResponse.json({ converted: true, plan });
+    }
+
     if (live.length > 0) {
       const portal = await stripe.billingPortal.sessions.create({
         customer: customerId,
