@@ -164,6 +164,26 @@ export default function JeuxPage() {
               Créez d&apos;abord des récompenses dans « Produits » : ce sont elles que vos clients gagneront.
             </p>
           )}
+          {/* Piège classique : on active une roue, on règle ses lots, et rien
+              n'apparaît chez les clients parce que l'interrupteur du module,
+              tout en haut, est resté éteint. Le dire là où on vient d'agir,
+              avec le bouton qui corrige, plutôt que de compter sur la ligne
+              du haut qu'on ne relit pas. */}
+          {!moduleEnabled && games.some((g) => g.enabled) && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="min-w-0 flex-1 text-[13px] text-amber-900">
+                <strong className="font-semibold">Vos clients ne voient encore aucun jeu.</strong>{" "}
+                Le module est éteint : les jeux activés ci-dessous restent invisibles tant qu&apos;il
+                n&apos;est pas allumé.
+              </p>
+              <button
+                onClick={() => toggleModule(true)}
+                className="flex-shrink-0 rounded-lg bg-amber-600 px-3.5 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-amber-700"
+              >
+                Activer le module
+              </button>
+            </div>
+          )}
           {games.map((g) => (
             <GameCard key={g.gameKey} g={g} rewards={rewards} saving={saving === g.gameKey}
               onPatch={(p) => patch(g.gameKey, p)} onSave={(c) => save(c ?? g)} />

@@ -179,7 +179,10 @@ export default function EmployeeScan({ storeName }: { storeName: string }) {
     setBusy(true); setError("");
     try {
       const body = isStamps
-        ? { action: "stamp", customerCardId: cc.id, count: Math.min(qty, remaining) }
+        // Quantité envoyée telle quelle : le serveur relit la carte et
+        // plafonne lui-même. Tronquer ici faisait confiance à un solde chargé
+        // avant une éventuelle récompense et créditait moins que demandé.
+        ? { action: "stamp", customerCardId: cc.id, count: qty }
         : { action: "points", customerCardId: cc.id, points: pts, euros };
       const res = await fetch("/api/register", {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),

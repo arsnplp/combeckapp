@@ -43,14 +43,25 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
   const [stampsAdded, setStampsAdded] = useState(0);
   const [failed, setFailed] = useState("");
 
+  // Resynchronise à CHAQUE ouverture, et pas seulement quand la carte est
+  // introuvable. Les compteurs affichés ici décident du nombre de tampons
+  // créditables : une récompense validée entre-temps (autre écran, employé,
+  // autre téléphone) laissait un solde périmé, le sélecteur bornait l'ajout
+  // à « requis − ancien solde » et créditait moins que demandé sans rien
+  // signaler. Carte à 5/8, récompense de 5 utilisée, puis « +5 » : seuls
+  // 3 tampons partaient au serveur.
   useEffect(() => {
-    if (!cc && !syncing && !syncFailed) {
-      setSyncing(true);
-      syncFromServer().finally(() => { setSyncing(false); setSyncFailed(true); });
-    }
-  }, [cc, syncing, syncFailed, syncFromServer]);
+    let annule = false;
+    setSyncing(true);
+    setSyncFailed(false);
+    syncFromServer()
+      .catch(() => { if (!annule) setSyncFailed(true); })
+      .finally(() => { if (!annule) setSyncing(false); });
+    return () => { annule = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerCardId]);
 
-  if (!cc && syncing) return (
+  if (!cc && (syncing || !syncFailed)) return (
     <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
       <Loader2 className="h-7 w-7 animate-spin text-green-500 mx-auto mb-2" />
       <p className="text-sm font-semibold text-slate-700">Synchronisation…</p>
@@ -84,10 +95,11 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
     if (submitting || remaining <= 0) return;
     setSubmitting(true);
     setFailed("");
-    // Ne crédite jamais au-delà du plafond de la carte : le serveur tronque
-    // de toute façon, autant que l'écran annonce le vrai chiffre.
-    const willAdd = Math.min(stampCount, remaining);
-    const res = await addStampToCard(cc.id, willAdd);
+    // On envoie le nombre demandé tel quel. Tronquer ici revenait à faire
+    // confiance à un solde local qui peut avoir vieilli ; le serveur relit la
+    // carte, plafonne lui-même et renvoie le nombre réellement crédité, qui
+    // est celui affiché ensuite.
+    const res = await addStampToCard(cc.id, stampCount);
     if (!res.ok) {
       setFailed("Enregistrement impossible — rien n'a été ajouté. Vérifiez la connexion et réessayez.");
       setSubmitting(false);
@@ -210,12 +222,14 @@ function TransactionModal({ customerCardId, onClose, onScanNext }: { customerCar
                   )}
                 </p>
 
-                <button onClick={doStamp} disabled={submitting}
+                <button onClick={doStamp} disabled={submitting || syncing}
                   className="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 font-semibold text-white text-sm disabled:opacity-40"
                   style={{ background: accent }}>
                   {submitting
                     ? <><Loader2 className="h-4 w-4 animate-spin" /> Enregistrement…</>
-                    : <><Stamp className="h-4 w-4" /> +{stampCount} tampon{stampCount > 1 ? "s" : ""}</>}
+                    : syncing
+                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Mise à jour du solde…</>
+                      : <><Stamp className="h-4 w-4" /> +{stampCount} tampon{stampCount > 1 ? "s" : ""}</>}
                 </button>
                 {failed && (
                   <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-medium text-red-700">
@@ -667,6 +681,7 @@ function CreditTab({ injected }: { injected?: string | null }) {
 // ── Section 2 : Valider une récompense ───────────────────────────────────────
 
 function RewardTab({ injected }: { injected?: string | null }) {
+  const { syncFromServer } = useStore();
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScanRewardResult | null>(null);
@@ -742,6 +757,11 @@ function RewardTab({ injected }: { injected?: string | null }) {
       const res = await fetch("/api/client/scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: tok }) });
       const data = await res.json();
       setResult(res.ok ? { ok: true, ...data } : { ok: false, error: data.error ?? "Erreur" });
+      // La récompense vient d'être déduite du solde : on remet les compteurs
+      // locaux à jour tout de suite. Sans ça, créditer ce client juste après
+      // partait du solde d'AVANT la récompense, et le plafond de la carte
+      // rognait silencieusement les tampons ajoutés.
+      if (res.ok) syncFromServer().catch(() => {});
     } catch { setResult({ ok: false, error: "Erreur réseau." }); }
     setLoading(false);
   };
