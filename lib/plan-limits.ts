@@ -36,7 +36,9 @@ export const PLAN_LIMITS: Record<PlanId, {
     analyticsHistoryDays: 7,
   },
   pro: {
-    clients: 100,
+    // 300 depuis le 26 octobre 2026 (avant : 100). Une hausse : aucun abonné
+    // Pro existant ne perd quoi que ce soit.
+    clients: 300,
     notifs: 10000,
     cards: 1,
     employees: 3,
@@ -68,6 +70,7 @@ export const PLAN_LABELS: Record<PlanId, string> = {
 export const PLAN_PRICES: Record<PlanId, number> = {
   free:     0,
   starter:  0,
-  pro:      9.99,
-  business: 39.99,
+  // Aligné sur PLAN_PRICING (lib/plan-billing.ts), prix des nouveaux abonnements.
+  pro:      14.99,
+  business: 29.99,
 };

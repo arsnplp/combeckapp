@@ -9,12 +9,14 @@ import type { PlanId } from "@/types";
 // Commission affilié pour un paiement donné (première fois comme renouvellement)
 async function creditAffiliateForPayment(
   merchantId: string, plan: string, amountPaid: number, dedupKey: string,
+  /** Prix mensuel réellement porté par l'abonnement (ancienne grille comprise). */
+  actualMonthlyPrice?: number,
 ): Promise<void> {
   const { data: merchant } = await supabase().from("merchants")
     .select("store_name, affiliate_code").eq("id", merchantId).maybeSingle();
   if (!merchant?.affiliate_code) return;
 
-  const monthlyPrice = PLAN_PRICING[plan as keyof typeof PLAN_PRICING]?.monthly ?? 0;
+  const monthlyPrice = actualMonthlyPrice ?? PLAN_PRICING[plan as keyof typeof PLAN_PRICING]?.monthly ?? 0;
   const result = await creditCommission(merchant.affiliate_code, {
     merchantId,
     merchantName: merchant.store_name ?? "Commerce",
@@ -108,6 +110,7 @@ export async function POST(req: NextRequest) {
       let subPriceId: string | undefined;
       let subPeriodEnd: number | undefined;
       let subCanceled = false;
+      let subMonthlyPrice: number | undefined;
       if (invoice.subscription) {
         try {
           const sub = await stripe.subscriptions.retrieve(invoice.subscription as string);
@@ -115,6 +118,13 @@ export async function POST(req: NextRequest) {
           subPriceId = sub.items?.data?.[0]?.price?.id;
           subPeriodEnd = sub.current_period_end;
           subCanceled = sub.status === "canceled";
+          // Prix réel de l'abonnement : un abonné resté sur l'ancienne grille
+          // ne paie pas le prix affiché aujourd'hui dans PLAN_PRICING.
+          const subPrice = sub.items?.data?.[0]?.price;
+          if (typeof subPrice?.unit_amount === "number") {
+            const unit = subPrice.unit_amount / 100;
+            subMonthlyPrice = subPrice.recurring?.interval === "year" ? Math.round((unit / 12) * 100) / 100 : unit;
+          }
         } catch { /* fallback lignes de facture */ }
       }
       const merchantId = meta.merchantId;
@@ -150,6 +160,7 @@ export async function POST(req: NextRequest) {
           await creditAffiliateForPayment(
             merchantId, plan, (invoice.amount_paid ?? 0) / 100,
             (invoice.payment_intent as string) ?? invoice.id,
+            subMonthlyPrice,
           );
         } catch (e) {
           console.error("[webhook] affiliate commission error", e);

@@ -11,9 +11,14 @@ export interface PlanInfo {
 // Annuel : ~-20 %, arrondi à l'euro (le prix affiché = le prix facturé)
 // Starter n'apparaît PAS ici : il est gratuit à vie et ne passe jamais par
 // Stripe (voir activateStarterFree ci-dessous).
+//
+// Grille du 26 octobre 2026 (avant : Pro 9,99 € / 96 €, Business 39,99 € /
+// 384 €). Ce sont les prix des NOUVEAUX abonnements. Un abonné existant paie
+// le prix porté par son abonnement Stripe, que ce tableau ne modifie pas :
+// les Pro à 9,99 € le restent. Voir scripts/pricing-2026-10/README.md.
 export const PLAN_PRICING = {
-  pro: { monthly: 9.99, annual: 96 },
-  business: { monthly: 39.99, annual: 384 },
+  pro: { monthly: 14.99, annual: 144 },
+  business: { monthly: 29.99, annual: 288 },
 } as const;
 
 export function getPlanInfo(plan: string | null, expiresAt: string | null): PlanInfo {
@@ -67,22 +72,40 @@ export function isTrialExpired(user: { plan: string; planExpiresAt?: string | nu
   return user.plan === "free" && !!user.planExpiresAt && new Date(user.planExpiresAt) < new Date();
 }
 
+/**
+ * IDs de prix Stripe configurés pour un plan + cycle.
+ *
+ * La variable d'environnement peut lister plusieurs IDs séparés par des
+ * virgules : le PREMIER est le prix des nouveaux abonnements, les suivants
+ * sont d'anciens prix encore portés par des abonnés existants. Exemple :
+ *   STRIPE_PRICE_PRO_MONTHLY=price_nouveau_1499,price_ancien_999
+ *
+ * Ne jamais retirer un ancien ID tant qu'un abonnement l'utilise : sans lui,
+ * planFromPriceId ne reconnaît plus l'abonnement au renouvellement.
+ */
+function priceIdsFor(plan: string, billingCycle: "monthly" | "annual"): string[] {
+  const key = `STRIPE_PRICE_${plan.toUpperCase()}_${billingCycle === "monthly" ? "MONTHLY" : "ANNUAL"}`;
+  return (process.env[key] ?? "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+}
+
 /** Plan + cycle depuis un ID de prix Stripe (source de vérité de la facture). */
 export function planFromPriceId(priceId: string): { plan: PlanId; billingCycle: "monthly" | "annual" } | null {
   // Starter est gratuit (pas de prix Stripe) — jamais retourné ici.
+  // Anciens prix compris : un abonné resté sur l'ancienne grille garde son plan.
   for (const plan of ["pro", "business"] as PlanId[]) {
     for (const cycle of ["monthly", "annual"] as const) {
-      const key = `STRIPE_PRICE_${plan.toUpperCase()}_${cycle === "monthly" ? "MONTHLY" : "ANNUAL"}`;
-      if (process.env[key] === priceId) return { plan, billingCycle: cycle };
+      if (priceIdsFor(plan, cycle).includes(priceId)) return { plan, billingCycle: cycle };
     }
   }
   return null;
 }
 
-/** ID du prix Stripe récurrent (configuré en env) pour un plan + cycle. */
+/** ID du prix Stripe des NOUVEAUX abonnements (le premier de la liste en env). */
 export function stripePriceId(plan: string, billingCycle: "monthly" | "annual"): string | null {
-  const key = `STRIPE_PRICE_${plan.toUpperCase()}_${billingCycle === "monthly" ? "MONTHLY" : "ANNUAL"}`;
-  return process.env[key] ?? null;
+  return priceIdsFor(plan, billingCycle)[0] ?? null;
 }
 
 /**

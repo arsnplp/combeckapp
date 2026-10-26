@@ -24,11 +24,11 @@ const PLANS = [
   {
     id: "pro",
     name: "Pro",
-    price: 9.99,
+    price: 14.99,
     description: "Le choix des commerçants actifs",
     highlight: true,
     features: [
-      "100 clients maximum",
+      "300 clients maximum",
       "10 000 notifications / mois",
       "Carte de fidélité personnalisée (tampons ou points)",
       "Ciblage avancé (par rang client, inactifs)",
@@ -40,7 +40,7 @@ const PLANS = [
   {
     id: "business",
     name: "Business",
-    price: 39.99,
+    price: 29.99,
     description: "Pour les enseignes en croissance",
     highlight: false,
     features: [
@@ -181,7 +181,7 @@ export default function TarifsPage() {
             </div>
             <p className="mt-1 text-[13px] text-green-800/70">
               30 jours toutes fonctionnalités débloquées. <strong>0 € aujourd&apos;hui</strong> — la carte
-              est demandée pour la suite, puis Business à 39,99 € / mois TTC. Résiliable avant.
+              est demandée pour la suite, puis Business à 29,99 € / mois TTC. Résiliable avant.
             </p>
             <button
               onClick={startTrial}

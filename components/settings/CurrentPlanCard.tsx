@@ -26,7 +26,7 @@ const PLAN_DISPLAY: Record<string, {
     text: "text-slate-700", sub: "text-slate-500",
   },
   pro: {
-    features: ["Jusqu'à 100 clients", "10 000 notifications / mois", "1 carte de fidélité", "Ciblage avancé + export CSV"],
+    features: ["Jusqu'à 300 clients", "10 000 notifications / mois", "1 carte de fidélité", "Ciblage avancé + export CSV"],
     next: { label: "Passer au plan Business" },
     accent: "#d97706", border: "rgba(245,158,11,0.25)",
     bg: "linear-gradient(135deg, rgba(245,158,11,0.09), rgba(217,119,6,0.04))",

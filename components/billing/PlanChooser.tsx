@@ -10,11 +10,11 @@ const PLANS = [
     features: ["Gratuit à vie", "30 clients maximum", "1 000 notifications / mois", "1 carte de fidélité", "Stats sur 7 jours"],
   },
   {
-    id: "pro", name: "Pro", price: 9.99, highlight: true,
-    features: ["100 clients maximum", "10 000 notifications / mois", "1 carte de fidélité", "Ciblage avancé + notifications auto", "Historique complet + export CSV"],
+    id: "pro", name: "Pro", price: 14.99, highlight: true,
+    features: ["300 clients maximum", "10 000 notifications / mois", "1 carte de fidélité", "Ciblage avancé + notifications auto", "Historique complet + export CSV"],
   },
   {
-    id: "business", name: "Business", price: 39.99, highlight: false,
+    id: "business", name: "Business", price: 29.99, highlight: false,
     features: ["Clients & notifications illimités", "1 carte de fidélité", "Ciblage avancé + notifications auto", "Support dédié (< 4h)"],
   },
 ] as const;
@@ -147,9 +147,9 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
       );
     } else if (planId === "pro") {
       losses.push(
-        usage && usage.clients > 100
-          ? `Limite de 100 clients — vous en avez déjà ${usage.clients} : vous ne pourrez plus en accueillir de nouveaux`
-          : `Limité à 100 clients (vous en avez ${usage?.clients ?? 0})`,
+        usage && usage.clients > 300
+          ? `Limite de 300 clients — vous en avez déjà ${usage.clients} : vous ne pourrez plus en accueillir de nouveaux`
+          : `Limité à 300 clients (vous en avez ${usage?.clients ?? 0})`,
         "Notifications plafonnées à 10 000 / mois",
         "Pas de support dédié (< 4h)",
       );
@@ -178,7 +178,7 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
               <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-600">
                 Toutes les fonctionnalités débloquées. <strong className="font-semibold">0 € aujourd&apos;hui</strong>,
                 carte demandée pour la suite : à la fin des {trial.days ?? 30} jours, l&apos;abonnement
-                Business à 39,99 € / mois TTC démarre automatiquement. Résiliable à tout moment avant.
+                Business à 29,99 € / mois TTC démarre automatiquement. Résiliable à tout moment avant.
               </p>
             </div>
             <button
