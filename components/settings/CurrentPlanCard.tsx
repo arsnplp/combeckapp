@@ -19,7 +19,7 @@ const PLAN_DISPLAY: Record<string, {
     text: "text-green-700", sub: "text-green-700/60",
   },
   starter: {
-    features: ["Jusqu'à 30 clients", "1 000 notifications / mois", "1 carte de fidélité", "Parrainage inclus", "Gratuit à vie"],
+    features: ["Jusqu'à 30 clients", "1 000 notifications / mois", "1 carte de fidélité", "Parrainage inclus", "Ancienne offre gratuite, conservée pour votre compte"],
     next: { label: "Passer au plan Pro" },
     accent: "#475569", border: "rgba(71,85,105,0.2)",
     bg: "linear-gradient(135deg, rgba(71,85,105,0.06), rgba(100,116,139,0.03))",

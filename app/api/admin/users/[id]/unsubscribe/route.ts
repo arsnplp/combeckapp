@@ -2,24 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { supabase } from "@/lib/supabase";
 import { notifyAdminEmail } from "@/lib/mailer";
+import { suspendedPlanFields } from "@/lib/plan-billing";
 
 /**
  * Arrête l'abonnement d'un commerçant sans supprimer son compte.
  *
  * Par défaut la résiliation prend effet à la fin de la période déjà réglée :
  * plus aucun prélèvement, mais le commerçant garde le plan qu'il a payé
- * jusqu'à son terme, puis retombe sur Starter. Couper immédiatement
+ * jusqu'à son terme, puis son compte est suspendu. Couper immédiatement
  * quelqu'un qui vient de régler son mois, c'est la demande de remboursement
  * ou la contestation bancaire assurée.
  *
  * `immediate` existe pour les cas d'abus : l'abonnement s'arrête sur-le-champ
- * et le compte repasse en Starter dans la foulée.
+ * et le compte est suspendu dans la foulée.
  *
  * À NE PAS CONFONDRE avec la fin de période : là, le cron d'expiration
  * repasse le plan à `free`, et un compte `free` expiré est redirigé vers
  * /bloque jusqu'à ce que le commerçant choisisse un plan. C'est voulu
- * (voir app/bloque/page.tsx) : Starter y est gratuit et se prend en un
- * clic, les données restent intactes.
+ * (voir app/bloque/page.tsx) : il n'y a plus de plan gratuit, le commerçant
+ * reprend avec Pro ou Business et retrouve ses données intactes.
  *
  * `resume` fait marche arrière sur une résiliation programmée mais pas encore
  * effective — une erreur de ligne se rattrape depuis la console, sans passer
@@ -102,10 +103,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // `invoice.paid` qui les repoussera au prochain prélèvement. Surtout,
     // ne rien redescendre ici — ce bloc sert à arrêter, pas à reprendre.
   } else if (immediate) {
-    // Bascule tout de suite en Starter. `trial_ends_at` est remis à zéro :
-    // sinon l'interface continuerait d'annoncer un essai en cours.
+    // Suspension immédiate (plus de plan gratuit). `trial_ends_at` est remis
+    // à zéro : sinon l'interface continuerait d'annoncer un essai en cours.
     await sb.from("merchants")
-      .update({ plan: "starter", plan_expires_at: null, trial_ends_at: null })
+      .update({ ...suspendedPlanFields(), trial_ends_at: null })
       .eq("id", id);
   } else if (canceled > 0 && endsAt) {
     // L'accès court jusqu'à la date déjà réglée. Trois jours de battement,
@@ -115,9 +116,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await sb.from("merchants").update({ plan_expires_at: until }).eq("id", id);
   } else if (canceled === 0 && wasPaying) {
     // Plan payant accordé à la main, sans abonnement Stripe : il n'y a rien
-    // à résilier chez Stripe, seul le plan en base est à redescendre.
+    // à résilier chez Stripe, seul le plan en base est à arrêter.
     await sb.from("merchants")
-      .update({ plan: "starter", plan_expires_at: null })
+      .update(suspendedPlanFields())
       .eq("id", id);
   }
 

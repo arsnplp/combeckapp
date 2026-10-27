@@ -5,7 +5,10 @@ import type { PlanId } from "@/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const MAX = { storeName: 80, city: 60, email: 254, password: 128, phone: 20 };
-const VALID_PLANS: PlanId[] = ["starter", "pro", "business"];
+// Plans payants uniquement : il n'y a plus de plan gratuit. Le plan n'est de
+// toute façon jamais attribué ici (createUser crée un compte sans abonnement),
+// seul le webhook Stripe le pose après un vrai paiement.
+const VALID_PLANS: PlanId[] = ["pro", "business"];
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +18,7 @@ export async function POST(req: NextRequest) {
     const storeName: string = (body.storeName ?? "").trim().slice(0, MAX.storeName);
     const city: string      = (body.city ?? "").trim().slice(0, MAX.city);
     const phone: string     = (body.phone ?? "").trim().slice(0, MAX.phone);
-    const plan: PlanId      = VALID_PLANS.includes(body.plan) ? body.plan : "starter";
+    const plan: PlanId      = VALID_PLANS.includes(body.plan) ? body.plan : "business";
 
     if (!email || !password || !storeName || !phone) {
       return NextResponse.json({ error: "Champs requis manquants." }, { status: 400 });

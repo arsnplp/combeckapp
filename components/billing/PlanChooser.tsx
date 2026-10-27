@@ -4,11 +4,10 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Star, Loader2, AlertTriangle, Gift, Lock } from "lucide-react";
 
+// Plus de plan gratuit depuis le 27 octobre 2026 : seuls Pro et Business se
+// choisissent. Les comptes restés sur l'ancien Starter voient Pro comme une
+// montée en gamme (voir planRank).
 const PLANS = [
-  {
-    id: "starter", name: "Starter", price: 0, highlight: false,
-    features: ["Gratuit à vie", "30 clients maximum", "1 000 notifications / mois", "1 carte de fidélité", "Stats sur 7 jours"],
-  },
   {
     id: "pro", name: "Pro", price: 9.99, highlight: true,
     features: ["100 clients maximum", "10 000 notifications / mois", "1 carte de fidélité", "Ciblage avancé + notifications auto", "Historique complet + export CSV"],
@@ -97,8 +96,8 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
         body: JSON.stringify({ plan: planId, billingCycle: billing }),
       });
       const data = await res.json();
-      // Starter (gratuit) activé directement, ou essai converti en abonnement
-      // payant sur place : dans les deux cas, pas de page Stripe à ouvrir.
+      // Essai converti en abonnement payant sur place : pas de page Stripe à
+      // ouvrir.
       if (res.ok && (data.activated || data.converted)) { router.push("/dashboard"); router.refresh(); return; }
       if (res.ok && data.url) { window.location.href = data.url; return; }
       setError(data?.error ?? "Paiement indisponible.");
@@ -109,6 +108,9 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
   // Niveau de fonctionnalités de chaque plan. L'essai gratuit ("free") donne
   // accès au niveau Business, d'où son rang maximal.
   const planRank = (id?: string | null): number => {
+    // Compte qui n'a jamais pris son essai : il n'a rien à perdre, aucun
+    // avertissement de descente en gamme.
+    if (id === "free" && trial?.status === "available") return 0;
     switch (id) {
       case "starter": return 1;
       case "pro": return 2;
@@ -131,21 +133,7 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
   // Ce que le commerçant PERD en choisissant ce plan (vs Business / essai)
   const lossesFor = (planId: string): string[] => {
     const losses: string[] = [];
-    if (planId === "starter") {
-      losses.push(
-        usage && usage.clients > 30
-          ? `Limite de 30 clients — vous en avez déjà ${usage.clients} : vous garderez vos 30 premiers clients inscrits (les plus anciens), les ${usage.clients - 30} autres seront gelés et ne pourront plus cumuler de tampons/points tant que vous ne repassez pas à un plan supérieur`
-          : `Limité à 30 clients (vous en avez ${usage?.clients ?? 0})`,
-        usage && usage.cards > 1
-          ? `1 seule carte de fidélité active — vos ${usage.cards - 1} autre${usage.cards > 2 ? "s" : ""} carte${usage.cards > 2 ? "s" : ""} seront gelées : plus aucune nouvelle inscription dessus (les clients et soldes existants sont conservés)`
-          : "1 seule carte de fidélité",
-        "❌ Notifications automatiques récurrentes désactivées",
-        "❌ Ciblage avancé (rangs, clients inactifs) désactivé",
-        "❌ Export CSV de votre base clients désactivé",
-        "Statistiques limitées aux 7 derniers jours (au lieu de 2 ans)",
-        "1 000 notifications / mois maximum (au lieu d'illimité)",
-      );
-    } else if (planId === "pro") {
+    if (planId === "pro") {
       losses.push(
         usage && usage.clients > 100
           ? `Limite de 100 clients — vous en avez déjà ${usage.clients} : vous ne pourrez plus en accueillir de nouveaux`
@@ -196,7 +184,8 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
             <p className="min-w-0 flex-1 text-[13.5px] text-slate-700">
               <strong className="font-bold text-slate-900">Essai Business en cours</strong> — il reste{" "}
               {trial.daysLeft} jour{(trial.daysLeft ?? 0) > 1 ? "s" : ""}. À son terme, l&apos;abonnement
-              Business démarre automatiquement.
+              Business démarre automatiquement. Pour arrêter avant, sans rien payer : « Factures &amp;
+              résiliation », sur la page Abonnement.
             </p>
           </div>
         ) : (
@@ -229,7 +218,7 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
       )}
 
       {/* Cartes */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="mx-auto grid max-w-3xl grid-cols-1 gap-4 md:grid-cols-2">
         {PLANS.map((plan) => {
           const isCurrent = currentPlan === plan.id && !essaiEnCours;
           const demarrerMaintenant = essaiEnCours && currentPlan === plan.id;
@@ -254,13 +243,7 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
               )}
 
               <p className="text-[12px] font-semibold uppercase tracking-wider text-slate-400">{plan.name}</p>
-              {plan.price === 0 ? (
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  <span className="text-[30px] font-bold leading-none text-slate-900">Gratuit</span>
-                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10.5px] font-bold text-green-700">à vie</span>
-                </div>
-              ) : (
-                <>
+              <>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     {(billing === "annual" || (billing === "monthly" && upsellPercent)) && (
                       <span className="text-[16px] font-semibold text-slate-300 line-through">{fmt(plan.price)}€</span>
@@ -292,8 +275,7 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
                   {billing === "monthly" && upsellPercent && (
                     <p className="mt-0.5 text-[11.5px] text-slate-400">puis {fmt(plan.price)}€ / mois TTC · sans engagement</p>
                   )}
-                </>
-              )}
+              </>
 
               <ul className="mb-5 mt-4 flex-1 space-y-2">
                 {plan.features.map((f) => (

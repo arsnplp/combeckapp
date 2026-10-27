@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { supabase } from "@/lib/supabase";
-import { stripePriceId, activateStarterFree } from "@/lib/plan-billing";
+import { stripePriceId } from "@/lib/plan-billing";
 import { notifyAdminEmail } from "@/lib/mailer";
 import { getUpsellState, ensureLoyaltyCoupon } from "@/lib/upsell";
 import { listLiveSubscriptions, enEssai } from "@/lib/stripe-subs";
@@ -25,7 +25,17 @@ export async function POST(req: NextRequest) {
 
     const { plan, billingCycle } = await req.json();
 
-    if (!plan || !["starter", "pro", "business"].includes(plan)) {
+    // Plus de plan gratuit depuis le 27 octobre 2026 : Starter n'est plus
+    // proposé. Pour arrêter, le commerçant résilie depuis « Factures &
+    // résiliation » (portail Stripe) ; son compte est suspendu au terme de la
+    // période déjà réglée, données conservées.
+    if (plan === "starter") {
+      return NextResponse.json(
+        { error: "Le plan gratuit n'existe plus. Choisissez Pro ou Business." },
+        { status: 400 },
+      );
+    }
+    if (!plan || !["pro", "business"].includes(plan)) {
       return NextResponse.json({ error: "Plan invalide." }, { status: 400 });
     }
     if (!billingCycle || !["monthly", "annual"].includes(billingCycle)) {
@@ -44,39 +54,6 @@ export async function POST(req: NextRequest) {
 
     if (!merchant) {
       return NextResponse.json({ error: "Compte non trouvé." }, { status: 404 });
-    }
-
-    // ── Starter est gratuit à vie : jamais de Stripe ─────────────────────
-    // Vérifié AVANT le check "Stripe configuré" — l'activation de Starter ne
-    // doit jamais dépendre de Stripe. Si le commerçant a un abonnement payant
-    // en cours (Pro/Business), on l'annule (gratuit immédiatement, pas de
-    // double facturation) — uniquement si Stripe est disponible.
-    if (plan === "starter") {
-      const stripeForCancel = getStripe();
-      if (stripeForCancel && merchant.stripe_customer_id) {
-        // `listLiveSubscriptions` inclut les essais en cours (statut
-        // `trialing`) : sans ça, un commerçant qui passait à Starter pendant
-        // son essai gardait son abonnement Business et se faisait prélever
-        // 39,99 € au bout des 30 jours.
-        const live = await listLiveSubscriptions(stripeForCancel, merchant.stripe_customer_id);
-        for (const s of live) {
-          try {
-            await stripeForCancel.subscriptions.cancel(s.id);
-          } catch (e) {
-            // Ne bloque pas le passage à Starter (le commerçant ne doit jamais
-            // rester coincé), mais alerte l'admin : sans annulation Stripe,
-            // l'abonnement payant continuera à être facturé en double.
-            console.error("[checkout] cancel sub", e);
-            notifyAdminEmail("⚠️ Échec annulation Stripe (downgrade Starter)", {
-              "Commerçant": merchant.email ?? merchant.id,
-              "Abonnement Stripe": s.id,
-              "Erreur": e instanceof Error ? e.message : String(e),
-            }).catch(console.error);
-          }
-        }
-      }
-      await activateStarterFree(merchant.id);
-      return NextResponse.json({ activated: true, plan: "starter" });
     }
 
     const stripe = getStripe();

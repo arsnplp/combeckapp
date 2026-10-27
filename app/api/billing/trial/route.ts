@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { supabase } from "@/lib/supabase";
-import { stripePriceId } from "@/lib/plan-billing";
+import { stripePriceId, isAwaitingFirstTrial } from "@/lib/plan-billing";
 import { getTrialState, TRIAL_DAYS, TRIAL_PLAN } from "@/lib/trial";
 import { listLiveSubscriptions } from "@/lib/stripe-subs";
 
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     const sb = supabase();
     const { data: merchant } = await sb
       .from("merchants")
-      .select("id, email, stripe_customer_id, plan, plan_expires_at")
+      .select("id, email, stripe_customer_id, plan, plan_expires_at, created_at")
       .eq("id", merchantId)
       .maybeSingle();
     if (!merchant) return NextResponse.json({ error: "Compte non trouvé." }, { status: 404 });
@@ -88,8 +88,22 @@ export async function POST(req: NextRequest) {
     // ouvrir un second ferait 60 jours gratuits. On reprend donc le temps
     // qu'il leur reste au lieu de repartir de zéro — ils ne perdent rien,
     // leur accès se prolonge simplement jusqu'à la date déjà promise.
+    //
+    // Un compte créé depuis la suppression du plan gratuit est lui aussi sur
+    // « free », mais avec une échéance égale à sa date de création (aucun jour
+    // d'essai accordé) : il a droit à ses 30 jours pleins. On ne reprend le
+    // reliquat que pour les anciens essais sans carte, dont l'échéance était
+    // fixée bien après la création du compte.
     let trialDays = TRIAL_DAYS;
-    if (merchant.plan === "free" && merchant.plan_expires_at) {
+    const legacyNoCardTrial =
+      merchant.plan === "free" &&
+      !!merchant.plan_expires_at &&
+      !isAwaitingFirstTrial({
+        plan: merchant.plan,
+        planExpiresAt: merchant.plan_expires_at,
+        createdAt: merchant.created_at,
+      });
+    if (legacyNoCardTrial) {
       const left = Math.ceil((new Date(merchant.plan_expires_at).getTime() - Date.now()) / 86400_000);
       // Stripe refuse un essai de moins d'un jour.
       trialDays = Math.min(TRIAL_DAYS, Math.max(1, left));

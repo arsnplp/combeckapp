@@ -5,22 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, Star, Gift, Loader2, Lock } from "lucide-react";
 
+// Plus de plan gratuit depuis le 27 octobre 2026 : tout commence par l'essai
+// de 30 jours (niveau Business), puis Pro ou Business.
 const PLANS = [
-  {
-    id: "starter",
-    name: "Starter",
-    price: 0,
-    description: "Gratuit à vie — idéal pour démarrer",
-    highlight: false,
-    features: [
-      "30 clients maximum",
-      "1 000 notifications / mois",
-      "1 carte de fidélité",
-      "Ciblage basique (tous les clients)",
-      "Stats sur 7 derniers jours",
-      "Support email",
-    ],
-  },
   {
     id: "pro",
     name: "Pro",
@@ -111,8 +98,8 @@ export default function TarifsPage() {
         body: JSON.stringify({ plan: planId, billingCycle: billing }),
       });
       const data = await res.json();
-      // Starter (gratuit) activé directement, ou essai converti en abonnement
-      // payant sur place : dans les deux cas il n'y a pas de page Stripe à ouvrir.
+      // Essai converti en abonnement payant sur place : pas de page Stripe à
+      // ouvrir.
       if (res.ok && (data.activated || data.converted)) { router.push("/dashboard"); router.refresh(); return; }
       if (res.ok && data.url) { window.location.href = data.url; return; }
       setPayError(data?.error ?? "Paiement indisponible pour le moment.");
@@ -235,7 +222,7 @@ export default function TarifsPage() {
             {payError}
           </p>
         )}
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+        <div className="mx-auto grid max-w-3xl grid-cols-1 gap-5 md:grid-cols-2">
           {PLANS.map((plan) => {
             // Pendant l'essai, aucun plan n'est grisé : le commerçant doit
             // pouvoir prendre Business tout de suite pour passer en payant
@@ -262,13 +249,7 @@ export default function TarifsPage() {
 
                 <div className="mb-5">
                   <p className="text-[13px] font-semibold uppercase tracking-wider text-slate-400">{plan.name}</p>
-                  {plan.price === 0 ? (
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="text-[38px] font-bold leading-none text-slate-900">Gratuit</span>
-                      <span className="rounded-full bg-green-100 px-2.5 py-1 text-[11.5px] font-bold text-green-700">à vie</span>
-                    </div>
-                  ) : (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                       {billing === "annual" && (
                         <span className="text-[20px] font-semibold text-slate-300 line-through">{fmt(plan.price)}€</span>
                       )}
@@ -281,11 +262,8 @@ export default function TarifsPage() {
                           économisez {fmt(Math.round(plan.price * 12 - annualTotal(plan.price)))}€
                         </span>
                       )}
-                    </div>
-                  )}
-                  {plan.price === 0 ? (
-                    <p className="mt-1 text-[12px] text-slate-400">Aucune carte bancaire requise</p>
-                  ) : billing === "annual" ? (
+                  </div>
+                  {billing === "annual" ? (
                     <p className="mt-1 text-[12px] text-slate-400">Facturé {fmt(annualTotal(plan.price))}€ / an TTC</p>
                   ) : (
                     <p className="mt-1 text-[12px] text-slate-400">Sans engagement · prix TTC</p>
