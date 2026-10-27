@@ -9,8 +9,8 @@ export interface PlanInfo {
 }
 
 // Annuel : ~-20 %, arrondi à l'euro (le prix affiché = le prix facturé)
-// Starter n'apparaît PAS ici : il est gratuit à vie et ne passe jamais par
-// Stripe (voir activateStarterFree ci-dessous).
+// Starter n'apparaît PAS ici : ce n'est plus une offre (voir plan-limits.ts),
+// et il n'a jamais eu de prix Stripe.
 //
 // Grille du 26 octobre 2026 (avant : Pro 9,99 € / 96 €, Business 39,99 € /
 // 384 €). Ce sont les prix des NOUVEAUX abonnements. Un abonné existant paie
@@ -93,7 +93,7 @@ function priceIdsFor(plan: string, billingCycle: "monthly" | "annual"): string[]
 
 /** Plan + cycle depuis un ID de prix Stripe (source de vérité de la facture). */
 export function planFromPriceId(priceId: string): { plan: PlanId; billingCycle: "monthly" | "annual" } | null {
-  // Starter est gratuit (pas de prix Stripe) — jamais retourné ici.
+  // Starter n'a jamais eu de prix Stripe : jamais retourné ici.
   // Anciens prix compris : un abonné resté sur l'ancienne grille garde son plan.
   for (const plan of ["pro", "business"] as PlanId[]) {
     for (const cycle of ["monthly", "annual"] as const) {
@@ -109,16 +109,31 @@ export function stripePriceId(plan: string, billingCycle: "monthly" | "annual"):
 }
 
 /**
- * Active le plan Starter gratuit à vie (pas d'expiration — contrairement à
- * l'essai qui est du niveau Business mais limité à 30 jours). N'annule PAS
- * un abonnement Stripe existant : c'est à l'appelant (route qui a le client
- * Stripe sous la main) de le faire avant d'appeler cette fonction.
+ * Compte sans abonnement actif : plan « free » déjà expiré.
+ *
+ * Depuis le 27 octobre 2026 il n'y a plus de plan gratuit. Un compte qui n'a
+ * ni essai en cours ni abonnement payé est redirigé vers /bloque (voir
+ * app/(dashboard)/layout.tsx) : ses données sont conservées, il retrouve tout
+ * en démarrant son essai (s'il ne l'a jamais pris) ou en choisissant Pro ou
+ * Business. C'est l'état d'un compte qui vient d'être créé, d'un essai résilié
+ * arrivé à son terme, ou d'un abonnement arrêté.
  */
-export async function activateStarterFree(merchantId: string): Promise<void> {
-  await supabase().from("merchants").update({
-    plan: "starter",
-    plan_expires_at: null,
-  }).eq("id", merchantId);
+export function suspendedPlanFields(now: Date = new Date()): { plan: "free"; plan_expires_at: string } {
+  // Une seconde dans le passé : le compte est bloqué dès la première requête,
+  // même si elle arrive dans la même milliseconde que sa création.
+  return { plan: "free", plan_expires_at: new Date(now.getTime() - 1000).toISOString() };
+}
+
+/**
+ * Compte créé sans jamais avoir eu de jour d'essai : son échéance est égale à
+ * sa date de création (voir suspendedPlanFields). À distinguer des anciens
+ * essais sans carte, dont l'échéance tombait 30 jours après la création.
+ */
+export function isAwaitingFirstTrial(
+  user: { plan: string; planExpiresAt?: string | null; createdAt?: string | null } | null | undefined,
+): boolean {
+  if (!user || user.plan !== "free" || !user.planExpiresAt || !user.createdAt) return false;
+  return new Date(user.planExpiresAt).getTime() - new Date(user.createdAt).getTime() <= 86400_000;
 }
 
 export async function downgradePlan(merchantId: string): Promise<void> {

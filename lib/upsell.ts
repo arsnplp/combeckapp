@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 import { PLAN_LIMITS } from "./plan-limits";
 import { getUserById } from "./users";
-import { isTrialExpired } from "./plan-billing";
+import { isTrialExpired, isAwaitingFirstTrial } from "./plan-billing";
 import type { PlanId } from "@/types";
 
 /**
@@ -24,7 +24,7 @@ export const LOYALTY_COUPON_ID = "comeback_fidelite_50";
 /**
  * Pourquoi l'offre est proposée. Les deux moments où le commerçant se heurte
  * à un mur, et donc où la proposition a du sens :
- *  - "limit"       : plan gratuit à vie saturé (30 clients atteints)
+ *  - "limit"       : ancienne offre Starter saturée (30 clients atteints)
  *  - "trial_ended" : essai de 30 jours terminé, compte bloqué
  */
 export type UpsellReason = "limit" | "trial_ended";
@@ -66,11 +66,15 @@ export async function getUpsellState(merchantId: string): Promise<UpsellState> {
   // Essai terminé : le compte est bloqué sur /bloque tant qu'aucun plan n'est
   // choisi. Rien ne le déloge automatiquement (le cron n'envoie que des
   // rappels), donc l'offre reste visible aussi longtemps qu'il hésite.
-  if (isTrialExpired(merchant)) {
+  // Un compte qui n'a encore jamais pris son essai est aussi « expiré » (il
+  // n'y a plus de plan gratuit), mais on lui propose l'essai de 30 jours, pas
+  // une remise de reconquête.
+  if (isTrialExpired(merchant) && !isAwaitingFirstTrial(merchant)) {
     return { ...base, eligible: true, reason: "trial_ended" };
   }
 
-  // Plan gratuit à vie saturé : plus aucun nouveau client ne peut s'inscrire.
+  // Ancienne offre gratuite (Starter, conservée pour les comptes qui l'ont)
+  // saturée : plus aucun nouveau client ne peut s'inscrire.
   if (maxClients !== null && plan === "starter" && customerCount >= maxClients) {
     return { ...base, eligible: true, reason: "limit" };
   }

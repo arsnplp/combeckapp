@@ -8,9 +8,11 @@ import { Loader2, Eye, EyeOff, Check, Star, ArrowLeft } from "lucide-react";
 import { isValidPhone } from "@/lib/validation";
 import type { PlanId } from "@/types";
 
-const PLAN_INFO: Record<PlanId, { label: string; price: number; color: string }> = {
+// Plus de plan gratuit : seuls l'essai (30 jours, carte demandée) et les plans
+// payants s'inscrivent. Un lien ?plan=starter renvoie vers /tarifs.
+type SignupPlan = Exclude<PlanId, "starter">;
+const PLAN_INFO: Record<SignupPlan, { label: string; price: number; color: string }> = {
   free:     { label: "Essai gratuit", price: 0, color: "text-emerald-700 bg-emerald-50" },
-  starter:  { label: "Starter",  price: 0,  color: "text-slate-600 bg-slate-100" },
   pro:      { label: "Pro",      price: 14.99,  color: "text-green-700 bg-green-50" },
   business: { label: "Business", price: 29.99, color: "text-violet-700 bg-violet-50" },
 };
@@ -18,11 +20,11 @@ const PLAN_INFO: Record<PlanId, { label: string; price: number; color: string }>
 function SignupForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const planParam = params.get("plan") as PlanId | null;
-  const plan: PlanId = planParam && planParam in PLAN_INFO ? planParam : "starter";
+  const planParam = params.get("plan") as SignupPlan | null;
+  const plan: SignupPlan = planParam && planParam in PLAN_INFO ? planParam : "free";
   const planInfo = PLAN_INFO[plan];
-  // Starter est gratuit à vie (comme l'essai) : pas de cycle de facturation à choisir
-  const isFreePlan = plan === "free" || plan === "starter";
+  // L'essai n'a pas de cycle de facturation à choisir
+  const isFreePlan = plan === "free";
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">(
     params.get("billing") === "annual" ? "annual" : "monthly",
   );
@@ -59,8 +61,9 @@ function SignupForm() {
     if (!isValidPhone(trimmedPhone)) { setError("Numéro de téléphone invalide."); return; }
     setLoading(true);
     try {
-      // Essai gratuit → route dédiée (compte Starter, email vérifié d'office,
-      // l'essai Business est ensuite démarré via Stripe) ; payant → signup classique
+      // Essai gratuit → route dédiée (compte sans abonnement, email vérifié
+      // d'office, l'essai Business est ensuite démarré via Stripe) ; payant →
+      // signup classique
       const endpoint = plan === "free" ? "/api/auth/free-trial" : "/api/auth/signup";
       const res = await fetch(endpoint, {
         method: "POST",
@@ -75,8 +78,9 @@ function SignupForm() {
       // Essai : on enchaîne directement sur Stripe pour la carte. Rien n'est
       // prélevé aujourd'hui ; c'est cette carte qui permettra à l'abonnement
       // de se poursuivre au 30e jour sans redemander quoi que ce soit.
-      // Si Stripe est indisponible ou si le commerçant ferme la page, il
-      // garde son compte Starter et retrouvera l'essai sur /tarifs.
+      // Si Stripe est indisponible ou si le commerçant ferme la page, son
+      // compte existe : il arrive sur /bloque, qui lui propose de reprendre
+      // l'essai. Il n'y a plus de plan gratuit sur lequel retomber.
       if (plan === "free") {
         try {
           const tr = await fetch("/api/billing/trial", { method: "POST" });
@@ -88,7 +92,7 @@ function SignupForm() {
         return;
       }
 
-      // Starter (gratuit) ou plan payant → active/checkout via le même endpoint
+      // Plan payant → page de paiement Stripe
       const co = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -99,8 +103,8 @@ function SignupForm() {
         window.location.href = coData.url;
         return;
       }
-      // Starter activé directement (gratuit) ou paiement indisponible :
-      // le compte existe dans les deux cas, on continue vers le dashboard
+      // Paiement indisponible : le compte existe, sans abonnement. Le
+      // dashboard le renvoie vers /bloque pour choisir un plan.
       router.push("/dashboard");
       router.refresh();
     } catch {
@@ -127,9 +131,7 @@ function SignupForm() {
             <p className="mt-3 text-[14px] leading-relaxed text-slate-400">
               {plan === "free"
                 ? "30 jours · Toutes les fonctionnalités Business · 0 € aujourd'hui, carte demandée"
-                : plan === "starter"
-                  ? "Gratuit à vie · 30 clients maximum · Sans carte bancaire"
-                  : billingCycle === "annual"
+                : billingCycle === "annual"
                     ? `${Math.round(planInfo.price * 12 * 0.8).toLocaleString("fr-FR")}€ / an TTC (soit ${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12).toLocaleString("fr-FR")}€/mois, -20 %)`
                     : `${planInfo.price.toLocaleString("fr-FR")}€ / mois TTC · Sans engagement`}
             </p>
@@ -160,9 +162,7 @@ function SignupForm() {
             {plan === "pro" && <Star className="h-3 w-3" fill="currentColor" />}
             {plan === "free"
               ? "Essai gratuit — 30 jours offerts, niveau Business"
-              : plan === "starter"
-                ? "Plan Starter — Gratuit à vie"
-                : `Plan ${planInfo.label} — ${billingCycle === "annual" ? `${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12).toLocaleString("fr-FR")}€/mois facturé annuellement` : `${planInfo.price.toLocaleString("fr-FR")}€/mois`}`}
+              : `Plan ${planInfo.label} — ${billingCycle === "annual" ? `${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12).toLocaleString("fr-FR")}€/mois facturé annuellement` : `${planInfo.price.toLocaleString("fr-FR")}€/mois`}`}
           </div>
 
           <div className="mb-6">
@@ -170,7 +170,7 @@ function SignupForm() {
             <p className="mt-1 text-[14px] text-slate-500">Quelques secondes suffisent</p>
           </div>
 
-          {/* Choix du cycle de facturation (plans payants uniquement — Starter est gratuit) */}
+          {/* Choix du cycle de facturation (plans payants uniquement) */}
           {!isFreePlan && (
             <div className="mb-6 grid grid-cols-2 gap-2">
               <button

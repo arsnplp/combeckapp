@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import type { PlanId } from "@/types";
+import { suspendedPlanFields } from "./plan-billing";
 import { supabase } from "./supabase";
 
 export interface DbUser {
@@ -99,19 +100,18 @@ export async function createUserFromGoogle(email: string, name: string): Promise
   const normalized = email.toLowerCase().trim();
   const existing = await getUserByEmail(normalized);
   if (existing) return existing;
+  const createdAt = new Date().toISOString();
   const user: DbUser = {
     id: `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     email: normalized,
     passwordHash: "",
     storeName: name.trim() || "",
-    // Starter, gratuit à vie — comme l'inscription par formulaire. L'essai
-    // Business de 30 jours ne s'accorde plus ici : il passe par Stripe avec
-    // saisie de carte (0 € prélevé), activable depuis la page des plans.
-    // Sans ça, s'inscrire avec Google rouvrait l'ancien essai sans carte,
-    // qui ne se transforme jamais en abonnement.
-    plan: "starter",
-    planExpiresAt: null,
-    createdAt: new Date().toISOString(),
+    // Sans abonnement tant que l'essai n'est pas démarré : il n'y a plus de
+    // plan gratuit. Après l'onboarding, le compte arrive sur /bloque, qui
+    // propose l'essai de 30 jours (carte demandée, 0 € prélevé).
+    plan: "free",
+    planExpiresAt: suspendedPlanFields(new Date(createdAt)).plan_expires_at,
+    createdAt,
     emailVerified: true,
     googleId: normalized,
     onboardingNeeded: true,
@@ -171,6 +171,7 @@ export async function createUser(
   if (await getUserByEmail(normalized)) throw new Error("EMAIL_EXISTS");
   const passwordHash = await bcrypt.hash(password, 12);
   const verificationToken = randomBytes(32).toString("hex");
+  const createdAt = new Date().toISOString();
   const user: DbUser = {
     id: `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     email: normalized,
@@ -178,13 +179,12 @@ export async function createUser(
     storeName: storeName.trim(),
     city: city?.trim(),
     phone: phone?.trim(),
-    // Starter, gratuit à vie. Le compte naissait avec 30 jours au niveau
-    // Business sans carte : si le commerçant abandonnait la page de paiement
-    // qui suit, il repartait avec un essai gratuit que personne ne lui avait
-    // promis et qui ne se transforme jamais en abonnement.
-    plan: "starter",
-    planExpiresAt: null,
-    createdAt: new Date().toISOString(),
+    // Sans abonnement tant que le paiement (ou l'essai) n'est pas confirmé
+    // par Stripe : il n'y a plus de plan gratuit. Si le commerçant abandonne
+    // la page de paiement, il arrive sur /bloque et reprend où il en était.
+    plan: "free",
+    planExpiresAt: suspendedPlanFields(new Date(createdAt)).plan_expires_at,
+    createdAt,
     emailVerified: false,
     emailVerificationToken: verificationToken,
   };
@@ -195,8 +195,8 @@ export async function createUser(
     store_name: user.storeName,
     city: user.city ?? "",
     phone: user.phone ?? "",
-    plan: "starter",
-    plan_expires_at: null,
+    plan: user.plan,
+    plan_expires_at: user.planExpiresAt,
     created_at: user.createdAt,
     email_verified: false,
     email_verification_token: verificationToken,

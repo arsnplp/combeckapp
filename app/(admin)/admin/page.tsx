@@ -343,7 +343,7 @@ export default function AdminPage() {
       setUnsubDone(
         data.noop ? "Rien à changer sur ce compte."
         : data.resume ? `${data.storeName} reste abonné, la résiliation est annulée.`
-        : data.immediate ? `${data.storeName} est repassé en Starter.`
+        : data.immediate ? `${data.storeName} est suspendu (données conservées).`
         : `${data.storeName} ne sera plus prélevé. Accès jusqu'au ${new Date(data.endsAt).toLocaleDateString("fr-FR", { timeZone: FUSEAU })}.`,
       );
       setUnsubTarget(null);
@@ -1396,12 +1396,12 @@ export default function AdminPage() {
               ) : unsubTarget.revenueStatus === "essai" ? (
                 <>L&apos;essai s&apos;arrête : <strong className="text-white">aucun prélèvement n&apos;aura lieu</strong>. Le compte
                 garde son accès jusqu&apos;au terme de l&apos;essai. Ensuite, le commerçant devra choisir
-                un plan pour retrouver son tableau de bord — Starter reste gratuit et se prend en un clic.</>
+                Pro ou Business pour retrouver son tableau de bord (il n&apos;y a plus de plan gratuit).</>
               ) : (
                 <><strong className="text-white">Plus aucun prélèvement.</strong> Le compte garde le plan déjà réglé
                 jusqu&apos;à la fin de la période en cours. Ensuite, le commerçant devra choisir un plan
-                pour retrouver son tableau de bord — Starter reste gratuit et se prend en un clic.
-                Ses données sont conservées dans tous les cas.</>
+                pour retrouver son tableau de bord (il n&apos;y a plus de plan gratuit). Ses données sont
+                conservées dans tous les cas.</>
               )}
               <br />
               <span className="text-slate-500">

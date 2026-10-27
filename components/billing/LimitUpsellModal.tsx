@@ -115,7 +115,7 @@ export default function LimitUpsellModal() {
           <p className="mt-2.5 text-[13.5px] leading-relaxed text-slate-600">
             {state.reason === "trial_ended"
               ? "Vos clients, vos cartes et vos données sont conservés — tout revient dès que vous choisissez un plan."
-              : "Vous avez atteint la limite de clients du plan gratuit — c'est le signe que votre programme de fidélité fonctionne vraiment."}
+              : "Vous avez atteint la limite de clients de votre offre gratuite, c'est le signe que votre programme de fidélité fonctionne vraiment."}
           </p>
           <p className="mt-2 text-[13.5px] leading-relaxed text-slate-600">
             Si ComeBack vous plaît, on vous offre <strong className="font-semibold text-slate-900">{percent} %

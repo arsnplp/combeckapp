@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
-import { createFreeTrial } from "@/lib/plan-billing";
+import { createFreeTrial, suspendedPlanFields } from "@/lib/plan-billing";
 import { isValidPhone } from "@/lib/validation";
 import { checkRateLimit, getIp, tooManyRequests } from "@/lib/rate-limit";
 import { randomBytes } from "crypto";
@@ -41,8 +41,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Cet email est déjà utilisé." }, { status: 409 });
     }
 
-    // Créer le compte gratuit
+    // Créer le compte (sans abonnement tant que l'essai n'est pas démarré)
     const { id } = await createFreeTrial(normalized);
+    const createdAt = new Date();
     const passwordHash = await bcrypt.hash(password, 12);
     const verificationToken = randomBytes(32).toString("hex");
 
@@ -56,15 +57,13 @@ export async function POST(req: NextRequest) {
       store_name: storeName.trim(),
       city: city?.trim() ?? "",
       phone: String(phone).trim(),
-      // Le compte naît sur Starter, gratuit à vie. L'essai de 30 jours au
-      // niveau Business n'est plus accordé ici : il passe désormais par
-      // Stripe avec saisie de carte (0 € prélevé), que la page d'inscription
-      // enchaîne juste après. Abandonner cette page ne coûte donc rien au
-      // commerçant — il garde un compte utilisable et pourra activer l'essai
-      // plus tard depuis la page des plans.
-      plan: "starter",
-      plan_expires_at: null,
-      created_at: new Date().toISOString(),
+      // Le compte naît sans abonnement : il n'y a plus de plan gratuit.
+      // L'essai de 30 jours au niveau Business passe par Stripe avec saisie
+      // de carte (0 € prélevé), que la page d'inscription enchaîne juste
+      // après. S'il abandonne cette page, le commerçant arrive sur /bloque,
+      // qui lui propose de reprendre l'essai : rien n'est perdu.
+      ...suspendedPlanFields(createdAt),
+      created_at: createdAt.toISOString(),
       email_verified: true, // essai gratuit = vérifié auto
       is_admin: false,
       affiliate_code: affiliateCode,
@@ -83,7 +82,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       userId: id,
       email: normalized,
-      plan: "starter",
+      plan: "free",
       redirect: "/dashboard",
     });
   } catch (e) {

@@ -46,8 +46,8 @@ export default function AbonnementPage() {
   };
 
   const isTrial = info?.plan === "free";
-  // Starter est gratuit à vie, sans Stripe — même traitement que l'essai
-  // pour l'affichage (pas de facturation, pas de bouton portail Stripe).
+  // Ancienne offre Starter (gratuite, conservée pour les comptes qui l'ont) :
+  // pas de facturation, pas de bouton portail Stripe.
   const isStarterFree = info?.plan === "starter";
   const noStripeBilling = isTrial || isStarterFree;
 
@@ -79,7 +79,7 @@ export default function AbonnementPage() {
                   ? (upsell.customerCount && upsell.customerCount > 0
                       ? `Vous avez déjà ${upsell.customerCount} client${upsell.customerCount > 1 ? "s" : ""} fidélisé${upsell.customerCount > 1 ? "s" : ""} — pour continuer avec eux, `
                       : "Pour continuer, ")
-                  : `Vous avez rempli les ${upsell.maxClients ?? 30} places de votre plan gratuit. Pour votre fidélité, `}
+                  : `Vous avez rempli les ${upsell.maxClients ?? 30} places de votre offre gratuite. Pour votre fidélité, `}
                 nous vous offrons <strong className="font-semibold text-white">{upsell.percentOff ?? 50} %
                 sur votre premier mois</strong> — appliqué automatiquement au paiement, aucun code à
                 saisir. Offre valable sur l&apos;abonnement mensuel.
@@ -104,7 +104,7 @@ export default function AbonnementPage() {
                     ? `Essai gratuit (niveau Business) — ${info.daysLeft} jour${info.daysLeft > 1 ? "s" : ""} restant${info.daysLeft > 1 ? "s" : ""}`
                     : "Essai gratuit (niveau Business)"
                   : isStarterFree
-                    ? "Plan gratuit à vie — aucune carte bancaire requise"
+                    ? "Ancienne offre gratuite, conservée pour votre compte"
                     : "Renouvellement automatique — géré par Stripe"}
               </p>
             </div>
@@ -126,8 +126,9 @@ export default function AbonnementPage() {
       <PlanChooser currentPlan={info?.plan} />
 
       <p className="text-center text-[11.5px] text-slate-400">
-        Tous les prix sont TTC, toutes taxes comprises · Paiement sécurisé par Stripe · Sans engagement · Le changement de plan d&apos;un abonnement en cours se fait
-        via le portail Stripe (prorata automatique).
+        Tous les prix sont TTC, toutes taxes comprises · Paiement sécurisé par Stripe · Sans engagement · Le changement de plan d&apos;un abonnement en cours et la
+        résiliation se font via « Factures &amp; résiliation » (prorata automatique). Après une résiliation, votre compte est mis en pause à la fin de la période
+        réglée, vos données sont conservées.
       </p>
     </div>
   );

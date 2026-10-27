@@ -22,6 +22,9 @@ export const PLAN_LIMITS: Record<PlanId, {
     csvExport: true,
     analyticsHistoryDays: 730,
   },
+  // Ancienne offre gratuite, retirée le 27 octobre 2026. Plus aucun compte
+  // n'est créé ni basculé sur Starter ; les comptes qui l'avaient déjà le
+  // gardent tel quel (limites ci-dessous inchangées).
   starter: {
     clients: 30,
     notifs: 1000,
@@ -61,12 +64,12 @@ export const PLAN_LIMITS: Record<PlanId, {
 
 export const PLAN_LABELS: Record<PlanId, string> = {
   free:     "Essai gratuit",
-  starter:  "Starter",
+  starter:  "Starter (ancienne offre)",
   pro:      "Pro",
   business: "Business",
 };
 
-// Starter est gratuit à vie (plafonné en clients) — ne passe jamais par Stripe.
+// Starter : ancienne offre gratuite, conservée pour les comptes qui l'ont déjà.
 export const PLAN_PRICES: Record<PlanId, number> = {
   free:     0,
   starter:  0,
