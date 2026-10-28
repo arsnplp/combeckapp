@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, Star, Loader2, AlertTriangle, Gift, Lock } from "lucide-react";
 import CycleToggle from "@/components/billing/CycleToggle";
 import CyclePrice from "@/components/billing/CyclePrice";
-import { cycleMonthly, cycleTotal, formatEuros, CYCLE_PER, type BillingCycle } from "@/lib/pricing";
+import { cycleMonthly, cycleTotal, formatEuros, CYCLE_LABEL, CYCLE_PER, type BillingCycle } from "@/lib/pricing";
 
 // Plus de plan gratuit depuis le 27 octobre 2026 : seuls Pro et Business se
 // choisissent. Les comptes restés sur l'ancien Starter voient Pro comme une
@@ -22,6 +22,8 @@ const PLANS = [
 ] as const;
 
 const fmt = formatEuros;
+const dateFr = (iso: string) =>
+  new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "Europe/Paris" });
 /** Prix du premier mois remisé, arrondi au centime comme le fera Stripe. */
 const firstMonth = (p: number, percent: number) => Math.round(p * (100 - percent)) / 100;
 
@@ -41,6 +43,10 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
   const [trialLoading, setTrialLoading] = useState(false);
   // Résiliation programmée chez Stripe (portail) : date de fin d'accès.
   const [cancelAt, setCancelAt] = useState<string | null>(null);
+  // Pendant l'essai : plan et période qui démarreront à son terme (Business
+  // mensuel par défaut, ou ce que le commerçant a choisi depuis).
+  const [nextUp, setNextUp] = useState<{ plan: string; billingCycle: string; startsAt: string | null } | null>(null);
+  const [notice, setNotice] = useState("");
   const [billing, setBilling] = useState<BillingCycle>("monthly");
   const [paying, setPaying] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -62,7 +68,7 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
       .catch(() => {});
     fetch("/api/billing/status")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setCancelAt(d?.cancelAt ?? null))
+      .then((d) => { setCancelAt(d?.cancelAt ?? null); setNextUp(d?.nextUp ?? null); })
       .catch(() => {});
   }, []);
 
@@ -100,6 +106,7 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
     if (paying) return;
     setPaying(planId);
     setError("");
+    setNotice("");
     try {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
@@ -109,6 +116,20 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
       const data = await res.json();
       // Essai converti en abonnement payant sur place : pas de page Stripe à
       // ouvrir.
+      // Essai en cours : rien n'est payé, le choix s'appliquera à son terme.
+      if (res.ok && data.scheduled) {
+        const startsAt = data.trialEnd ?? nextUp?.startsAt ?? null;
+        setNextUp({ plan: data.plan, billingCycle: data.billingCycle, startsAt });
+        setCancelAt(null);
+        const name = PLANS.find((p) => p.id === data.plan)?.name ?? data.plan;
+        setNotice(
+          `C'est noté : ${name} démarrera ${startsAt ? `le ${dateFr(startsAt)}` : "à la fin de votre essai"}, au tarif ` +
+          `de ${fmt(cycleTotal(data.plan, data.billingCycle))} € par ${CYCLE_PER[data.billingCycle as BillingCycle]}. ` +
+          `D'ici là, vous gardez tout Business et rien n'est prélevé.`,
+        );
+        setPaying(null);
+        return;
+      }
       if (res.ok && (data.activated || data.converted)) { router.push("/dashboard"); router.refresh(); return; }
       if (res.ok && data.url) { window.location.href = data.url; return; }
       setError(data?.error ?? "Paiement indisponible.");
@@ -204,9 +225,13 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
               ) : (
                 <>
                   <strong className="font-bold text-slate-900">Essai Business en cours</strong> : il reste{" "}
-                  {trial.daysLeft} jour{(trial.daysLeft ?? 0) > 1 ? "s" : ""}. À son terme, l&apos;abonnement
-                  Business démarre automatiquement. Pour arrêter avant, sans rien payer : « Factures &amp;
-                  résiliation », sur la page Abonnement.
+                  {trial.daysLeft} jour{(trial.daysLeft ?? 0) > 1 ? "s" : ""}. À son terme, l&apos;abonnement{" "}
+                  <strong className="font-semibold text-slate-900">
+                    {nextUp ? `${PLANS.find((p) => p.id === nextUp.plan)?.name ?? nextUp.plan} ${CYCLE_LABEL[nextUp.billingCycle as BillingCycle]?.toLowerCase() ?? ""}` : "Business"}
+                  </strong>{" "}
+                  démarre automatiquement. Vous pouvez choisir un autre plan ci-dessous : vous gardez vos
+                  jours gratuits, il démarrera à la fin de l&apos;essai. Pour arrêter avant, sans rien payer :
+                  « Factures &amp; résiliation », sur la page Abonnement.
                 </>
               )}
             </p>
@@ -230,22 +255,29 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
       {error && (
         <p className="mx-auto max-w-md rounded-lg border border-red-100 bg-red-50 px-4 py-2.5 text-center text-[13px] text-red-600">{error}</p>
       )}
+      {notice && (
+        <p role="status" className="mx-auto max-w-lg rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-center text-[13px] text-green-800">{notice}</p>
+      )}
 
       {/* Cartes */}
       <div className="mx-auto grid max-w-3xl grid-cols-1 gap-4 md:grid-cols-2">
         {PLANS.map((plan) => {
           const isCurrent = currentPlan === plan.id && !essaiEnCours;
-          const demarrerMaintenant = essaiEnCours && currentPlan === plan.id;
+          // Pendant l'essai : la combinaison plan + période déjà prévue au terme.
+          const prevu = essaiEnCours && nextUp?.plan === plan.id && nextUp?.billingCycle === billing;
+          // La remise « premier mois » ne s'applique qu'à un paiement immédiat :
+          // pendant l'essai, le choix démarre au terme, au prix normal.
+          const promo = billing === "monthly" && upsellPercent && !essaiEnCours;
           return (
             <div key={plan.id}
               className={`relative flex flex-col rounded-2xl border bg-white p-5 ${
                 isCurrent ? "border-green-500 shadow-[0_0_0_4px_rgba(22,163,74,0.08)]"
                 : plan.highlight ? "border-green-300" : "border-slate-200"
               }`}>
-              {isCurrent ? (
+              {isCurrent || prevu ? (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="flex items-center gap-1 rounded-full bg-green-600 px-3 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white">
-                    <Check className="h-3 w-3" /> Votre plan
+                  <span className="flex items-center gap-1 whitespace-nowrap rounded-full bg-green-600 px-3 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white">
+                    <Check className="h-3 w-3" /> {prevu ? "Prévu après l'essai" : "Votre plan"}
                   </span>
                 </div>
               ) : plan.highlight && (
@@ -257,7 +289,7 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
               )}
 
               <p className="text-[12px] font-semibold uppercase tracking-wider text-slate-400">{plan.name}</p>
-              {billing === "monthly" && upsellPercent ? (
+              {promo && upsellPercent ? (
                 <>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <span className="text-[16px] font-semibold text-slate-300 line-through">{fmt(plan.price)}€</span>
@@ -286,9 +318,9 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
 
               <button
                 onClick={() => choosePlan(plan.id)}
-                disabled={!!paying || isCurrent}
+                disabled={!!paying || isCurrent || prevu}
                 className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[13.5px] font-semibold transition-all active:scale-[0.98] disabled:opacity-60 ${
-                  isCurrent
+                  isCurrent || prevu
                     ? "border border-slate-200 bg-slate-50 text-slate-400"
                     : plan.highlight
                       ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/30 hover:from-green-600 hover:to-emerald-600"
@@ -297,9 +329,15 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
               >
                 {paying === plan.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {isCurrent ? "Plan actuel"
-                  : demarrerMaintenant ? "Démarrer maintenant"
+                  : prevu ? "Prévu à la fin de l'essai"
+                  : essaiEnCours ? `Passer sur ${plan.name} à la fin de l'essai`
                   : `Choisir ${plan.name}`}
               </button>
+              {essaiEnCours && !prevu && (
+                <p className="mt-2 text-center text-[11px] leading-snug text-slate-400">
+                  0 € aujourd&apos;hui : vous gardez vos jours gratuits, {plan.name} démarre au terme de l&apos;essai.
+                </p>
+              )}
             </div>
           );
         })}
@@ -328,8 +366,13 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
 
             <p className="mt-3 text-[12.5px] leading-relaxed text-slate-500">
               Pendant votre essai vous utilisiez le <strong>niveau Business</strong>. Vos données ne sont
-              pas supprimées, mais ces fonctionnalités seront <strong>désactivées immédiatement</strong> avec
-              le plan {warnedPlan.name}.
+              pas supprimées, mais ces fonctionnalités seront désactivées{" "}
+              <strong>
+                {essaiEnCours
+                  ? (nextUp?.startsAt ? `à la fin de votre essai, le ${dateFr(nextUp.startsAt)}` : "à la fin de votre essai")
+                  : "immédiatement"}
+              </strong>{" "}
+              avec le plan {warnedPlan.name}.
             </p>
 
             <div className="mt-5 space-y-2">

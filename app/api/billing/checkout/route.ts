@@ -84,16 +84,22 @@ export async function POST(req: NextRequest) {
     // Un essai en cours compte : il porte déjà une carte et un abonnement.
     const live = await listLiveSubscriptions(stripe, customerId);
 
-    // ── Essai en cours : on bascule en payant tout de suite ─────────────
-    // Le commerçant qui choisit un plan pendant son essai veut démarrer son
-    // abonnement maintenant, pas attendre la fin des 30 jours. L'envoyer
-    // vers le portail Stripe ne lui offre aucun moyen évident de le faire.
-    // On met donc l'abonnement d'essai au tarif choisi et on termine l'essai
-    // sur-le-champ : Stripe émet la facture dans la foulée avec la carte
-    // déjà enregistrée. `proration_behavior: "none"` parce qu'un essai n'a
-    // jamais été facturé — il n'y a rien à proratiser, le commerçant paie
-    // simplement sa première période pleine.
-    const essai = live.find((s) => enEssai(s));
+    // ── Essai en cours : on choisit ce qui démarrera à son terme ────────
+    // Depuis le 28 octobre 2026, choisir un plan pendant l'essai ne fait rien
+    // payer : le commerçant garde ses 30 jours gratuits et toutes les
+    // fonctionnalités Business, et c'est le plan (et la période) choisi qui
+    // démarre au terme de l'essai, à la place de Business mensuel.
+    //
+    // On remplace simplement le prix de l'abonnement d'essai : même
+    // abonnement, même carte, même date de fin d'essai, aucune facture
+    // aujourd'hui (`proration_behavior: "none"`, et surtout pas de
+    // `trial_end`). Une résiliation programmée est levée au passage : choisir
+    // un plan, c'est vouloir continuer.
+    //
+    // La base n'est pas touchée : le plan reste « business » jusqu'au terme
+    // de l'essai, puis `invoice.paid` pose le plan réellement facturé (lu sur
+    // le prix de l'abonnement, voir planFromPriceId).
+    const essai = live.find((s) => enEssai(s)) as (typeof live[number] & { trial_end?: number | null }) | undefined;
     if (essai) {
       const itemId = essai.items?.data?.[0]?.id;
       if (!itemId) {
@@ -102,22 +108,20 @@ export async function POST(req: NextRequest) {
       try {
         await stripe.subscriptions.update(essai.id, {
           items: [{ id: itemId, price: priceId }],
-          trial_end: "now",
           proration_behavior: "none",
+          cancel_at_period_end: false,
           metadata: { merchantId: merchant.id, plan, billingCycle },
         });
       } catch (e) {
-        console.error("[checkout] fin d'essai anticipée", e);
+        console.error("[checkout] changement de plan pendant l'essai", e);
         return NextResponse.json(
-          { error: "Impossible de démarrer l'abonnement maintenant. Réessayez ou contactez-nous." },
+          { error: "Impossible d'enregistrer votre choix. Réessayez ou contactez-nous." },
           { status: 502 },
         );
       }
-      // `invoice.paid` posera le plan et son échéance, comme pour tout
-      // paiement. On ne touche pas à la base ici : si le prélèvement échoue,
-      // le commerçant ne doit pas se retrouver avec un plan qu'il n'a pas payé.
-      console.log(`[checkout] essai converti en abonnement payant : ${merchant.email} → ${plan} (${billingCycle})`);
-      return NextResponse.json({ converted: true, plan });
+      const trialEnd = essai.trial_end ? new Date(essai.trial_end * 1000).toISOString() : null;
+      console.log(`[checkout] essai : ${merchant.email} démarrera sur ${plan} (${billingCycle}) au terme de l'essai`);
+      return NextResponse.json({ scheduled: true, plan, billingCycle, trialEnd });
     }
 
     if (live.length > 0) {

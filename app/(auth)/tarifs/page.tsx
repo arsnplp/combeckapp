@@ -62,6 +62,7 @@ export default function TarifsPage() {
   const [trialLoading, setTrialLoading] = useState(false);
   const [paying, setPaying] = useState<string | null>(null);
   const [payError, setPayError] = useState("");
+  const [payNotice, setPayNotice] = useState("");
 
   useEffect(() => {
     fetch("/api/plan-features")
@@ -107,6 +108,15 @@ export default function TarifsPage() {
       const data = await res.json();
       // Essai converti en abonnement payant sur place : pas de page Stripe à
       // ouvrir.
+      // Essai en cours : rien n'est payé, le plan choisi démarrera à son terme.
+      if (res.ok && data.scheduled) {
+        const when = data.trialEnd
+          ? `le ${new Date(data.trialEnd).toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "Europe/Paris" })}`
+          : "à la fin de votre essai";
+        setPayNotice(`C'est noté : ${data.plan === "pro" ? "Pro" : "Business"} démarrera ${when}. D'ici là, vous gardez tout Business et rien n'est prélevé.`);
+        setPaying(null);
+        return;
+      }
       if (res.ok && (data.activated || data.converted)) { router.push("/dashboard"); router.refresh(); return; }
       if (res.ok && data.url) { window.location.href = data.url; return; }
       setPayError(data?.error ?? "Paiement indisponible pour le moment.");
@@ -212,6 +222,11 @@ export default function TarifsPage() {
 
       {/* Plans */}
       <div className="mx-auto max-w-5xl px-6 pb-20">
+        {payNotice && (
+          <p role="status" className="mx-auto mb-4 max-w-lg rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-center text-[13px] text-green-800">
+            {payNotice}
+          </p>
+        )}
         {payError && (
           <p className="mx-auto mb-4 max-w-md rounded-lg border border-red-100 bg-red-50 px-4 py-2.5 text-center text-[13px] text-red-600">
             {payError}
@@ -219,12 +234,12 @@ export default function TarifsPage() {
         )}
         <div className="mx-auto grid max-w-3xl grid-cols-1 gap-5 md:grid-cols-2">
           {PLANS.map((plan) => {
-            // Pendant l'essai, aucun plan n'est grisé : le commerçant doit
-            // pouvoir prendre Business tout de suite pour passer en payant
-            // sans attendre la fin des 30 jours. Son plan en base vaut déjà
-            // « business » le temps de l'essai — le griser l'aurait enfermé.
+            // Pendant l'essai, aucun plan n'est grisé : le commerçant choisit
+            // ce qui démarrera au terme des 30 jours (rien n'est payé avant).
+            // Son plan en base vaut « business » le temps de l'essai : le
+            // griser l'aurait empêché de changer de période.
             const isCurrent = loggedIn && currentPlan === plan.id && !essaiEnCours;
-            const demarrerMaintenant = essaiEnCours && currentPlan === plan.id;
+
             return (
               <div
                 key={plan.id}
@@ -273,7 +288,7 @@ export default function TarifsPage() {
                   >
                     {paying === plan.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     {isCurrent ? "Votre plan actuel"
-                      : demarrerMaintenant ? "Démarrer l'abonnement maintenant"
+                      : essaiEnCours ? `Passer sur ${plan.name} à la fin de l'essai`
                       : `Passer au plan ${plan.name}`}
                   </button>
                 ) : (

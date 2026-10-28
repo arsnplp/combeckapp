@@ -269,8 +269,26 @@ function SignupForm() {
             <button type="submit" disabled={loading}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60">
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {loading ? "Création du compte…" : plan === "free" ? "Continuer" : "Créer mon compte"}
+              {loading ? "Création du compte…" : plan === "free" ? "Continuer" : `Créer mon compte et payer ${billedTotal} €`}
             </button>
+
+            {/* Formule payante : pas d'essai, paiement aujourd'hui. Le dire avant
+                le clic, et montrer où est l'essai gratuit pour qui le cherche. */}
+            {plan !== "free" && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] leading-relaxed text-amber-900">
+                <strong className="font-semibold">Sans essai gratuit :</strong> {billedTotal} € TTC prélevés
+                aujourd&apos;hui, puis chaque {billedPer}. Sans engagement, résiliable en un clic.
+                <br />
+                Vous préférez tester d&apos;abord ?{" "}
+                <Link
+                  href={`/signup?plan=free${billingCycle === "monthly" ? "" : `&billing=${billingCycle}`}`}
+                  className="font-semibold text-green-700 underline underline-offset-2"
+                >
+                  30 jours gratuits avec l&apos;essai Business
+                </Link>
+                , puis passez sur {planInfo.label} si vous voulez : vous gardez vos jours gratuits.
+              </div>
+            )}
 
             {/* Le commerçant doit savoir qu'une page de paiement suit, sinon
                 l'arrivée sur Stripe ressemble à une demande de paiement. */}
@@ -279,7 +297,8 @@ function SignupForm() {
                 Étape suivante : votre carte, pour que l&apos;essai se poursuive sans coupure.
                 <br />
                 <strong className="font-semibold text-slate-600">0 € prélevé aujourd&apos;hui.</strong>{" "}
-                Puis Business à {billedTotal} € par {billedPer}. Résiliable en un clic avant le 30<sup>e</sup> jour.
+                Puis Business à {billedTotal} € par {billedPer}, ou Pro si vous le choisissez pendant
+                l&apos;essai. Résiliable en un clic avant le 30<sup>e</sup> jour.
               </p>
             )}
           </form>
