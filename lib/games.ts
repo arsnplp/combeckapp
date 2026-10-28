@@ -145,6 +145,14 @@ export function draw(
   return segments[segments.length - 1].outcome;
 }
 
+/**
+ * Reste-t-il au moins un lot gagnable (stock non épuisé) ? Sans lot, une
+ * partie est perdue d'avance : le client ne doit pas pouvoir payer pour.
+ */
+export function hasWinnablePrize(config: GameConfig, rewards: RewardRef[]): boolean {
+  return effectiveOdds(config, rewards).some((o) => o.rewardId !== null);
+}
+
 /** Chances réellement offertes au client, après retrait des lots épuisés. */
 export function effectiveOdds(
   config: GameConfig,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { supabase } from "@/lib/supabase";
-import { GAME_KEYS, GAME_META, GameConfig, GameKey, RewardRef, validateConfig } from "@/lib/games";
+import { GAME_KEYS, GAME_META, GameConfig, GameKey, hasWinnablePrize, RewardRef, validateConfig } from "@/lib/games";
 import { getGameConfigs, saveGameConfig, withRealWinCounts } from "@/lib/games-db";
 
 /** Unité de la carte du commerce (une seule carte par commerce). */
@@ -17,7 +17,11 @@ async function loadCardMode(merchantId: string): Promise<"stamps" | "points"> {
  * tampons alors que la carte fonctionne en points (ou l'inverse) n'est
  * jouable par personne. Réenregistrer le jeu le remet dans la bonne unité.
  */
-function withCardMode(v: ReturnType<typeof validateConfig>, c: GameConfig, cardMode: "stamps" | "points") {
+function withCardMode(v: ReturnType<typeof validateConfig>, c: GameConfig, cardMode: "stamps" | "points", rewards: RewardRef[]) {
+  // Stock épuisé : le jeu est masqué aux clients, autant le dire ici.
+  if (v.valid && c.enabled && !hasWinnablePrize(c, rewards)) {
+    v = { ...v, valid: false, errors: [...v.errors, "Tous les lots sont épuisés : le jeu est masqué à vos clients. Augmentez le stock pour le rouvrir."] };
+  }
   if (c.costType === cardMode) return v;
   const unite = cardMode === "points" ? "points" : "tampons";
   return {
@@ -65,7 +69,7 @@ export async function GET() {
     games: configs.map((c) => ({
       ...c,
       ...GAME_META[c.gameKey],
-      validation: withCardMode(validateConfig(c, rewards), c, cardMode),
+      validation: withCardMode(validateConfig(c, rewards), c, cardMode, rewards),
     })),
   });
 }
@@ -129,7 +133,7 @@ export async function POST(req: NextRequest) {
   const rafraichi = await Promise.all((await getGameConfigs(tenantId)).map((c) => withRealWinCounts(tenantId, c)));
   return NextResponse.json({
     ok: true,
-    games: rafraichi.map((c) => ({ ...c, ...GAME_META[c.gameKey], validation: withCardMode(validateConfig(c, rewards), c, cardMode) })),
+    games: rafraichi.map((c) => ({ ...c, ...GAME_META[c.gameKey], validation: withCardMode(validateConfig(c, rewards), c, cardMode, rewards) })),
   });
 }
 
