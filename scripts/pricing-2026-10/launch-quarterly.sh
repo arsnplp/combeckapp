@@ -73,15 +73,34 @@ fi
 
 # Site vitrine : le sélecteur de période ne part qu'avec l'app de prod, qui
 # sait facturer le trimestriel.
+# Construit à côté du site en ligne, puis bascule : un build raté ne coupe
+# jamais le site (il reste sur l'ancienne version).
 if [ "$TARGET" = "prod" ]; then
   echo "== Site getcomeback.fr (sélecteur de période)"
   SITE=/var/www/getcomeback-site
-  git config --global --add safe.directory "$SITE" || true
-  cd "$SITE"
-  git stash -q || true
-  git fetch -q origin && git checkout -q trimestriel && git pull -q --ff-only origin trimestriel
-  npm ci --no-audit --no-fund && npm run build
-  pm2 restart comeback-site --update-env
+  SITE_NEXT=/var/www/getcomeback-site-trimestre
+  SITE_BACKUP=/var/www/getcomeback-site-avant-trimestre
+  if [ -e "$SITE_BACKUP" ]; then
+    echo "Le dossier $SITE_BACKUP existe déjà : site non modifié."
+  else
+    rm -rf "$SITE_NEXT"
+    rsync -a "$SITE/" "$SITE_NEXT/"
+    git config --global --add safe.directory "$SITE_NEXT" || true
+    cd "$SITE_NEXT"
+    git stash -q || true
+    git fetch -q origin && git checkout -q trimestriel && git pull -q --ff-only origin trimestriel
+    if npm ci --no-audit --no-fund && npm run build; then
+      cd /root
+      mv "$SITE" "$SITE_BACKUP"
+      mv "$SITE_NEXT" "$SITE"
+      git config --global --add safe.directory "$SITE" || true
+      cd "$SITE" && pm2 restart comeback-site --update-env
+      sleep 3
+      echo "https://getcomeback.fr/tarifs → HTTP $(curl -s -o /dev/null -w "%{http_code}" https://getcomeback.fr/tarifs)"
+    else
+      echo "!! Build du site en échec : le site en ligne n'a pas bougé."
+    fi
+  fi
 fi
 echo
 echo "TRIMESTRE OK ($TARGET)"
