@@ -266,7 +266,9 @@ export async function saveTenantSettings(
         emoji: r.emoji ?? "🎁",
         cost: Math.min(max, Math.max(1, r.cost ?? 1)),
         mode,
-        usage_count: r.usageCount ?? 0,
+        // usage_count n'est pas renvoyé : il est incrémenté côté serveur à
+        // chaque récompense validée, et la copie du navigateur (chargée avant)
+        // le remettait en arrière à chaque enregistrement automatique.
         hidden: Boolean(r.hidden),
       };
     }));

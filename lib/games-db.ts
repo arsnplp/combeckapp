@@ -86,12 +86,29 @@ export async function saveGameConfig(merchantId: string, config: GameConfig): Pr
   }, { onConflict: "merchant_id,game_key" });
 }
 
-/** Parties jouées aujourd'hui par ce client sur ce jeu — pour la limite. */
+/**
+ * Minuit à Paris, en ISO. Le serveur tourne en UTC : `setHours(0)` faisait
+ * repartir la limite quotidienne à 1 h ou 2 h du matin, heure française, et
+ * un client pouvait jouer deux « journées » dans la même soirée.
+ */
+export function startOfTodayParisISO(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+  }).formatToParts(now);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  // Décalage Paris/UTC à cet instant (1 h l'hiver, 2 h l'été).
+  const parisAsUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+  const offset = parisAsUtc - Math.floor(now.getTime() / 1000) * 1000;
+  const minuitParisAsUtc = Date.UTC(get("year"), get("month") - 1, get("day"));
+  return new Date(minuitParisAsUtc - offset).toISOString();
+}
+
+/** Parties jouées aujourd'hui (heure de Paris) par ce client sur ce jeu — pour la limite. */
 export async function countPlaysToday(
   merchantId: string, gameKey: GameKey, customerId: string,
 ): Promise<number> {
-  const debut = new Date();
-  debut.setHours(0, 0, 0, 0);
+  const debut = new Date(startOfTodayParisISO());
   const { count } = await supabase()
     .from("game_plays")
     .select("*", { count: "exact", head: true })
@@ -102,8 +119,8 @@ export async function countPlaysToday(
   return count ?? 0;
 }
 
-export async function insertPlay(row: Omit<PlayRow, "usedAt">): Promise<void> {
-  await supabase().from("game_plays").insert({
+export async function insertPlay(row: Omit<PlayRow, "usedAt">): Promise<boolean> {
+  const { error } = await supabase().from("game_plays").insert({
     id: row.id,
     merchant_id: row.merchantId,
     game_key: row.gameKey,
@@ -118,20 +135,50 @@ export async function insertPlay(row: Omit<PlayRow, "usedAt">): Promise<void> {
     reward_emoji: row.rewardEmoji,
     prize_code: row.prizeCode,
   });
+  // L'erreur était ignorée : le client était débité, mais sa partie (et son
+  // lot s'il gagnait) n'existait nulle part.
+  if (error) console.error("[games] insertPlay", error.message);
+  return !error;
 }
 
-/** Incrémente le compteur de lots gagnés, pour la gestion du stock. */
-export async function bumpPrizeWonCount(
-  merchantId: string, gameKey: GameKey, rewardId: string,
-): Promise<void> {
+/**
+ * Lots réellement gagnés par récompense, comptés dans l'historique des
+ * parties. C'est la seule source fiable pour le stock : le compteur
+ * `wonCount` rangé dans la config pouvait être écrasé par un enregistrement
+ * de la page Jeux resté ouvert, ou perdre un gain sur deux parties
+ * simultanées.
+ */
+export async function countWinsByReward(merchantId: string, gameKey: GameKey): Promise<Map<string, number>> {
+  const { data } = await supabase()
+    .from("game_plays").select("reward_id")
+    .eq("merchant_id", merchantId).eq("game_key", gameKey).eq("result_type", "win");
+  const counts = new Map<string, number>();
+  for (const r of data ?? []) {
+    const id = r.reward_id as string | null;
+    if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** La config avec `wonCount` recalculé depuis l'historique. */
+export async function withRealWinCounts(merchantId: string, config: GameConfig): Promise<GameConfig> {
+  const counts = await countWinsByReward(merchantId, config.gameKey);
+  return { ...config, prizes: config.prizes.map((p) => ({ ...p, wonCount: counts.get(p.rewardId) ?? 0 })) };
+}
+
+/**
+ * Recopie dans la config le nombre réel de lots gagnés (affichage de la page
+ * Jeux). Le stock, lui, est toujours recalculé depuis l'historique au moment
+ * du tirage : ce champ n'est qu'un reflet.
+ */
+export async function syncPrizeWonCounts(merchantId: string, gameKey: GameKey): Promise<void> {
   const { data } = await supabase()
     .from("game_configs").select("prizes")
     .eq("merchant_id", merchantId).eq("game_key", gameKey).maybeSingle();
   if (!data) return;
-  const prizes = (data.prizes as GamePrizeConfig[]) ?? [];
-  const next = prizes.map((p) =>
-    p.rewardId === rewardId ? { ...p, wonCount: (p.wonCount ?? 0) + 1 } : p);
-  await supabase().from("game_configs").update({ prizes: next })
+  const counts = await countWinsByReward(merchantId, gameKey);
+  const prizes = ((data.prizes as GamePrizeConfig[]) ?? []).map((p) => ({ ...p, wonCount: counts.get(p.rewardId) ?? 0 }));
+  await supabase().from("game_configs").update({ prizes })
     .eq("merchant_id", merchantId).eq("game_key", gameKey);
 }
 

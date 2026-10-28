@@ -303,6 +303,28 @@ export default function CartePage() {
   const handleSave = () => {
     if (!form.name.trim() || !settings.logoUrl) return;
     if (editingId) {
+      // Les clients qui ont déjà la carte voient la modification dans leur
+      // Wallet. Deux changements ont un effet sur leur solde : on prévient
+      // avant d'enregistrer plutôt que de le découvrir par un client fâché.
+      const avant = loyaltyCards.find((c) => c.id === editingId);
+      const porteurs = customerCards.filter((cc) => cc.cardId === editingId);
+      if (avant && porteurs.length > 0) {
+        if (avant.loyaltyMode !== form.loyaltyMode) {
+          const ancien = avant.loyaltyMode === "stamps" ? "tampons" : "points";
+          const nouveau = form.loyaltyMode === "stamps" ? "tampons" : "points";
+          if (!confirm(
+            `${porteurs.length} client${porteurs.length > 1 ? "s ont" : " a"} déjà cette carte. En passant aux ${nouveau}, ` +
+            `leurs ${ancien} ne s'affichent plus et ils repartent à 0 ${nouveau} (leurs ${ancien} sont conservés et ` +
+            `reviennent si vous repassez aux ${ancien}). Continuer ?`,
+          )) return;
+        } else if (form.loyaltyMode === "stamps" && form.stampsRequired < avant.stampsRequired) {
+          const auDessus = porteurs.filter((cc) => cc.stamps > form.stampsRequired).length;
+          if (auDessus > 0 && !confirm(
+            `${auDessus} client${auDessus > 1 ? "s ont" : " a"} déjà plus de ${form.stampsRequired} tampons. ` +
+            `Ils les gardent et peuvent les utiliser, mais n'en gagneront pas de nouveaux avant d'avoir utilisé une récompense. Continuer ?`,
+          )) return;
+        }
+      }
       updateLoyaltyCard(editingId, formToCard(form));
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);

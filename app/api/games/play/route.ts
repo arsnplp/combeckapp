@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { resolveClientSession } from "@/lib/client-sessions";
 import { supabase } from "@/lib/supabase";
-import { db_deductReward } from "@/lib/server-db";
+import { db_deductReward, db_refundBalance } from "@/lib/server-db";
 import { draw, GAME_KEYS, GameKey, RewardRef, validateConfig } from "@/lib/games";
-import { bumpPrizeWonCount, countPlaysToday, getGameConfigs, insertPlay } from "@/lib/games-db";
+import {
+  countPlaysToday, countWinsByReward, getGameConfigs, insertPlay, syncPrizeWonCounts, withRealWinCounts,
+} from "@/lib/games-db";
 import { walletNotificationService } from "@/lib/wallet-notification-service";
 
 /**
@@ -32,7 +34,7 @@ export async function POST(req: NextRequest) {
   // La carte doit bien appartenir au client connecté : sans ce contrôle,
   // n'importe qui pourrait jouer avec la carte d'un autre.
   const { data: cc } = await sb.from("customer_cards")
-    .select("id, merchant_id, customer_id, stamps, points").eq("id", customerCardId).maybeSingle();
+    .select("id, merchant_id, customer_id, card_id, stamps, points").eq("id", customerCardId).maybeSingle();
   if (!cc) return NextResponse.json({ error: "Carte introuvable." }, { status: 404 });
 
   const { data: cust } = await sb.from("customers")
@@ -42,11 +44,33 @@ export async function POST(req: NextRequest) {
   }
 
   const merchantId = cc.merchant_id as string;
+
+  // Module éteint par le commerçant : plus aucune partie, même si un client
+  // avait encore la page ouverte (l'onglet Jeux le masquait déjà).
+  const { data: merchant } = await sb.from("merchants")
+    .select("wallet_config").eq("id", merchantId).maybeSingle();
+  const flag = ((merchant?.wallet_config ?? {}) as Record<string, unknown>).games as { enabled?: boolean } | undefined;
+  if (!flag?.enabled) {
+    return NextResponse.json({ error: "Les jeux ne sont pas disponibles chez ce commerce." }, { status: 409 });
+  }
+
   const configs = await getGameConfigs(merchantId);
-  const config = configs.find((c) => c.gameKey === gameKey);
-  if (!config?.enabled) {
+  const rawConfig = configs.find((c) => c.gameKey === gameKey);
+  if (!rawConfig?.enabled) {
     return NextResponse.json({ error: "Ce jeu n'est pas disponible." }, { status: 409 });
   }
+
+  // Un jeu payé en tampons sur une carte à points (ou l'inverse) ne peut être
+  // joué par personne : on le dit au lieu d'annoncer « solde insuffisant ».
+  const { data: lc } = await sb.from("loyalty_cards")
+    .select("loyalty_mode").eq("id", cc.card_id).maybeSingle();
+  const cardMode = lc?.loyalty_mode === "points" ? "points" : "stamps";
+  if (rawConfig.costType !== cardMode) {
+    return NextResponse.json({ error: "Ce jeu est en cours de réglage, réessayez plus tard." }, { status: 409 });
+  }
+
+  // Stock calculé sur les vraies parties gagnées, pas sur un compteur.
+  const config = await withRealWinCounts(merchantId, rawConfig);
 
   const { data: rewardRows } = await sb.from("rewards")
     .select("id, name, emoji").eq("merchant_id", merchantId);
@@ -89,9 +113,9 @@ export async function POST(req: NextRequest) {
     : null;
 
   const playId = `gp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const prizeCode = gagne ? crypto.randomUUID() : null;
+  let prizeCode = gagne ? crypto.randomUUID() : null;
 
-  await insertPlay({
+  const enregistre = await insertPlay({
     id: playId,
     merchantId,
     gameKey: gameKey as GameKey,
@@ -107,14 +131,38 @@ export async function POST(req: NextRequest) {
     prizeCode,
   });
 
-  if (gagne) await bumpPrizeWonCount(merchantId, gameKey as GameKey, gagne.id);
+  if (!enregistre) {
+    // Partie impossible à enregistrer : on rend la mise, le client ne paie
+    // pas une partie qui n'existe nulle part.
+    await db_refundBalance(merchantId, customerCardId, config.costType, config.cost);
+    return NextResponse.json({ error: "La partie n'a pas pu être enregistrée. Vos tampons vous ont été rendus." }, { status: 500 });
+  }
+
+  // Deux parties simultanées peuvent viser le dernier lot d'un stock. On
+  // recompte après coup : celle qui dépasse le stock devient une partie
+  // perdue (la mise reste due, comme pour toute partie perdue).
+  let lotFinal = gagne;
+  if (gagne) {
+    const prize = config.prizes.find((p) => p.rewardId === gagne.id);
+    if (prize && prize.stock !== null) {
+      const gagnes = (await countWinsByReward(merchantId, gameKey as GameKey)).get(gagne.id) ?? 0;
+      if (gagnes > prize.stock) {
+        await sb.from("game_plays")
+          .update({ result_type: "lose", reward_id: null, reward_name: null, reward_emoji: null, prize_code: null })
+          .eq("id", playId);
+        lotFinal = null;
+        prizeCode = null;
+      }
+    }
+    syncPrizeWonCounts(merchantId, gameKey as GameKey).catch(() => {});
+  }
 
   // Le solde a changé : la carte Wallet doit suivre.
   walletNotificationService.updateStamps(customerCardId).catch(() => {});
 
   return NextResponse.json({
-    result: gagne ? "win" : "lose",
-    reward: gagne ? { id: gagne.id, name: gagne.name, emoji: gagne.emoji } : null,
+    result: lotFinal ? "win" : "lose",
+    reward: lotFinal ? { id: lotFinal.id, name: lotFinal.name, emoji: lotFinal.emoji } : null,
     prizeCode,
     balance: config.costType === "points" ? debit.card?.points : debit.card?.stamps,
     playsLeft: Math.max(0, config.dailyLimit - joueesAujourdhui - 1),

@@ -34,7 +34,11 @@ export async function GET(
   if (ifModifiedSince) {
     const sinceSec = Math.floor(new Date(ifModifiedSince).getTime() / 1000);
     const updatedSec = Math.floor(new Date(walletPass.updatedAt).getTime() / 1000);
-    if (!isNaN(sinceSec) && updatedSec <= sinceSec) {
+    // Strictement antérieur seulement : l'en-tête n'a pas les millisecondes,
+    // donc « même seconde » ne prouve pas que rien n'a changé. Avec `<=`, une
+    // récompense validée dans la seconde qui suit un ajout de tampon était
+    // ignorée par l'iPhone jusqu'à la mise à jour suivante.
+    if (!isNaN(sinceSec) && updatedSec < sinceSec) {
       return new NextResponse(null, { status: 304 });
     }
   }

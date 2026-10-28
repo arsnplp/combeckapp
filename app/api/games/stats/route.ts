@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { GAME_META, GameKey } from "@/lib/games";
-import { getGameConfigs, getPlays } from "@/lib/games-db";
+import { getGameConfigs, getPlays, withRealWinCounts } from "@/lib/games-db";
 
 /**
  * Chiffres des jeux. Volontairement resserré : les quatre nombres qu'on
@@ -22,7 +22,9 @@ export async function GET(req: NextRequest) {
   const jours = periode === "all" ? null : Number(periode) || 30;
   const depuis = jours ? new Date(Date.now() - jours * 86400_000).toISOString() : undefined;
 
-  const [toutes, configs] = await Promise.all([getPlays(tenantId, depuis), getGameConfigs(tenantId)]);
+  const [toutes, configsBrutes] = await Promise.all([getPlays(tenantId, depuis), getGameConfigs(tenantId)]);
+  // Stock restant calculé sur les parties réellement gagnées.
+  const configs = await Promise.all(configsBrutes.map((c) => withRealWinCounts(tenantId, c)));
 
   // Les totaux ne décrivent que ce qui tourne : un jeu arrêté gonflerait
   // les chiffres d'une activité qui n'existe plus. Son historique reste

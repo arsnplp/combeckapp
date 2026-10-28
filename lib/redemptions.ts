@@ -54,6 +54,18 @@ export async function markUsed(token: string): Promise<boolean> {
   return !!updated;
 }
 
+/**
+ * Annule un marquage « utilisé » quand la déduction qui devait suivre a
+ * échoué : le client garde un QR valable au lieu d'un QR brûlé pour rien.
+ */
+export async function unmarkUsed(token: string): Promise<void> {
+  const { data } = await supabase().from("redemption_tokens")
+    .select("payload").eq("id", token).maybeSingle();
+  if (!data) return;
+  const payload = { ...(data.payload as Redemption), used: false, usedAt: null };
+  await supabase().from("redemption_tokens").update({ used: false, payload }).eq("id", token);
+}
+
 export async function cancelPendingForCard(customerCardId: string): Promise<void> {
   await supabase().from("redemption_tokens").delete()
     .eq("used", false)
