@@ -62,6 +62,15 @@ sleep 4
 CODE=$(curl -s -o /dev/null -w "%{http_code}" "$URL/login")
 echo "$URL/login → HTTP $CODE"
 
+# Staging : auto-test Stripe (mode test) de l'essai, du passage sur Pro pendant
+# l'essai et de Pro payé. N'arrête rien en cas d'échec : il le signale.
+if [ "$TARGET" = "staging" ]; then
+  echo "== Auto-test Stripe (mode test)"
+  cd "$APP"
+  eval "$(node scripts/pricing-2026-10/stripe-env.mjs .env.local)"
+  node scripts/pricing-2026-10/selftest-trial-switch.mjs || echo "!! Auto-test en échec : envoie-moi ce bloc."
+fi
+
 # Site vitrine : le sélecteur de période ne part qu'avec l'app de prod, qui
 # sait facturer le trimestriel.
 if [ "$TARGET" = "prod" ]; then
