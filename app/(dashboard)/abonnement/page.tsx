@@ -17,6 +17,8 @@ export default function AbonnementPage() {
   const [info, setInfo] = useState<PlanInfo | null>(null);
   const [upsell, setUpsell] = useState<Upsell | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  // Résiliation programmée depuis le portail Stripe : date de fin d'accès.
+  const [cancelAt, setCancelAt] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -29,6 +31,10 @@ export default function AbonnementPage() {
     fetch("/api/upsell")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setUpsell(d))
+      .catch(() => {});
+    fetch("/api/billing/status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setCancelAt(d?.cancelAt ?? null))
       .catch(() => {});
   }, []);
 
@@ -105,7 +111,9 @@ export default function AbonnementPage() {
                     : "Essai gratuit (niveau Business)"
                   : isStarterFree
                     ? "Ancienne offre gratuite, conservée pour votre compte"
-                    : "Renouvellement automatique — géré par Stripe"}
+                    : cancelAt
+                      ? `Résilié : aucun prélèvement, accès jusqu'au ${new Date(cancelAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" })}, puis compte en pause`
+                      : "Renouvellement automatique, géré par Stripe"}
               </p>
             </div>
           </div>
