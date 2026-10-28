@@ -5,6 +5,7 @@ import { getPlanFeatures } from "@/lib/plan-features";
 import { supabase } from "@/lib/supabase";
 import { listLiveSubscriptions } from "@/lib/stripe-subs";
 import type { PlanId } from "@/types";
+import { monthlyFromStripePrice } from "@/lib/pricing";
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) return null;
@@ -12,7 +13,7 @@ function getStripe() {
   return require("stripe")(process.env.STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" });
 }
 
-type LivePrice = { unit_amount?: number | null; recurring?: { interval?: string } | null };
+type LivePrice = { unit_amount?: number | null; recurring?: { interval?: string; interval_count?: number } | null };
 
 /**
  * Prix mensuel réellement payé par le commerçant, lu sur son abonnement
@@ -33,8 +34,7 @@ async function actualMonthlyPrice(merchantId: string): Promise<number | null> {
   const live = await listLiveSubscriptions(stripe, customerId);
   const price = (live[0]?.items?.data?.[0] as { price?: LivePrice } | undefined)?.price;
   if (typeof price?.unit_amount !== "number") return null;
-  const unit = price.unit_amount / 100;
-  return price.recurring?.interval === "year" ? Math.round((unit / 12) * 100) / 100 : unit;
+  return monthlyFromStripePrice(price.unit_amount, price.recurring?.interval, price.recurring?.interval_count);
 }
 
 export async function GET() {

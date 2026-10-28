@@ -7,14 +7,19 @@ import Link from "next/link";
 import { Loader2, Eye, EyeOff, Check, Star, ArrowLeft } from "lucide-react";
 import { isValidPhone } from "@/lib/validation";
 import type { PlanId } from "@/types";
+import {
+  BILLING_CYCLES, CYCLE_LABEL, CYCLE_PER, PLAN_PRICING,
+  cycleDiscountPercent, cycleMonthly, cycleTotal, formatEuros, parseBillingCycle,
+  type BillingCycle, type PaidPlan,
+} from "@/lib/pricing";
 
 // Plus de plan gratuit : seuls l'essai (30 jours, carte demandée) et les plans
 // payants s'inscrivent. Un lien ?plan=starter renvoie vers /tarifs.
 type SignupPlan = Exclude<PlanId, "starter">;
 const PLAN_INFO: Record<SignupPlan, { label: string; price: number; color: string }> = {
   free:     { label: "Essai gratuit", price: 0, color: "text-emerald-700 bg-emerald-50" },
-  pro:      { label: "Pro",      price: 14.99,  color: "text-green-700 bg-green-50" },
-  business: { label: "Business", price: 29.99, color: "text-violet-700 bg-violet-50" },
+  pro:      { label: "Pro",      price: PLAN_PRICING.pro.monthly,      color: "text-green-700 bg-green-50" },
+  business: { label: "Business", price: PLAN_PRICING.business.monthly, color: "text-violet-700 bg-violet-50" },
 };
 
 function SignupForm() {
@@ -23,11 +28,14 @@ function SignupForm() {
   const planParam = params.get("plan") as SignupPlan | null;
   const plan: SignupPlan = planParam && planParam in PLAN_INFO ? planParam : "free";
   const planInfo = PLAN_INFO[plan];
-  // L'essai n'a pas de cycle de facturation à choisir
-  const isFreePlan = plan === "free";
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">(
-    params.get("billing") === "annual" ? "annual" : "monthly",
-  );
+  // Plan réellement facturé : Business pour l'essai (au terme des 30 jours),
+  // sinon le plan choisi.
+  const billedPlan: PaidPlan = plan === "free" ? "business" : plan;
+  // Période choisie sur le site (?billing=quarterly) ou ici. Pour l'essai,
+  // c'est la période facturée au terme des 30 jours.
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>(parseBillingCycle(params.get("billing")));
+  const billedTotal = formatEuros(cycleTotal(billedPlan, billingCycle));
+  const billedPer = CYCLE_PER[billingCycle];
 
   const [storeName, setStoreName] = useState("");
   const [city, setCity]           = useState("");
@@ -83,7 +91,11 @@ function SignupForm() {
       // l'essai. Il n'y a plus de plan gratuit sur lequel retomber.
       if (plan === "free") {
         try {
-          const tr = await fetch("/api/billing/trial", { method: "POST" });
+          const tr = await fetch("/api/billing/trial", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ billingCycle }),
+          });
           const trData = await tr.json();
           if (tr.ok && trData.url) { window.location.href = trData.url; return; }
         } catch { /* on continue vers le dashboard */ }
@@ -130,10 +142,10 @@ function SignupForm() {
             </h2>
             <p className="mt-3 text-[14px] leading-relaxed text-slate-400">
               {plan === "free"
-                ? "30 jours · Toutes les fonctionnalités Business · 0 € aujourd'hui, carte demandée"
-                : billingCycle === "annual"
-                    ? `${Math.round(planInfo.price * 12 * 0.8).toLocaleString("fr-FR")}€ / an TTC (soit ${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12).toLocaleString("fr-FR")}€/mois, -20 %)`
-                    : `${planInfo.price.toLocaleString("fr-FR")}€ / mois TTC · Sans engagement`}
+                ? `30 jours · Toutes les fonctionnalités Business · 0 € aujourd'hui, carte demandée. Ensuite : ${billedTotal} € par ${billedPer} TTC, résiliable avant.`
+                : billingCycle === "monthly"
+                    ? `${billedTotal} € / mois TTC · Sans engagement`
+                    : `${billedTotal} € par ${billedPer} TTC (soit ${formatEuros(cycleMonthly(billedPlan, billingCycle))} €/mois, -${cycleDiscountPercent(billedPlan, billingCycle)} %)`}
             </p>
           </div>
           <div className="space-y-2.5">
@@ -161,8 +173,8 @@ function SignupForm() {
           <div className={`mb-5 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold ${planInfo.color}`}>
             {plan === "pro" && <Star className="h-3 w-3" fill="currentColor" />}
             {plan === "free"
-              ? "Essai gratuit — 30 jours offerts, niveau Business"
-              : `Plan ${planInfo.label} — ${billingCycle === "annual" ? `${Math.round(Math.round(planInfo.price * 12 * 0.8) / 12).toLocaleString("fr-FR")}€/mois facturé annuellement` : `${planInfo.price.toLocaleString("fr-FR")}€/mois`}`}
+              ? "Essai gratuit : 30 jours offerts, niveau Business"
+              : `Plan ${planInfo.label} : ${formatEuros(cycleMonthly(billedPlan, billingCycle))}€/mois${billingCycle === "monthly" ? "" : `, facturé ${billedTotal}€ par ${billedPer}`}`}
           </div>
 
           <div className="mb-6">
@@ -170,34 +182,40 @@ function SignupForm() {
             <p className="mt-1 text-[14px] text-slate-500">Quelques secondes suffisent</p>
           </div>
 
-          {/* Choix du cycle de facturation (plans payants uniquement) */}
-          {!isFreePlan && (
-            <div className="mb-6 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setBillingCycle("monthly")}
-                className={`rounded-xl border-2 px-4 py-3 text-left transition-all ${
-                  billingCycle === "monthly" ? "border-green-500 bg-green-50/60" : "border-slate-200 bg-white hover:border-slate-300"
-                }`}
-              >
-                <p className="text-[13px] font-bold text-slate-900">Mensuel</p>
-                <p className="text-[12px] text-slate-500">{planInfo.price.toLocaleString("fr-FR")}€ / mois TTC</p>
-                <p className="text-[10.5px] text-slate-400">Sans engagement</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setBillingCycle("annual")}
-                className={`relative rounded-xl border-2 px-4 py-3 text-left transition-all ${
-                  billingCycle === "annual" ? "border-green-500 bg-green-50/60" : "border-slate-200 bg-white hover:border-slate-300"
-                }`}
-              >
-                <span className="absolute -top-2 right-2 rounded-full bg-green-600 px-2 py-0.5 text-[10px] font-bold text-white">-20 %</span>
-                <p className="text-[13px] font-bold text-slate-900">Annuel</p>
-                <p className="text-[12px] text-slate-500">{Math.round(Math.round(planInfo.price * 12 * 0.8) / 12).toLocaleString("fr-FR")}€ / mois TTC</p>
-                <p className="text-[10.5px] text-green-600 font-medium">{Math.round(planInfo.price * 12 * 0.8).toLocaleString("fr-FR")}€ TTC facturé 1× / an</p>
-              </button>
+          {/* Période de facturation. Pour l'essai : celle qui s'applique au
+              terme des 30 jours (rien n'est prélevé avant). */}
+          <div className="mb-6">
+            {plan === "free" && (
+              <p className="mb-2 text-[12px] font-semibold uppercase tracking-[0.07em] text-slate-500">Après l&apos;essai</p>
+            )}
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Période de facturation">
+              {BILLING_CYCLES.map((cycle) => {
+                const active = billingCycle === cycle;
+                const percent = cycleDiscountPercent(billedPlan, cycle);
+                return (
+                  <button
+                    key={cycle}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setBillingCycle(cycle)}
+                    className={`relative rounded-xl border-2 px-3 py-2.5 text-left transition-all ${
+                      active ? "border-green-500 bg-green-50/60" : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    {percent > 0 && (
+                      <span className="absolute -top-2 right-2 rounded-full bg-green-600 px-1.5 py-0.5 text-[10px] font-bold text-white">-{percent} %</span>
+                    )}
+                    <p className="text-[13px] font-bold text-slate-900">{CYCLE_LABEL[cycle]}</p>
+                    <p className="text-[12px] text-slate-500">{formatEuros(cycleMonthly(billedPlan, cycle))}€/mois</p>
+                    <p className={`text-[10.5px] ${cycle === "monthly" ? "text-slate-400" : "font-medium text-green-600"}`}>
+                      {cycle === "monthly" ? "Sans engagement" : `${formatEuros(cycleTotal(billedPlan, cycle))}€ / ${CYCLE_PER[cycle]}`}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
-          )}
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
@@ -261,7 +279,7 @@ function SignupForm() {
                 Étape suivante : votre carte, pour que l&apos;essai se poursuive sans coupure.
                 <br />
                 <strong className="font-semibold text-slate-600">0 € prélevé aujourd&apos;hui.</strong>{" "}
-                Résiliable en un clic avant le 30<sup>e</sup> jour.
+                Puis Business à {billedTotal} € par {billedPer}. Résiliable en un clic avant le 30<sup>e</sup> jour.
               </p>
             )}
           </form>

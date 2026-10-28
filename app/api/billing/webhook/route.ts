@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { activatePlan, setPlanUntil, planFromPriceId, PLAN_PRICING } from "@/lib/plan-billing";
+import { monthlyFromStripePrice, CYCLE_MONTHS, isBillingCycle } from "@/lib/pricing";
 import { creditCommission, refundCommission, getAffiliateById, UNLOCK_DELAY_DAYS } from "@/lib/affiliates";
 import { sendAffiliateCommissionEmail, sendAffiliateRefundEmail, notifyAdminEmail } from "@/lib/mailer";
 import { markTrialUsed } from "@/lib/trial";
@@ -122,8 +123,12 @@ export async function POST(req: NextRequest) {
           // ne paie pas le prix affiché aujourd'hui dans PLAN_PRICING.
           const subPrice = sub.items?.data?.[0]?.price;
           if (typeof subPrice?.unit_amount === "number") {
-            const unit = subPrice.unit_amount / 100;
-            subMonthlyPrice = subPrice.recurring?.interval === "year" ? Math.round((unit / 12) * 100) / 100 : unit;
+            // Équivalent mensuel, que la période soit le mois, le trimestre ou l'année.
+            subMonthlyPrice = monthlyFromStripePrice(
+              subPrice.unit_amount,
+              subPrice.recurring?.interval,
+              subPrice.recurring?.interval_count,
+            );
           }
         } catch { /* fallback lignes de facture */ }
       }
@@ -149,7 +154,7 @@ export async function POST(req: NextRequest) {
           const periodEnd = subPeriodEnd ?? (bestLine?.period?.end as number | undefined);
           const expiresAt = periodEnd
             ? new Date(periodEnd * 1000 + 3 * 86400_000)
-            : new Date(Date.now() + (billingCycle === "annual" ? 365 : 30) * 86400_000);
+            : new Date(Date.now() + (billingCycle === "annual" ? 365 : 30 * (isBillingCycle(billingCycle) ? CYCLE_MONTHS[billingCycle] : 1)) * 86400_000);
           await setPlanUntil(merchantId, plan as PlanId, expiresAt);
           console.log(`[webhook] invoice.paid → ${merchantId} plan ${plan} jusqu'au ${expiresAt.toISOString().slice(0, 10)}`);
         } else {

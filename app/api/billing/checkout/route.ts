@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { supabase } from "@/lib/supabase";
 import { stripePriceId } from "@/lib/plan-billing";
+import { isBillingCycle } from "@/lib/pricing";
 import { notifyAdminEmail } from "@/lib/mailer";
 import { getUpsellState, ensureLoyaltyCoupon } from "@/lib/upsell";
 import { listLiveSubscriptions, enEssai } from "@/lib/stripe-subs";
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
     if (!plan || !["pro", "business"].includes(plan)) {
       return NextResponse.json({ error: "Plan invalide." }, { status: 400 });
     }
-    if (!billingCycle || !["monthly", "annual"].includes(billingCycle)) {
+    if (!isBillingCycle(billingCycle)) {
       return NextResponse.json({ error: "Cycle invalide." }, { status: 400 });
     }
 
@@ -133,8 +134,9 @@ export async function POST(req: NextRequest) {
     // Si le coupon est indisponible pour une raison quelconque, on continue au
     // prix plein — un commerçant ne doit jamais être bloqué au paiement.
     // Réservé au mensuel : le coupon Stripe "once" s'applique à la PREMIÈRE
-    // FACTURE. En annuel, cette facture couvre douze mois — la remise porterait
-    // donc sur toute l'année au lieu du seul premier mois annoncé.
+    // FACTURE. En trimestriel ou en annuel, cette facture couvre plusieurs
+    // mois : la remise porterait sur toute la période au lieu du seul premier
+    // mois annoncé.
     let loyaltyCoupon: string | null = null;
     if (billingCycle === "monthly") {
       try {
@@ -145,7 +147,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Abonnement récurrent : facturation automatique chaque mois / an
+    // Abonnement récurrent : facturation automatique chaque mois, trimestre ou an
     const metadata = { merchantId: merchant.id, plan, billingCycle };
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: customerId,

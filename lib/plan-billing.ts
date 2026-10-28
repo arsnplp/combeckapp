@@ -1,5 +1,9 @@
 import { supabase } from "./supabase";
 import type { PlanId } from "@/types";
+import { CYCLE_MONTHS, BILLING_CYCLES, type BillingCycle } from "./pricing";
+
+export { PLAN_PRICING } from "./pricing";
+export type { BillingCycle } from "./pricing";
 
 export interface PlanInfo {
   plan: PlanId | "free";
@@ -8,18 +12,13 @@ export interface PlanInfo {
   daysLeft: number | null;
 }
 
-// Annuel : ~-20 %, arrondi à l'euro (le prix affiché = le prix facturé)
-// Starter n'apparaît PAS ici : ce n'est plus une offre (voir plan-limits.ts),
-// et il n'a jamais eu de prix Stripe.
+// La grille (mensuel, trimestriel, annuel) vit dans lib/pricing.ts, importable
+// côté client. Starter n'y figure PAS : ce n'est plus une offre (voir
+// plan-limits.ts), et il n'a jamais eu de prix Stripe.
 //
-// Grille du 26 octobre 2026 (avant : Pro 9,99 € / 96 €, Business 39,99 € /
-// 384 €). Ce sont les prix des NOUVEAUX abonnements. Un abonné existant paie
-// le prix porté par son abonnement Stripe, que ce tableau ne modifie pas :
-// les Pro à 9,99 € le restent. Voir scripts/pricing-2026-10/README.md.
-export const PLAN_PRICING = {
-  pro: { monthly: 14.99, annual: 144 },
-  business: { monthly: 29.99, annual: 288 },
-} as const;
+// Ce sont les prix des NOUVEAUX abonnements. Un abonné existant paie le prix
+// porté par son abonnement Stripe, que la grille ne modifie pas : les Pro à
+// 9,99 € le restent. Voir scripts/pricing-2026-10/README.md.
 
 export function getPlanInfo(plan: string | null, expiresAt: string | null): PlanInfo {
   const now = new Date();
@@ -47,10 +46,10 @@ export async function createFreeTrial(email: string): Promise<{ id: string; plan
 export async function activatePlan(
   merchantId: string,
   plan: PlanId,
-  billingCycle: "monthly" | "annual",
+  billingCycle: BillingCycle,
 ): Promise<void> {
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + (billingCycle === "monthly" ? 30 : 365));
+  expiresAt.setDate(expiresAt.getDate() + (billingCycle === "annual" ? 365 : 30 * CYCLE_MONTHS[billingCycle]));
 
   await supabase().from("merchants").update({
     plan,
@@ -83,8 +82,8 @@ export function isTrialExpired(user: { plan: string; planExpiresAt?: string | nu
  * Ne jamais retirer un ancien ID tant qu'un abonnement l'utilise : sans lui,
  * planFromPriceId ne reconnaît plus l'abonnement au renouvellement.
  */
-function priceIdsFor(plan: string, billingCycle: "monthly" | "annual"): string[] {
-  const key = `STRIPE_PRICE_${plan.toUpperCase()}_${billingCycle === "monthly" ? "MONTHLY" : "ANNUAL"}`;
+function priceIdsFor(plan: string, billingCycle: BillingCycle): string[] {
+  const key = `STRIPE_PRICE_${plan.toUpperCase()}_${billingCycle.toUpperCase()}`;
   return (process.env[key] ?? "")
     .split(",")
     .map((id) => id.trim())
@@ -92,11 +91,11 @@ function priceIdsFor(plan: string, billingCycle: "monthly" | "annual"): string[]
 }
 
 /** Plan + cycle depuis un ID de prix Stripe (source de vérité de la facture). */
-export function planFromPriceId(priceId: string): { plan: PlanId; billingCycle: "monthly" | "annual" } | null {
+export function planFromPriceId(priceId: string): { plan: PlanId; billingCycle: BillingCycle } | null {
   // Starter n'a jamais eu de prix Stripe : jamais retourné ici.
   // Anciens prix compris : un abonné resté sur l'ancienne grille garde son plan.
   for (const plan of ["pro", "business"] as PlanId[]) {
-    for (const cycle of ["monthly", "annual"] as const) {
+    for (const cycle of BILLING_CYCLES) {
       if (priceIdsFor(plan, cycle).includes(priceId)) return { plan, billingCycle: cycle };
     }
   }
@@ -104,7 +103,7 @@ export function planFromPriceId(priceId: string): { plan: PlanId; billingCycle: 
 }
 
 /** ID du prix Stripe des NOUVEAUX abonnements (le premier de la liste en env). */
-export function stripePriceId(plan: string, billingCycle: "monthly" | "annual"): string | null {
+export function stripePriceId(plan: string, billingCycle: BillingCycle): string | null {
   return priceIdsFor(plan, billingCycle)[0] ?? null;
 }
 

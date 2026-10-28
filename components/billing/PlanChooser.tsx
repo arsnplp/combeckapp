@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Star, Loader2, AlertTriangle, Gift, Lock } from "lucide-react";
+import CycleToggle from "@/components/billing/CycleToggle";
+import CyclePrice from "@/components/billing/CyclePrice";
+import { cycleMonthly, cycleTotal, formatEuros, CYCLE_PER, type BillingCycle } from "@/lib/pricing";
 
 // Plus de plan gratuit depuis le 27 octobre 2026 : seuls Pro et Business se
 // choisissent. Les comptes restés sur l'ancien Starter voient Pro comme une
@@ -18,9 +21,7 @@ const PLANS = [
   },
 ] as const;
 
-const annualTotal = (p: number) => Math.round(p * 12 * 0.8);
-const annualMonthly = (p: number) => Math.round(annualTotal(p) / 12);
-const fmt = (p: number) => p.toLocaleString("fr-FR");
+const fmt = formatEuros;
 /** Prix du premier mois remisé, arrondi au centime comme le fera Stripe. */
 const firstMonth = (p: number, percent: number) => Math.round(p * (100 - percent)) / 100;
 
@@ -40,7 +41,7 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
   const [trialLoading, setTrialLoading] = useState(false);
   // Résiliation programmée chez Stripe (portail) : date de fin d'accès.
   const [cancelAt, setCancelAt] = useState<string | null>(null);
-  const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
+  const [billing, setBilling] = useState<BillingCycle>("monthly");
   const [paying, setPaying] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [usage, setUsage] = useState<Usage | null>(null);
@@ -70,7 +71,11 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
     setTrialLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/billing/trial", { method: "POST" });
+      const res = await fetch("/api/billing/trial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ billingCycle: billing }),
+      });
       const data = await res.json();
       if (res.ok && data.url) { window.location.href = data.url; return; }
       setError(data?.error ?? "Impossible de démarrer l'essai.");
@@ -142,7 +147,7 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
     if (planId === "pro") {
       losses.push(
         usage && usage.clients > 300
-          ? `Limite de 300 clients — vous en avez déjà ${usage.clients} : vous ne pourrez plus en accueillir de nouveaux`
+          ? `Limite de 300 clients : vous en avez déjà ${usage.clients}, vous ne pourrez plus en accueillir de nouveaux`
           : `Limité à 300 clients (vous en avez ${usage?.clients ?? 0})`,
         "Notifications plafonnées à 10 000 / mois",
         "Pas de support dédié (< 4h)",
@@ -167,12 +172,12 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[14.5px] font-bold text-slate-900">
-                Essai Business offert — {trial.days ?? 30} jours
+                Essai Business offert : {trial.days ?? 30} jours
               </p>
               <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-600">
                 Toutes les fonctionnalités débloquées. <strong className="font-semibold">0 € aujourd&apos;hui</strong>,
                 carte demandée pour la suite : à la fin des {trial.days ?? 30} jours, l&apos;abonnement
-                Business à 29,99 € / mois TTC démarre automatiquement. Résiliable à tout moment avant.
+                Business à {fmt(cycleTotal("business", billing))} € par {CYCLE_PER[billing]} TTC démarre automatiquement. Résiliable à tout moment avant.
               </p>
             </div>
             <button
@@ -217,18 +222,9 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
         )
       )}
 
-      {/* Toggle */}
+      {/* Période de facturation */}
       <div className="flex justify-center">
-        <div className="inline-flex items-center rounded-xl bg-slate-100 p-1">
-          <button onClick={() => setBilling("monthly")}
-            className={`rounded-lg px-4 py-2 text-[13px] font-semibold transition-all ${billing === "monthly" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>
-            Mensuel
-          </button>
-          <button onClick={() => setBilling("annual")}
-            className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-semibold transition-all ${billing === "annual" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>
-            Annuel <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10.5px] font-bold text-green-700">-20 %</span>
-          </button>
-        </div>
+        <CycleToggle value={billing} onChange={setBilling} />
       </div>
 
       {error && (
@@ -261,39 +257,23 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
               )}
 
               <p className="text-[12px] font-semibold uppercase tracking-wider text-slate-400">{plan.name}</p>
-              <>
+              {billing === "monthly" && upsellPercent ? (
+                <>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    {(billing === "annual" || (billing === "monthly" && upsellPercent)) && (
-                      <span className="text-[16px] font-semibold text-slate-300 line-through">{fmt(plan.price)}€</span>
-                    )}
-                    <span className="text-[30px] font-bold leading-none text-slate-900">
-                      {billing === "annual"
-                        ? fmt(annualMonthly(plan.price))
-                        : fmt(upsellPercent ? firstMonth(plan.price, upsellPercent) : plan.price)}€
-                    </span>
-                    <span className="text-[13px] text-slate-400">
-                      {billing === "monthly" && upsellPercent ? "le 1er mois TTC" : "/mois TTC"}
-                    </span>
-                    {billing === "annual" && (
-                      <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10.5px] font-bold text-green-400">
-                        économisez {fmt(Math.round(plan.price * 12 - annualTotal(plan.price)))}€
-                      </span>
-                    )}
-                    {billing === "monthly" && upsellPercent && (
-                      <span className="rounded-full bg-green-600 px-2 py-0.5 text-[10.5px] font-bold text-white">
-                        −{upsellPercent} %
-                      </span>
-                    )}
+                    <span className="text-[16px] font-semibold text-slate-300 line-through">{fmt(plan.price)}€</span>
+                    <span className="text-[30px] font-bold leading-none text-slate-900">{fmt(firstMonth(plan.price, upsellPercent))}€</span>
+                    <span className="text-[13px] text-slate-400">le 1er mois TTC</span>
+                    <span className="rounded-full bg-green-600 px-2 py-0.5 text-[10.5px] font-bold text-white">−{upsellPercent} %</span>
                   </div>
-                  {billing === "annual" && (
-                    <p className="mt-0.5 text-[11.5px] text-slate-400">Facturé {fmt(annualTotal(plan.price))}€ / an TTC</p>
-                  )}
                   {/* Le prix qui s'appliquera ensuite, annoncé clairement :
                       le commerçant ne doit pas découvrir le plein tarif au 2e mois. */}
-                  {billing === "monthly" && upsellPercent && (
-                    <p className="mt-0.5 text-[11.5px] text-slate-400">puis {fmt(plan.price)}€ / mois TTC · sans engagement</p>
-                  )}
-              </>
+                  <p className="mt-0.5 text-[11.5px] text-slate-400">puis {fmt(plan.price)}€ / mois TTC · sans engagement</p>
+                </>
+              ) : (
+                <div className="mt-1.5">
+                  <CyclePrice plan={plan.id} cycle={billing} size="md" />
+                </div>
+              )}
 
               <ul className="mb-5 mt-4 flex-1 space-y-2">
                 {plan.features.map((f) => (
@@ -357,10 +337,7 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
                 onClick={() => { setWarnPlan(null); startCheckout("business"); }}
                 className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 text-[14px] font-bold text-white shadow-lg shadow-green-500/30 hover:from-green-600 hover:to-emerald-600 transition-all"
               >
-                Garder toutes mes fonctionnalités — Business ({(() => {
-                  const businessPrice = PLANS.find((p) => p.id === "business")!.price;
-                  return billing === "monthly" ? `${fmt(businessPrice)}€/mois` : `${fmt(annualMonthly(businessPrice))}€/mois`;
-                })()})
+                Garder toutes mes fonctionnalités : Business ({fmt(cycleMonthly("business", billing))}€/mois)
               </button>
               <button
                 onClick={() => { const p = warnedPlan.id; setWarnPlan(null); startCheckout(p); }}

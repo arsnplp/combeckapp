@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, Star, Gift, Loader2, Lock } from "lucide-react";
+import CycleToggle from "@/components/billing/CycleToggle";
+import CyclePrice from "@/components/billing/CyclePrice";
+import { parseBillingCycle, cycleTotal, formatEuros, CYCLE_PER, type BillingCycle } from "@/lib/pricing";
 
 // Plus de plan gratuit depuis le 27 octobre 2026 : tout commence par l'essai
 // de 30 jours (niveau Business), puis Pro ou Business.
@@ -42,14 +45,14 @@ const PLANS = [
   },
 ] as const;
 
-// Aligné sur PLAN_PRICING (annuel arrondi à l'euro)
-const annualTotal = (p: number) => Math.round(p * 12 * 0.8);
-const annualMonthly = (p: number) => Math.round(annualTotal(p) / 12);
-const fmt = (p: number) => p.toLocaleString("fr-FR");
 
 export default function TarifsPage() {
   const router = useRouter();
-  const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
+  // Période reprise de l'URL (?billing=quarterly) : un lien du site garde le choix fait.
+  const [billing, setBilling] = useState<BillingCycle>("monthly");
+  useEffect(() => {
+    setBilling(parseBillingCycle(new URLSearchParams(window.location.search).get("billing")));
+  }, []);
   // Connecté ? (401 = non) — permet de payer directement sans repasser par signup
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -79,7 +82,11 @@ export default function TarifsPage() {
     setTrialLoading(true);
     setPayError("");
     try {
-      const res = await fetch("/api/billing/trial", { method: "POST" });
+      const res = await fetch("/api/billing/trial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ billingCycle: billing }),
+      });
       const data = await res.json();
       if (res.ok && data.url) { window.location.href = data.url; return; }
       setPayError(data?.error ?? "Impossible de démarrer l'essai.");
@@ -167,8 +174,8 @@ export default function TarifsPage() {
               <p className="text-[15px] font-bold text-green-900">Votre essai Business vous attend</p>
             </div>
             <p className="mt-1 text-[13px] text-green-800/70">
-              30 jours toutes fonctionnalités débloquées. <strong>0 € aujourd&apos;hui</strong> — la carte
-              est demandée pour la suite, puis Business à 29,99 € / mois TTC. Résiliable avant.
+              30 jours toutes fonctionnalités débloquées. <strong>0 € aujourd&apos;hui</strong> : la carte
+              est demandée pour la suite, puis Business à {formatEuros(cycleTotal("business", billing))} € par {CYCLE_PER[billing]} TTC. Résiliable avant.
             </p>
             <button
               onClick={startTrial}
@@ -197,21 +204,9 @@ export default function TarifsPage() {
           </div>
         ) : null}
 
-        {/* Toggle mensuel / annuel */}
-        <div className="mt-7 inline-flex items-center rounded-xl bg-slate-100 p-1">
-          <button
-            onClick={() => setBilling("monthly")}
-            className={`rounded-lg px-4 py-2 text-[13px] font-semibold transition-all ${billing === "monthly" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}
-          >
-            Mensuel
-          </button>
-          <button
-            onClick={() => setBilling("annual")}
-            className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-semibold transition-all ${billing === "annual" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}
-          >
-            Annuel
-            <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10.5px] font-bold text-green-700">-20 %</span>
-          </button>
+        {/* Période de facturation */}
+        <div className="mt-7">
+          <CycleToggle value={billing} onChange={setBilling} />
         </div>
       </div>
 
@@ -249,25 +244,9 @@ export default function TarifsPage() {
 
                 <div className="mb-5">
                   <p className="text-[13px] font-semibold uppercase tracking-wider text-slate-400">{plan.name}</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {billing === "annual" && (
-                        <span className="text-[20px] font-semibold text-slate-300 line-through">{fmt(plan.price)}€</span>
-                      )}
-                      <span className="text-[38px] font-bold leading-none text-slate-900">
-                        {fmt(billing === "monthly" ? plan.price : annualMonthly(plan.price))}€
-                      </span>
-                      <span className="text-[14px] text-slate-400">/mois TTC</span>
-                      {billing === "annual" && (
-                        <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11.5px] font-bold text-green-400">
-                          économisez {fmt(Math.round(plan.price * 12 - annualTotal(plan.price)))}€
-                        </span>
-                      )}
+                  <div className="mt-2">
+                    <CyclePrice plan={plan.id} cycle={billing} />
                   </div>
-                  {billing === "annual" ? (
-                    <p className="mt-1 text-[12px] text-slate-400">Facturé {fmt(annualTotal(plan.price))}€ / an TTC</p>
-                  ) : (
-                    <p className="mt-1 text-[12px] text-slate-400">Sans engagement · prix TTC</p>
-                  )}
                   <p className="mt-1.5 text-[13px] text-slate-500">{plan.description}</p>
                 </div>
 

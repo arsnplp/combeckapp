@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { supabase } from "@/lib/supabase";
 import { stripePriceId, isAwaitingFirstTrial } from "@/lib/plan-billing";
+import { parseBillingCycle } from "@/lib/pricing";
 import { getTrialState, TRIAL_DAYS, TRIAL_PLAN } from "@/lib/trial";
 import { listLiveSubscriptions } from "@/lib/stripe-subs";
 
@@ -52,7 +53,13 @@ export async function POST(req: NextRequest) {
     const stripe = getStripe();
     if (!stripe) return NextResponse.json({ error: "Paiement non configuré." }, { status: 503 });
 
-    const priceId = stripePriceId(TRIAL_PLAN, "monthly");
+    // Période choisie sur le site ou à l'inscription (mensuel par défaut) :
+    // c'est elle qui sera facturée au terme de l'essai. Un corps absent ou
+    // illisible (anciens appels sans corps) vaut mensuel.
+    const body = await req.json().catch(() => null);
+    const billingCycle = parseBillingCycle(body?.billingCycle);
+
+    const priceId = stripePriceId(TRIAL_PLAN, billingCycle);
     if (!priceId) return NextResponse.json({ error: "Tarif non configuré." }, { status: 503 });
 
     const sb = supabase();
@@ -110,7 +117,7 @@ export async function POST(req: NextRequest) {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.getcomeback.fr";
-    const metadata = { merchantId: merchant.id, plan: TRIAL_PLAN, billingCycle: "monthly", trial: "1", trialDays: String(trialDays) };
+    const metadata = { merchantId: merchant.id, plan: TRIAL_PLAN, billingCycle, trial: "1", trialDays: String(trialDays) };
 
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: customerId,
