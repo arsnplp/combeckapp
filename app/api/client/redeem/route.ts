@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db_getAll } from "@/lib/server-db";
 import { findClientCards } from "@/lib/client-lookup";
-import { createRedemption, cancelPendingForCard } from "@/lib/redemptions";
+import { createRedemption, cancelPendingForCard, getRedemption } from "@/lib/redemptions";
 import { resolveClientSession } from "@/lib/client-sessions";
 
 const QR_TTL_MS = 15 * 60 * 1000; // 15 minutes
@@ -68,4 +68,33 @@ export async function POST(req: NextRequest) {
     costType,
     exp: redemption.exp,
   });
+}
+
+/**
+ * GET ?token=… — où en est le QR affiché au client ?
+ *
+ * L'écran du QR restait figé après le scan en caisse : le client ne savait
+ * pas si c'était passé, et son solde ne bougeait qu'au rafraîchissement
+ * suivant. L'écran interroge maintenant cette route toutes les 2 secondes
+ * et affiche « Récompense validée » dès que le commerçant a scanné.
+ *
+ * Seul le propriétaire de la carte peut lire le statut de son QR.
+ */
+export async function GET(req: NextRequest) {
+  const session = req.cookies.get("comeback_client")?.value;
+  const email = session ? await resolveClientSession(session) : null;
+  if (!email) return NextResponse.json({ error: "Non connecté." }, { status: 401 });
+
+  const token = req.nextUrl.searchParams.get("token") ?? "";
+  if (!token) return NextResponse.json({ status: "unknown" });
+  const r = await getRedemption(token);
+  if (!r) return NextResponse.json({ status: "unknown" });
+
+  const cards = await findClientCards(email);
+  if (!cards.some((c) => c.customerCardId === r.customerCardId)) {
+    return NextResponse.json({ status: "unknown" });
+  }
+  if (r.used) return NextResponse.json({ status: "used" });
+  if (r.exp < Date.now()) return NextResponse.json({ status: "expired" });
+  return NextResponse.json({ status: "pending" });
 }

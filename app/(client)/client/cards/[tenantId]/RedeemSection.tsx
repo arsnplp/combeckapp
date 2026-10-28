@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Gift, X, Loader2, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import type { ClientCard } from "@/lib/client-lookup";
 
@@ -36,8 +37,65 @@ function CountdownTimer({ exp }: { exp: number }) {
   );
 }
 
-function QRModal({ qr, onClose }: { qr: QRData; onClose: () => void }) {
+type QRStatus = "pending" | "used" | "expired" | "unknown";
+
+function QRModal({ qr, onClose }: { qr: QRData; onClose: (changed: boolean) => void }) {
   const [qrDataUrl, setQrDataUrl] = useState("");
+  const [status, setStatus] = useState<QRStatus>("pending");
+
+  // Suit le QR pendant qu'il est affiché : dès que le commerçant l'a scanné,
+  // le client le voit, sans rien toucher.
+  useEffect(() => {
+    if (status !== "pending") return;
+    let annule = false;
+    const verifier = async () => {
+      try {
+        const res = await fetch(`/api/client/redeem?token=${encodeURIComponent(qr.token)}`, { cache: "no-store" });
+        const d = await res.json();
+        if (!annule && (d.status === "used" || d.status === "expired")) setStatus(d.status);
+      } catch { /* réseau : on réessaie au prochain tour */ }
+    };
+    const id = setInterval(verifier, 2000);
+    // Expiration connue d'avance : pas besoin d'attendre le serveur.
+    const fin = setTimeout(() => { if (!annule) verifier(); }, Math.max(0, qr.exp - Date.now()) + 500);
+    return () => { annule = true; clearInterval(id); clearTimeout(fin); };
+  }, [qr.token, qr.exp, status]);
+
+  if (status === "used") {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+        <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center">
+          <CheckCircle2 className="mx-auto h-14 w-14 text-green-500" />
+          <h2 className="mt-3 text-[18px] font-bold text-gray-900">Récompense validée</h2>
+          <p className="mt-1 text-[13px] text-gray-500">
+            {qr.rewardEmoji} {qr.rewardName} chez {qr.storeName}. Votre solde est à jour.
+          </p>
+          <button onClick={() => onClose(true)}
+            className="mt-5 w-full rounded-xl bg-gray-900 py-3 text-[14px] font-semibold text-white hover:bg-gray-700">
+            Parfait
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === "expired") {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+        <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center">
+          <Clock className="mx-auto h-12 w-12 text-amber-500" />
+          <h2 className="mt-3 text-[17px] font-bold text-gray-900">QR expiré</h2>
+          <p className="mt-1 text-[13px] text-gray-500">
+            Rien n&apos;a été déduit. Touchez à nouveau « Utiliser » pour en générer un nouveau.
+          </p>
+          <button onClick={() => onClose(false)}
+            className="mt-5 w-full rounded-xl bg-gray-900 py-3 text-[14px] font-semibold text-white hover:bg-gray-700">
+            Fermer
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     import("qrcode").then((QRCode) => {
@@ -53,7 +111,7 @@ function QRModal({ qr, onClose }: { qr: QRData; onClose: () => void }) {
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
       <div className="bg-white rounded-3xl w-full max-w-sm p-6 relative">
         <button
-          onClick={onClose}
+          onClick={() => onClose(false)}
           className="absolute top-4 right-4 h-8 w-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
         >
           <X className="h-4 w-4 text-gray-600" />
@@ -99,6 +157,7 @@ interface RewardButtonProps {
 }
 
 function RewardButton({ reward, canAfford, customerCardId }: RewardButtonProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [qr, setQr] = useState<QRData | null>(null);
   const [error, setError] = useState("");
@@ -157,7 +216,16 @@ function RewardButton({ reward, canAfford, customerCardId }: RewardButtonProps) 
         </div>
       )}
 
-      {qr && <QRModal qr={qr} onClose={() => setQr(null)} />}
+      {qr && (
+        <QRModal
+          qr={qr}
+          onClose={(changed) => {
+            setQr(null);
+            // Solde déduit : on recharge la carte tout de suite.
+            if (changed) router.refresh();
+          }}
+        />
+      )}
     </>
   );
 }

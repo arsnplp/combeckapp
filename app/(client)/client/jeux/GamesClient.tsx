@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Loader2, ArrowLeft, Ticket } from "lucide-react";
 import { Segment } from "@/components/games/Games";
@@ -24,13 +24,39 @@ export default function GamesClient() {
   const [prizes, setPrizes] = useState<Prize[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<{ store: Store; game: GameInfo } | null>(null);
+  // Lot qui vient d'être scanné en caisse, annoncé quelques secondes.
+  const [valide, setValide] = useState<Prize | null>(null);
+  const lotsPrecedents = useRef<Prize[] | null>(null);
 
   const load = async () => {
-    const res = await fetch("/api/games/me");
-    if (res.ok) { const d = await res.json(); setStores(d.stores ?? []); setPrizes(d.prizes ?? []); }
+    const res = await fetch("/api/games/me", { cache: "no-store" });
+    if (res.ok) {
+      const d = await res.json();
+      const nouveaux: Prize[] = d.prizes ?? [];
+      // Un lot qui disparaît de la liste vient d'être validé en caisse.
+      const avant = lotsPrecedents.current;
+      if (avant) {
+        const parti = avant.find((p) => !nouveaux.some((n) => n.code === p.code));
+        if (parti) { setValide(parti); setTimeout(() => setValide(null), 6000); }
+      }
+      lotsPrecedents.current = nouveaux;
+      setStores(d.stores ?? []);
+      setPrizes(nouveaux);
+    }
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
+
+  // Soldes et lots tenus à jour pendant que la page est ouverte (tampon
+  // ajouté, lot scanné en caisse), comme sur la page de la carte.
+  useEffect(() => {
+    if (open) return;
+    const tick = () => { if (document.visibilityState === "visible") load(); };
+    const id = setInterval(tick, 5000);
+    document.addEventListener("visibilitychange", tick);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", tick); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   if (loading) {
     return <div className="flex justify-center py-24"><Loader2 className="h-6 w-6 animate-spin text-slate-300" /></div>;
@@ -44,8 +70,14 @@ export default function GamesClient() {
     <div className="mx-auto max-w-md space-y-6 px-4 py-6">
       <div>
         <h1 className="text-[22px] font-bold text-slate-900">Jeux</h1>
-        <p className="mt-0.5 text-[13px] text-slate-500">Tentez votre chance avec vos tampons.</p>
+        <p className="mt-0.5 text-[13px] text-slate-500">Tentez votre chance avec vos tampons ou vos points.</p>
       </div>
+
+      {valide && (
+        <div role="status" className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-[13.5px] text-green-800">
+          <strong className="font-semibold">Lot validé :</strong> {valide.emoji} {valide.name} chez {valide.storeName}.
+        </div>
+      )}
 
       {stores.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white py-14 text-center">
@@ -59,11 +91,14 @@ export default function GamesClient() {
         <div key={s.merchantId} className="space-y-3">
           <div className="flex items-baseline justify-between">
             <h2 className="text-[15px] font-bold text-slate-900">{s.storeName}</h2>
-            <span className="text-[12.5px] text-slate-500">{s.stamps} tampons</span>
+            <span className="text-[12.5px] text-slate-500">
+              {s.games[0]?.costType === "points" ? `${s.points} points` : `${s.stamps} tampons`}
+            </span>
           </div>
           {s.games.map((g) => {
             const reste = g.dailyLimit - g.playsToday;
-            const assez = s.stamps >= g.cost;
+            const unite = g.costType === "points" ? "points" : "tampons";
+            const assez = (g.costType === "points" ? s.points : s.stamps) >= g.cost;
             return (
               <button key={g.gameKey} onClick={() => setOpen({ store: s, game: g })}
                 className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left transition-all active:scale-[0.99] hover:border-green-300 hover:shadow-sm">
@@ -76,12 +111,12 @@ export default function GamesClient() {
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-[11.5px]">
                   <span className="whitespace-nowrap rounded-lg bg-slate-100 px-2 py-1 font-medium text-slate-600">
-                    {g.cost} tampons
+                    {g.cost} {unite}
                   </span>
                   <span className={`whitespace-nowrap rounded-lg px-2 py-1 font-medium ${reste > 0 ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-400"}`}>
                     {reste > 0 ? `${reste} partie${reste > 1 ? "s" : ""} aujourd'hui` : "Limite atteinte"}
                   </span>
-                  {!assez && <span className="whitespace-nowrap rounded-lg bg-amber-50 px-2 py-1 font-medium text-amber-700">Pas assez de tampons</span>}
+                  {!assez && <span className="whitespace-nowrap rounded-lg bg-amber-50 px-2 py-1 font-medium text-amber-700">Pas assez de {unite}</span>}
                 </div>
               </button>
             );
