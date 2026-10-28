@@ -31,7 +31,7 @@ rsync -a --exclude .env.local --exclude data/ --exclude node_modules --exclude .
 
 echo "== 2/5 Création des prix Stripe"
 cd "$NEXT"
-set -a; . ./.env.local; set +a
+eval "$(node scripts/pricing-2026-10/stripe-env.mjs .env.local)"
 node scripts/pricing-2026-10/create-prices.mjs --apply | tee /root/grille-prix.log
 grep -E '^STRIPE_PRICE_(PRO|BUSINESS)_(MONTHLY|ANNUAL)=price_[A-Za-z0-9]+,price_' /root/grille-prix.log > /root/grille-lignes.env
 if [ "$(wc -l < /root/grille-lignes.env)" -ne 4 ]; then
@@ -67,7 +67,7 @@ npm ci --no-audit --no-fund && npm run build
 
 echo "== 5/5 Simulation de la migration Business (rien n'est modifié)"
 cd "$APP"
-set -a; . ./.env.local; set +a
+eval "$(node scripts/pricing-2026-10/stripe-env.mjs .env.local)"
 node scripts/pricing-2026-10/migrate-business.mjs | tee /root/grille-migration-simulation.log
 
 echo
