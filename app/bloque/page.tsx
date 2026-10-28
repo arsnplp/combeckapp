@@ -144,7 +144,9 @@ export default function BlockedPage() {
                 </p>
               )}
               <p className="mt-1.5 text-[13.5px] text-slate-500">
-                Paiement sécurisé Stripe — votre compte est réactivé immédiatement après le paiement.
+                {trialAvailable
+                  ? "0 € aujourd'hui · Paiement sécurisé par Stripe · Résiliable en un clic avant la fin"
+                  : "Paiement sécurisé par Stripe : votre compte est réactivé dès le paiement."}
               </p>
             </div>
             <PlanChooser />
