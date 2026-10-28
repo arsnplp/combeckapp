@@ -8,6 +8,7 @@
 # 2. Crée les 2 prix trimestriels dans le Stripe de cet environnement et
 #    ajoute leurs IDs au .env.local (rien n'est modifié sur les prix existants).
 # 3. Build, puis bascule (l'ancienne version est gardée en sauvegarde).
+# 4. En prod seulement : met en ligne le site avec le sélecteur de période.
 #
 # Si une étape échoue avant la bascule, rien n'a changé en ligne.
 set -euo pipefail
@@ -60,6 +61,19 @@ cd "$APP" && pm2 restart "$PM2" --update-env
 sleep 4
 CODE=$(curl -s -o /dev/null -w "%{http_code}" "$URL/login")
 echo "$URL/login → HTTP $CODE"
+
+# Site vitrine : le sélecteur de période ne part qu'avec l'app de prod, qui
+# sait facturer le trimestriel.
+if [ "$TARGET" = "prod" ]; then
+  echo "== Site getcomeback.fr (sélecteur de période)"
+  SITE=/var/www/getcomeback-site
+  git config --global --add safe.directory "$SITE" || true
+  cd "$SITE"
+  git stash -q || true
+  git fetch -q origin && git checkout -q trimestriel && git pull -q --ff-only origin trimestriel
+  npm ci --no-audit --no-fund && npm run build
+  pm2 restart comeback-site --update-env
+fi
 echo
 echo "TRIMESTRE OK ($TARGET)"
 echo "Retour arrière si besoin : cd /root && mv $APP ${APP}-casse && mv $BACKUP $APP && pm2 restart $PM2 --update-env"
