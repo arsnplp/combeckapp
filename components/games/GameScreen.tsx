@@ -22,7 +22,9 @@ export default function GameScreen({ store, game, onBack }: { store: Store; game
   const [phase, setPhase] = useState<Phase>("idle");
   const [outcome, setOutcome] = useState<{ result: "win" | "lose"; reward: { id: string; name: string; emoji: string } | null; prizeCode: string | null; balance: number } | null>(null);
   const [error, setError] = useState("");
-  const [solde, setSolde] = useState(store.stamps);
+  // Solde dans l'unité du jeu : une carte à points joue avec ses points.
+  const [solde, setSolde] = useState(game.costType === "points" ? store.points : store.stamps);
+  const unite = game.costType === "points" ? "points" : "tampons";
   const [restantes, setRestantes] = useState(game.dailyLimit - game.playsToday);
 
   const jouer = async () => {
@@ -65,7 +67,7 @@ export default function GameScreen({ store, game, onBack }: { store: Store; game
       <div className="text-center">
         <h1 className="text-[21px] font-bold text-slate-900">{game.emoji} {game.name}</h1>
         <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[12px] font-medium text-slate-600">
-          <span className="whitespace-nowrap">{solde} tampons</span>
+          <span className="whitespace-nowrap">{solde} {unite}</span>
           <span className="h-3 w-px bg-slate-300" />
           <span className="whitespace-nowrap">{restantes} partie{restantes > 1 ? "s" : ""} aujourd&apos;hui</span>
         </div>
@@ -128,7 +130,7 @@ export default function GameScreen({ store, game, onBack }: { store: Store; game
           {restantes > 0 && solde >= game.cost && (
             <button onClick={rejouer}
               className="h-14 w-full rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 text-[16px] font-bold text-white shadow-lg shadow-green-600/25 active:scale-[0.99]">
-              Rejouer · {game.cost} tampons
+              Rejouer · {game.cost} {unite}
             </button>
           )}
           <button onClick={onBack} className="h-12 w-full rounded-2xl bg-slate-100 text-[14px] font-semibold text-slate-600">
@@ -141,8 +143,8 @@ export default function GameScreen({ store, game, onBack }: { store: Store; game
           className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 text-[16px] font-bold text-white shadow-lg shadow-green-600/25 transition-all active:scale-[0.99] disabled:bg-slate-200 disabled:bg-none disabled:text-slate-400 disabled:shadow-none">
           {phase === "loading" && <Loader2 className="h-5 w-5 animate-spin" />}
           {restantes <= 0 ? "Limite du jour atteinte"
-            : solde < game.cost ? `Il faut ${game.cost} tampons`
-            : phase === "idle" ? `Jouer · ${game.cost} tampons` : "C'est parti…"}
+            : solde < game.cost ? `Il faut ${game.cost} ${unite}`
+            : phase === "idle" ? `Jouer · ${game.cost} ${unite}` : "C'est parti…"}
         </button>
       )}
 
