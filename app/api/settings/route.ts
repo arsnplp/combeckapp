@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getUserById } from "@/lib/users";
 import { getTenantSettings, saveTenantSettings } from "@/lib/settings-db";
-import { walletNotificationService } from "@/lib/wallet-notification-service";
+import { walletNotificationService, passFingerprint } from "@/lib/wallet-notification-service";
 import { walletDb_deletePassesForCards } from "@/lib/wallet-db";
 import { supabase } from "@/lib/supabase";
 
@@ -64,12 +64,15 @@ export async function POST(req: NextRequest) {
       await walletDb_deletePassesForCards((ccs ?? []).map((c) => c.id));
     }
 
+    const avant = passFingerprint(await getTenantSettings(tenantId));
     await saveTenantSettings(tenantId, blob as Parameters<typeof saveTenantSettings>[1], {
       cardIds: deletedCardIds, rewardIds: deletedRewardIds, productIds: deletedProductIds,
     });
-    // Répercuter le nouveau design/config sur les cartes wallet déjà installées
-    // (fire-and-forget : la sauvegarde ne doit pas attendre les pushs)
-    walletNotificationService.refreshTenantPasses(tenantId).catch(console.error);
+    // Répercuter le nouveau design/config sur les cartes wallet déjà
+    // installées, uniquement si ce qui s'affiche dessus a changé, et une fois
+    // que le commerçant a fini de modifier (voir schedulePassRefresh).
+    const apres = passFingerprint(await getTenantSettings(tenantId));
+    if (apres !== avant) walletNotificationService.schedulePassRefresh(tenantId);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

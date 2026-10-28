@@ -189,6 +189,47 @@ async function getCardInTenant(tenantId: string, customerCardId: string): Promis
   return (data as CardRow) ?? null;
 }
 
+/**
+ * Met à jour le solde d'une carte sans jamais perdre une écriture concurrente.
+ *
+ * Avant, chaque fonction lisait la carte, calculait le nouveau solde en
+ * mémoire puis l'écrivait. Deux opérations simultanées (un employé qui
+ * crédite pendant que le client joue, une récompense validée pendant un
+ * ajout…) partaient de la même lecture : la seconde écrasait la première.
+ * Exemple réel possible : carte à 8, récompense de 5 et partie à 2 en même
+ * temps, les deux passent la garde « solde ≥ coût » et le solde final vaut
+ * 6 au lieu de 1.
+ *
+ * Ici l'écriture n'est acceptée que si tampons ET points sont encore ceux
+ * qu'on a lus (compare-and-swap, réévalué par Postgres au moment d'écrire).
+ * Sinon on relit et on recalcule, quelques fois.
+ *
+ * `compute` reçoit la carte fraîche et renvoie le patch à appliquer, ou une
+ * raison de refuser (solde insuffisant…).
+ */
+async function updateCardBalance(
+  tenantId: string,
+  customerCardId: string,
+  compute: (cc: CardRow) => { patch: Record<string, unknown> } | { refuse: string },
+): Promise<{ ok: true; before: CardRow; after: CardRow } | { ok: false; reason: string; card: CardRow | null }> {
+  for (let tentative = 0; tentative < 6; tentative++) {
+    const cc = await getCardInTenant(tenantId, customerCardId);
+    if (!cc) return { ok: false, reason: "Carte introuvable", card: null };
+    const decision = compute(cc);
+    if ("refuse" in decision) return { ok: false, reason: decision.refuse, card: cc };
+    const { data } = await supabase().from("customer_cards")
+      .update(decision.patch)
+      .eq("id", customerCardId)
+      .eq("merchant_id", tenantId)
+      .eq("stamps", cc.stamps ?? 0)
+      .eq("points", cc.points ?? 0)
+      .select("*").maybeSingle();
+    if (data) return { ok: true, before: cc, after: data as CardRow };
+    // Le solde a bougé entre notre lecture et notre écriture : on recommence.
+  }
+  return { ok: false, reason: "La carte est très sollicitée, réessayez.", card: null };
+}
+
 /** ID du client propriétaire d'une carte — utilisé pour vérifier le gel (limite clients du plan). */
 export async function db_getCustomerIdForCard(tenantId: string, customerCardId: string): Promise<string | null> {
   const cc = await getCardInTenant(tenantId, customerCardId);
@@ -209,34 +250,37 @@ export interface AddStampResult {
 export async function db_addStamp(
   tenantId: string, customerCardId: string, count: number = 1,
 ): Promise<AddStampResult | null> {
-  const cc = await getCardInTenant(tenantId, customerCardId);
-  if (!cc) return null;
   // Normalise l'entrée : NaN/0/négatif/décimal/absurde ne doivent jamais
   // atteindre la base (un appelant ancien n'envoie rien -> 1 par défaut).
   const requested = normalizeStampCount(count);
+  const cardRef = await getCardInTenant(tenantId, customerCardId);
+  if (!cardRef) return null;
   // Plafonne au nombre de tampons requis par la carte — sans ça, un double
   // scan/double-tap accidentel (ou une saisie trop grande) peut pousser le
   // solde au-delà du seuil et laisser le client réclamer plus de récompenses
   // que ce qu'il a gagné.
   const { data: lc } = await supabase().from("loyalty_cards")
-    .select("stamps_required").eq("id", cc.card_id).maybeSingle();
+    .select("stamps_required").eq("id", cardRef.card_id).maybeSingle();
   const stampsRequired = lc?.stamps_required ?? Infinity;
-  const before = cc.stamps ?? 0;
-  const after = Math.min(before + requested, stampsRequired);
-  const added = after - before;
   const now = new Date().toISOString();
-  const { data } = await supabase().from("customer_cards")
-    .update({ stamps: after, last_activity: now })
-    .eq("id", customerCardId).select("*").maybeSingle();
-  if (!data) return null;
+  const res = await updateCardBalance(tenantId, customerCardId, (cc) => {
+    const before = cc.stamps ?? 0;
+    // Jamais en dessous du solde actuel : si le commerçant a baissé le nombre
+    // de tampons de sa carte (10 → 8), un client à 9 restait à 9, mais le
+    // tampon suivant le ramenait à 8. Ajouter un tampon lui en retirait un.
+    const after = Math.max(before, Math.min(before + requested, stampsRequired));
+    return { patch: { stamps: after, last_activity: now } };
+  });
+  if (!res.ok) return null;
+  const added = (res.after.stamps ?? 0) - (res.before.stamps ?? 0);
   // Carte déjà pleine : aucun tampon crédité, donc aucune visite comptée
   // (sinon un scan sans effet gonflerait les stats de passage).
-  if (added > 0) await maybeRecordVisit(cc.customer_id);
+  if (added > 0) await maybeRecordVisit(res.before.customer_id);
   return {
-    card: mapCard(data as CardRow),
+    card: mapCard(res.after),
     added,
     requested,
-    stampsRequired: Number.isFinite(stampsRequired) ? stampsRequired : after,
+    stampsRequired: Number.isFinite(stampsRequired) ? stampsRequired : (res.after.stamps ?? 0),
     alreadyFull: added === 0,
   };
 }
@@ -358,24 +402,26 @@ export async function db_addReferral(tenantId: string, customerCardId: string): 
   const bonus = lc?.referral_bonus ?? 1;
   const stampsRequired = lc?.stamps_required ?? 8;
 
-  const patch: Record<string, unknown> = { referral_count: (cc.referral_count ?? 0) + 1 };
-  if (mode === "stamps") patch.stamps = Math.min(cc.stamps + bonus, stampsRequired);
-  else patch.points = cc.points + bonus;
-
-  const { data } = await supabase().from("customer_cards")
-    .update(patch).eq("id", customerCardId).select("*").maybeSingle();
-  return data ? mapCard(data as CardRow) : null;
+  const res = await updateCardBalance(tenantId, customerCardId, (fresh) => {
+    const patch: Record<string, unknown> = { referral_count: (fresh.referral_count ?? 0) + 1 };
+    // Jamais en dessous du solde actuel (carte dont le plafond a été baissé).
+    if (mode === "stamps") patch.stamps = Math.max(fresh.stamps, Math.min(fresh.stamps + bonus, stampsRequired));
+    else patch.points = fresh.points + bonus;
+    return { patch };
+  });
+  return res.ok ? mapCard(res.after) : null;
 }
 
 export async function db_addPoints(tenantId: string, customerCardId: string, points: number): Promise<DbCustomerCard | null> {
   const cc = await getCardInTenant(tenantId, customerCardId);
   if (!cc) return null;
   const now = new Date().toISOString();
-  const { data } = await supabase().from("customer_cards")
-    .update({ points: cc.points + points, last_activity: now })
-    .eq("id", customerCardId).select("*").maybeSingle();
+  const res = await updateCardBalance(tenantId, customerCardId, (fresh) => ({
+    patch: { points: (fresh.points ?? 0) + points, last_activity: now },
+  }));
+  if (!res.ok) return null;
   await maybeRecordVisit(cc.customer_id);
-  return data ? mapCard(data as CardRow) : null;
+  return mapCard(res.after);
 }
 
 // Cumule les euros réellement dépensés — sert uniquement au calcul du rang
@@ -399,10 +445,10 @@ export async function db_addStampsAmount(
   const cc = await getCardInTenant(tenantId, customerCardId);
   if (!cc) return null;
   const now = new Date().toISOString();
-  const { data } = await supabase().from("customer_cards")
-    .update({ stamps: Math.min(cc.stamps + amount, stampsRequired), last_activity: now })
-    .eq("id", customerCardId).select("*").maybeSingle();
-  return data ? mapCard(data as CardRow) : null;
+  const res = await updateCardBalance(tenantId, customerCardId, (fresh) => ({
+    patch: { stamps: Math.max(fresh.stamps, Math.min(fresh.stamps + amount, stampsRequired)), last_activity: now },
+  }));
+  return res.ok ? mapCard(res.after) : null;
 }
 
 // ── Historique rédemptions ────────────────────────────────────────────────────
@@ -441,25 +487,38 @@ export async function db_deductReward(
   costType: "stamps" | "points",
   cost: number,
 ): Promise<DeductResult> {
-  const cc = await getCardInTenant(tenantId, customerCardId);
-  if (!cc) return { success: false, reason: "Carte introuvable" };
-  const card = mapCard(cc);
-  if (costType === "stamps" && cc.stamps < cost) return { success: false, reason: "Pas assez de tampons", card };
-  if (costType === "points" && cc.points < cost) return { success: false, reason: "Pas assez de points", card };
+  // costType sert de nom de colonne dans le patch : seules ces deux valeurs
+  // sont acceptées, quoi qu'envoie l'appelant.
+  if (costType !== "stamps" && costType !== "points") return { success: false, reason: "Type de coût invalide" };
+  if (!Number.isInteger(cost) || cost <= 0) return { success: false, reason: "Coût invalide" };
+  const now = new Date().toISOString();
+  const res = await updateCardBalance(tenantId, customerCardId, (cc) => {
+    const solde = costType === "stamps" ? (cc.stamps ?? 0) : (cc.points ?? 0);
+    if (solde < cost) return { refuse: costType === "stamps" ? "Pas assez de tampons" : "Pas assez de points" };
+    return { patch: { [costType]: solde - cost, last_activity: now } };
+  });
+  if (!res.ok) return { success: false, reason: res.reason, card: res.card ? mapCard(res.card) : undefined };
+  await maybeRecordVisit(res.before.customer_id);
+  return { success: true, card: mapCard(res.after) };
+}
 
-  const patch: Record<string, unknown> = { last_activity: new Date().toISOString() };
-  if (costType === "stamps") patch.stamps = cc.stamps - cost;
-  else patch.points = cc.points - cost;
-
-  // Garde atomique côté DB : la clause .gte est réévaluée par Postgres au
-  // moment de l'écriture (verrou de ligne), pas sur notre lecture ci-dessus
-  // — si un scan concurrent a déjà consommé ce solde entre-temps, 0 ligne
-  // n'est modifiée ici, ce qui empêche une double-rédemption de récompense.
-  const { data } = await supabase().from("customer_cards")
-    .update(patch).eq("id", customerCardId).gte(costType, cost).select("*").maybeSingle();
-  if (!data) return { success: false, reason: "Solde insuffisant (déjà utilisé entre-temps)", card };
-  await maybeRecordVisit(cc.customer_id);
-  return { success: true, card: mapCard(data as CardRow) };
+/**
+ * Rend ce qui vient d'être débité, quand l'opération qui suivait a échoué
+ * (lot de jeu impossible à enregistrer, récompense non déduite…). Le client
+ * ne doit jamais perdre des tampons pour rien.
+ */
+export async function db_refundBalance(
+  tenantId: string,
+  customerCardId: string,
+  costType: "stamps" | "points",
+  amount: number,
+): Promise<boolean> {
+  if (costType !== "stamps" && costType !== "points") return false;
+  if (!(amount > 0)) return true;
+  const res = await updateCardBalance(tenantId, customerCardId, (cc) => ({
+    patch: { [costType]: (costType === "stamps" ? cc.stamps ?? 0 : cc.points ?? 0) + amount },
+  }));
+  return res.ok;
 }
 
 // ── Recherche cross-tenant (routes Apple Wallet sans session) ─────────────────

@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { resolveClientSession } from "@/lib/client-sessions";
 import { supabase } from "@/lib/supabase";
 import { effectiveOdds, GAME_META, RewardRef, validateConfig } from "@/lib/games";
-import { countPlaysToday, getClientPrizes, getGameConfigs } from "@/lib/games-db";
+import { countPlaysToday, getClientPrizes, getGameConfigs, withRealWinCounts } from "@/lib/games-db";
 
 /**
  * Ce que le client voit dans son onglet Jeux : les jeux réellement
@@ -28,6 +28,21 @@ export async function GET() {
 
     const { data: merchant } = await sb.from("merchants")
       .select("store_name, wallet_config").eq("id", merchantId).maybeSingle();
+
+    // Lots déjà gagnés : toujours visibles, même si le commerçant a éteint le
+    // module ou le jeu depuis. Ils sont payés et restent valables en caisse ;
+    // avant, ils disparaissaient de l'écran du client avec le jeu.
+    const mesLots = await getClientPrizes(cust.id as string);
+    prizes = prizes.concat(mesLots.map((p) => ({
+      merchantId: p.merchantId,
+      code: p.prizeCode,
+      name: p.rewardName,
+      emoji: p.rewardEmoji,
+      wonAt: p.playedAt,
+      storeName: (merchant?.store_name as string) ?? "Commerce",
+      game: GAME_META[p.gameKey]?.name ?? p.gameKey,
+    })));
+
     // Module derrière un interrupteur par commerçant.
     const flag = ((merchant?.wallet_config ?? {}) as Record<string, unknown>).games as
       { enabled?: boolean } | undefined;
@@ -37,9 +52,12 @@ export async function GET() {
     if (configs.length === 0) continue;
 
     const { data: cards } = await sb.from("customer_cards")
-      .select("id, stamps, points").eq("customer_id", cust.id).eq("merchant_id", merchantId);
+      .select("id, card_id, stamps, points").eq("customer_id", cust.id).eq("merchant_id", merchantId);
     const card = (cards ?? [])[0];
     if (!card) continue;
+    const { data: lc } = await sb.from("loyalty_cards")
+      .select("loyalty_mode").eq("id", card.card_id).maybeSingle();
+    const cardMode = lc?.loyalty_mode === "points" ? "points" : "stamps";
 
     const { data: rewardRows } = await sb.from("rewards")
       .select("id, name, emoji").eq("merchant_id", merchantId);
@@ -48,7 +66,11 @@ export async function GET() {
     }));
 
     const jeux = [];
-    for (const c of configs) {
+    for (const brut of configs) {
+      // Même règles que le serveur de jeu : coût dans l'unité de la carte, et
+      // chances calculées sur le stock réellement restant.
+      if (brut.costType !== cardMode) continue;
+      const c = await withRealWinCounts(merchantId, brut);
       if (!validateConfig(c, rewards).valid) continue;
       jeux.push({
         gameKey: c.gameKey,
@@ -72,16 +94,6 @@ export async function GET() {
       games: jeux,
     });
 
-    const mesLots = await getClientPrizes(cust.id as string);
-    prizes = prizes.concat(mesLots.map((p) => ({
-      merchantId: p.merchantId,
-      code: p.prizeCode,
-      name: p.rewardName,
-      emoji: p.rewardEmoji,
-      wonAt: p.playedAt,
-      storeName: (merchant?.store_name as string) ?? "Commerce",
-      game: GAME_META[p.gameKey]?.name ?? p.gameKey,
-    })));
   }
 
   return NextResponse.json({ stores: resultat, prizes });

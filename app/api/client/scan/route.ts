@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveActor } from "@/lib/actor";
 import { logActivity } from "@/lib/activity-log";
-import { getRedemption, markUsed } from "@/lib/redemptions";
+import { getRedemption, markUsed, unmarkUsed } from "@/lib/redemptions";
 import { consumePrize, getPrizeByCode } from "@/lib/games-db";
 import { db_deductReward, db_getAll, db_addRedemption, db_incrementRewardUsage } from "@/lib/server-db";
 import { walletNotificationService } from "@/lib/wallet-notification-service";
@@ -102,6 +102,8 @@ export async function POST(req: NextRequest) {
 
     const result = await db_deductReward(tenantId, r.customerCardId, r.costType, r.cost);
     if (!result.success) {
+      // Rien n'a été déduit : le QR redevient utilisable.
+      await unmarkUsed(tokenKey).catch(() => {});
       return NextResponse.json({ error: result.reason ?? "Erreur lors de la déduction." }, { status: 422 });
     }
     await db_incrementRewardUsage(tenantId, r.rewardName);

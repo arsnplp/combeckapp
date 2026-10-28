@@ -415,7 +415,14 @@ export async function PATCH(req: NextRequest) {
         added, requested, stampsRequired, alreadyFull,
       });
     } else if (action === "points") {
-      const card = await db_addPoints(tenantId, customerCardId, points ?? 0);
+      // Un nombre de points venu du navigateur : entier positif et raisonnable
+      // uniquement. Un négatif retirait des points, une valeur non numérique
+      // corrompait le solde.
+      const pts = Number(points);
+      if (!Number.isInteger(pts) || pts <= 0 || pts > 100000) {
+        return NextResponse.json({ error: "Nombre de points invalide." }, { status: 400 });
+      }
+      const card = await db_addPoints(tenantId, customerCardId, pts);
       if (!card) return NextResponse.json({ error: "Carte introuvable — resynchronisez vos données." }, { status: 404 });
       walletNotificationService.updatePoints(customerCardId).catch(console.error);
       creditReferralsOnFirstVisit(tenantId, card.customerId);
@@ -426,11 +433,14 @@ export async function PATCH(req: NextRequest) {
       }
       logActivity(tenantId, {
         type: "points_added", customerId: card.customerId, customerCardId,
-        amount: points ?? 0, label: `+${points ?? 0} points`,
+        amount: pts, label: `+${pts} points`,
       }, actor);
       return NextResponse.json({ ok: true, stamps: card.stamps, points: card.points });
     } else if (action === "reward") {
       const { rewardName, rewardEmoji, cost, costType, customerId } = body;
+      if ((costType !== "stamps" && costType !== "points") || !Number.isInteger(cost) || cost <= 0) {
+        return NextResponse.json({ error: "Récompense invalide." }, { status: 400 });
+      }
       // db_deductReward refuse déjà un solde insuffisant, mais son résultat
       // était ignoré : la récompense était inscrite à l'historique et le
       // compteur d'utilisation incrémenté même quand rien n'avait été déduit,

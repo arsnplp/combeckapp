@@ -10,7 +10,7 @@ import {
   walletDb_setCampaignMessage,
   walletDb_getAllPasses,
 } from "./wallet-db";
-import { db_getAll, findTenantByCustomerCardId } from "./server-db";
+import { db_getAll, findTenantByCustomerCardId, type DbCustomerCard } from "./server-db";
 import { generateClientPass } from "./apple-wallet";
 import { updateGoogleWalletObject, addGoogleWalletMessage, updateGoogleWalletClass } from "./google-wallet";
 import { getTenantSettings } from "./settings-db";
@@ -125,6 +125,20 @@ async function sendApnsPush(pushToken: string): Promise<void> {
 
 // ── Pass regeneration ─────────────────────────────────────────────────────────
 
+/**
+ * Prochain cadeau affiché sur la carte : la récompense la moins chère de la
+ * mécanique de la carte, hors récompenses masquées (réservées aux jeux, que
+ * le client ne peut pas échanger contre ses tampons).
+ */
+function nextRewardName(
+  rewards: Array<{ name: string; cost: number; mode: string; hidden?: boolean }>,
+  mode: "stamps" | "points",
+): string | undefined {
+  return rewards
+    .filter((r) => r.mode === mode && !r.hidden)
+    .sort((a, b) => a.cost - b.cost)[0]?.name;
+}
+
 export async function regeneratePass(passId: string): Promise<Buffer | null> {
   const walletPass = await walletDb_getPass(passId);
   if (!walletPass) return null;
@@ -140,7 +154,12 @@ export async function regeneratePass(passId: string): Promise<Buffer | null> {
   let bgColor = opts.bgColor;
   let stripPreset = opts.stripPreset;
   let storeName = opts.storeName;
-  const nextReward = opts.nextReward;
+  // Mécanique et prochain cadeau relus à chaque génération. Ils étaient figés
+  // au jour où le client avait ajouté la carte : passer la carte de tampons
+  // en points, ou modifier ses récompenses, laissait l'ancienne version dans
+  // les iPhone pour toujours (« 3 / 10 tampons » sur une carte à points).
+  let type: "stamps" | "points" = opts.type;
+  let nextReward = opts.nextReward;
   if (found) {
     try {
       const settings = await getTenantSettings(found.tenantId);
@@ -150,7 +169,9 @@ export async function regeneratePass(passId: string): Promise<Buffer | null> {
         accentColor = lc.accentColor ?? accentColor;
         bgColor = lc.backgroundColor ?? bgColor;
         stripPreset = lc.stripPreset;
+        type = lc.loyaltyMode === "points" ? "points" : "stamps";
       }
+      nextReward = nextRewardName(settings.rewards, type) ?? "";
       storeName = (settings.settings.storeName as string) || storeName;
     } catch { /* garde les valeurs sauvegardées */ }
   }
@@ -163,12 +184,12 @@ export async function regeneratePass(passId: string): Promise<Buffer | null> {
     stamps: cc?.stamps ?? 0,
     stampsRequired: stampsRequired ?? 0,
     points: cc?.points ?? 0,
-    loyaltyMode: opts.type === "stamps" ? "stamps" : "points",
+    loyaltyMode: type,
   });
 
   return generateClientPass({
     tenantId: found?.tenantId,
-    type: opts.type,
+    type,
     clientName: opts.clientName,
     clientId: walletPass.customerId,
     customerCardId: walletPass.customerCardId,
@@ -285,26 +306,38 @@ export class WalletNotificationService {
     return appleResults;
   }
 
-  private async _updateGoogle(customerCardId: string): Promise<void> {
-    const found = await findTenantByCustomerCardId(customerCardId);
-    if (!found) return;
-    const { tenantId, card: cc } = found;
-    const db = await db_getAll(tenantId);
+  private async _updateGoogle(
+    customerCardId: string,
+    // Données déjà chargées par l'appelant (rafraîchissement de tout un
+    // commerce) : évite de relire tout le commerce une fois par client.
+    preload?: { db: Awaited<ReturnType<typeof db_getAll>>; settings: Awaited<ReturnType<typeof getTenantSettings>> },
+  ): Promise<void> {
+    let cc: DbCustomerCard;
+    let tenantId = "";
+    if (preload) {
+      const fromDb = preload.db.customerCards.find((c) => c.id === customerCardId);
+      if (!fromDb) return;
+      cc = fromDb;
+    } else {
+      const found = await findTenantByCustomerCardId(customerCardId);
+      if (!found) return;
+      cc = found.card;
+      tenantId = found.tenantId;
+    }
+    const db = preload?.db ?? await db_getAll(tenantId);
     const customer = db.customers.find((c) => c.id === cc.customerId);
 
     let loyaltyMode: "stamps" | "points" = "stamps";
     let stampsRequired = 8;
     let nextReward: string | undefined;
     try {
-      const settings = await getTenantSettings(tenantId);
+      const settings = preload?.settings ?? await getTenantSettings(tenantId);
       const loyaltyCard = settings.loyaltyCards.find((c) => c.id === cc.cardId);
       if (loyaltyCard) {
         loyaltyMode = loyaltyCard.loyaltyMode ?? "stamps";
         stampsRequired = loyaltyCard.stampsRequired ?? 8;
       }
-      nextReward = settings.rewards
-        .filter((r) => r.mode === loyaltyMode)
-        .sort((a, b) => a.cost - b.cost)[0]?.name;
+      nextReward = nextRewardName(settings.rewards, loyaltyMode);
     } catch { /* defaults */ }
 
     await updateGoogleWalletObject({
@@ -389,13 +422,34 @@ export class WalletNotificationService {
    * Rafraîchit toutes les cartes wallet d'un tenant (Apple + Google) après un
    * changement de design/config : couleurs, nom, tampons requis, récompenses…
    */
+  /**
+   * Rafraîchissement différé : la page de réglages enregistre toute seule à
+   * chaque modification (une seconde après la dernière frappe). Pousser une
+   * mise à jour vers chaque carte installée à chaque enregistrement, c'était
+   * des dizaines de vagues de notifications pendant qu'on tape un nom de
+   * récompense : Apple finit par ignorer les mises à jour trop rapprochées et
+   * certaines cartes restaient sur une ancienne version. On attend que le
+   * commerçant ait fini (20 s sans nouvelle modification), puis une seule
+   * vague part.
+   */
+  schedulePassRefresh(tenantId: string, delayMs = 20_000): void {
+    const existant = refreshTimers.get(tenantId);
+    if (existant) clearTimeout(existant);
+    refreshTimers.set(tenantId, setTimeout(() => {
+      refreshTimers.delete(tenantId);
+      this.refreshTenantPasses(tenantId).catch(console.error);
+    }, delayMs));
+  }
+
   async refreshTenantPasses(tenantId: string): Promise<void> {
     const db = await db_getAll(tenantId);
     const tenantCardIds = new Set(db.customerCards.map((cc) => cc.id));
+    let settingsCharges: Awaited<ReturnType<typeof getTenantSettings>> | null = null;
 
     // Google : classes (design partagé par carte fidélité) + objets (soldes)
     try {
       const settings = await getTenantSettings(tenantId);
+      settingsCharges = settings;
       const storeName = (settings.settings.storeName as string) || "ComeBack";
       await Promise.all(settings.loyaltyCards.map((lc) =>
         updateGoogleWalletClass(tenantId, lc.id, {
@@ -418,9 +472,33 @@ export class WalletNotificationService {
       await this.sendPassUpdate(pass.id).catch(console.error);
     }
     for (const cc of db.customerCards) {
-      await this._updateGoogle(cc.id).catch(console.error);
+      await this._updateGoogle(cc.id, settingsCharges ? { db, settings: settingsCharges } : undefined).catch(console.error);
     }
   }
+}
+
+const refreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/**
+ * Empreinte de tout ce qui s'affiche sur une carte Wallet : si elle ne change
+ * pas, un enregistrement des réglages n'a aucune raison de déranger les
+ * téléphones des clients (changer le téléphone de la boutique ou le texte
+ * d'une offre non visible ne modifie pas la carte).
+ */
+export function passFingerprint(s: Awaited<ReturnType<typeof getTenantSettings>>): string {
+  const wc = { ...(s.walletConfig ?? {}) } as Record<string, unknown>;
+  delete wc.games;
+  return JSON.stringify({
+    store: s.settings?.storeName ?? null,
+    logo: s.settings?.logoUrl ?? null,
+    cards: s.loyaltyCards.map((c) => [
+      c.id, c.name, c.loyaltyMode, c.stampsRequired, c.backgroundColor, c.accentColor,
+      c.textColor, c.stripPreset ?? null, c.active ?? true,
+    ]),
+    rewards: s.rewards.filter((r) => !r.hidden).map((r) => [r.name, r.cost, r.mode]).sort(),
+    geo: s.geofencing ?? null,
+    wallet: wc,
+  });
 }
 
 export const walletNotificationService = new WalletNotificationService();

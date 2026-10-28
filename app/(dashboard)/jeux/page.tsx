@@ -28,6 +28,8 @@ export default function JeuxPage() {
   const [games, setGames] = useState<GameConfig[]>([]);
   const [rewards, setRewards] = useState<RewardRef[]>([]);
   const [moduleEnabled, setModuleEnabled] = useState(false);
+  // Unité de la carte du commerce : le coût d'une partie se règle dans celle-ci.
+  const [cardMode, setCardMode] = useState<"stamps" | "points">("stamps");
   const [loading, setLoading] = useState(true);
   // `null` tant que la page n'a rien pu charger : sans ça, un appel refusé
   // produisait un écran qui conseillait de créer des récompenses alors que
@@ -48,6 +50,7 @@ export default function JeuxPage() {
       if (res.ok) {
         setGames(d.games ?? []); setRewards(d.rewards ?? []);
         setModuleEnabled(d.moduleEnabled); setLoadError(null);
+        if (d.cardMode === "points" || d.cardMode === "stamps") setCardMode(d.cardMode);
       } else if (res.status === 401) {
         setLoadError("admin");
       } else {
@@ -186,18 +189,19 @@ export default function JeuxPage() {
           )}
           {games.map((g) => (
             <GameCard key={g.gameKey} g={g} rewards={rewards} saving={saving === g.gameKey}
-              onPatch={(p) => patch(g.gameKey, p)} onSave={(c) => save(c ?? g)} />
+              onPatch={(p) => patch(g.gameKey, p)} onSave={(c) => save(c ?? g)} cardMode={cardMode} />
           ))}
         </div>
       ) : (
-        <Chiffres stats={stats} period={period} setPeriod={setPeriod}
+        <Chiffres stats={stats} unite={cardMode === "points" ? "points" : "tampons"} period={period} setPeriod={setPeriod}
           gameFilter={gameFilter} setGameFilter={setGameFilter} />
       )}
     </div>
   );
 }
 
-function GameCard({ g, rewards, saving, onPatch, onSave }: {
+function GameCard({ g, rewards, saving, onPatch, onSave, cardMode }: {
+  cardMode: "stamps" | "points";
   g: GameConfig; rewards: RewardRef[]; saving: boolean;
   onPatch: (p: Partial<GameConfig>) => void; onSave: (config?: GameConfig) => void;
 }) {
@@ -216,7 +220,7 @@ function GameCard({ g, rewards, saving, onPatch, onSave }: {
           <p className="mt-0.5 text-[12.5px] text-slate-500">{g.tagline}</p>
           {g.enabled && (
             <p className="mt-1.5 text-[12px] text-slate-400">
-              {g.cost} {g.costType === "points" ? "points" : "tampons"} la partie · {g.dailyLimit}/jour · {g.prizes.length} lot{g.prizes.length > 1 ? "s" : ""}
+              {g.cost} {cardMode === "points" ? "points" : "tampons"} la partie · {g.dailyLimit}/jour · {g.prizes.length} lot{g.prizes.length > 1 ? "s" : ""}
             </p>
           )}
         </button>
@@ -249,7 +253,7 @@ function GameCard({ g, rewards, saving, onPatch, onSave }: {
         <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="text-[12px] font-semibold uppercase tracking-wide text-slate-400">Coût (tampons)</span>
+              <span className="text-[12px] font-semibold uppercase tracking-wide text-slate-400">Coût ({cardMode === "points" ? "points" : "tampons"})</span>
               <input type="number" min={1} value={g.cost}
                 onChange={(e) => onPatch({ cost: Math.max(1, +e.target.value || 1) })}
                 onBlur={() => onSave()}
@@ -402,8 +406,9 @@ function Kpi({ icon: Icon, label, value, sub }: { icon: React.ElementType; label
   );
 }
 
-function Chiffres({ stats, period, setPeriod, gameFilter, setGameFilter }: {
+function Chiffres({ stats, unite, period, setPeriod, gameFilter, setGameFilter }: {
   stats: Stats | null;
+  unite: "points" | "tampons";
   period: "7" | "30" | "all"; setPeriod: (p: "7" | "30" | "all") => void;
   gameFilter: string | null; setGameFilter: (g: string | null) => void;
 }) {
@@ -430,7 +435,7 @@ function Chiffres({ stats, period, setPeriod, gameFilter, setGameFilter }: {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi icon={Trophy} label="Parties" value={stats.kpi.plays} sub={`${stats.kpi.wins} gagnées`} />
         <Kpi icon={Users} label="Joueurs" value={stats.kpi.participants} />
-        <Kpi icon={Stamp} label="Tampons dépensés" value={stats.kpi.spent} />
+        <Kpi icon={Stamp} label={unite === "points" ? "Points dépensés" : "Tampons dépensés"} value={stats.kpi.spent} />
         <Kpi icon={Percent} label="Taux de gain" value={`${stats.kpi.winRate} %`} />
       </div>
 
@@ -536,7 +541,7 @@ function Chiffres({ stats, period, setPeriod, gameFilter, setGameFilter }: {
               </div>
               <p className={`mt-1 text-[20px] font-bold ${actif ? "text-slate-900" : "text-slate-400"}`}>{g.plays}</p>
               <p className={`text-[11.5px] ${actif ? "text-slate-400" : "text-slate-400/70"}`}>
-                parties · {g.wins} gains · {g.spent} tampons
+                parties · {g.wins} gains · {g.spent} {unite}
               </p>
             </button>
           );
