@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { resolveClientSession } from "@/lib/client-sessions";
 import { supabase } from "@/lib/supabase";
 import { db_deductReward, db_refundBalance } from "@/lib/server-db";
-import { draw, GAME_KEYS, GameKey, RewardRef, validateConfig } from "@/lib/games";
+import { draw, GAME_KEYS, GameKey, hasWinnablePrize, RewardRef, validateConfig } from "@/lib/games";
 import {
   countPlaysToday, countWinsByReward, getGameConfigs, insertPlay, syncPrizeWonCounts, withRealWinCounts,
 } from "@/lib/games-db";
@@ -82,6 +82,11 @@ export async function POST(req: NextRequest) {
   // entre-temps) ne doit pas faire jouer dans le vide.
   if (!validateConfig(config, rewards).valid) {
     return NextResponse.json({ error: "Ce jeu est en cours de réglage, réessayez plus tard." }, { status: 409 });
+  }
+
+  // Tous les lots épuisés : la partie serait perdue d'avance.
+  if (!hasWinnablePrize(config, rewards)) {
+    return NextResponse.json({ error: "Plus aucun lot à gagner pour le moment. Revenez bientôt !" }, { status: 409 });
   }
 
   const joueesAujourdhui = await countPlaysToday(merchantId, gameKey as GameKey, cust.id as string);

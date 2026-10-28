@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { resolveClientSession } from "@/lib/client-sessions";
 import { supabase } from "@/lib/supabase";
-import { effectiveOdds, GAME_META, RewardRef, validateConfig } from "@/lib/games";
+import { effectiveOdds, GAME_META, hasWinnablePrize, RewardRef, validateConfig } from "@/lib/games";
 import { countPlaysToday, getClientPrizes, getGameConfigs, withRealWinCounts } from "@/lib/games-db";
 
 /**
@@ -72,6 +72,8 @@ export async function GET() {
       if (brut.costType !== cardMode) continue;
       const c = await withRealWinCounts(merchantId, brut);
       if (!validateConfig(c, rewards).valid) continue;
+      // Plus aucun lot en stock : jeu masqué plutôt que « Perdu 100 % ».
+      if (!hasWinnablePrize(c, rewards)) continue;
       jeux.push({
         gameKey: c.gameKey,
         ...GAME_META[c.gameKey],
