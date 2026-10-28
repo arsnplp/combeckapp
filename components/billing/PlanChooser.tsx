@@ -38,6 +38,8 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
   // utilisé). Affiché en permanence au-dessus des plans.
   const [trial, setTrial] = useState<{ status: string; daysLeft?: number; days?: number } | null>(null);
   const [trialLoading, setTrialLoading] = useState(false);
+  // Résiliation programmée chez Stripe (portail) : date de fin d'accès.
+  const [cancelAt, setCancelAt] = useState<string | null>(null);
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
   const [paying, setPaying] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -56,6 +58,10 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
     fetch("/api/billing/trial")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setTrial(d))
+      .catch(() => {});
+    fetch("/api/billing/status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setCancelAt(d?.cancelAt ?? null))
       .catch(() => {});
   }, []);
 
@@ -182,10 +188,22 @@ export default function PlanChooser({ currentPlan }: { currentPlan?: string | nu
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-green-200 bg-green-50 px-5 py-3.5">
             <Gift className="h-4.5 w-4.5 flex-shrink-0 text-green-700" />
             <p className="min-w-0 flex-1 text-[13.5px] text-slate-700">
-              <strong className="font-bold text-slate-900">Essai Business en cours</strong> — il reste{" "}
-              {trial.daysLeft} jour{(trial.daysLeft ?? 0) > 1 ? "s" : ""}. À son terme, l&apos;abonnement
-              Business démarre automatiquement. Pour arrêter avant, sans rien payer : « Factures &amp;
-              résiliation », sur la page Abonnement.
+              {cancelAt ? (
+                <>
+                  <strong className="font-bold text-slate-900">Essai résilié.</strong> Aucun prélèvement
+                  n&apos;aura lieu. Vous gardez l&apos;accès jusqu&apos;au{" "}
+                  {new Date(cancelAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "Europe/Paris" })},
+                  puis votre compte sera mis en pause, données conservées. Changé d&apos;avis ? Choisissez
+                  un plan ci-dessous, ou annulez la résiliation dans « Factures &amp; résiliation ».
+                </>
+              ) : (
+                <>
+                  <strong className="font-bold text-slate-900">Essai Business en cours</strong> : il reste{" "}
+                  {trial.daysLeft} jour{(trial.daysLeft ?? 0) > 1 ? "s" : ""}. À son terme, l&apos;abonnement
+                  Business démarre automatiquement. Pour arrêter avant, sans rien payer : « Factures &amp;
+                  résiliation », sur la page Abonnement.
+                </>
+              )}
             </p>
           </div>
         ) : (
