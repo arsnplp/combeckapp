@@ -52,7 +52,11 @@ function QRModal({ qr, onClose }: { qr: QRData; onClose: (changed: boolean) => v
       try {
         const res = await fetch(`/api/client/redeem?token=${encodeURIComponent(qr.token)}`, { cache: "no-store" });
         const d = await res.json();
-        if (!annule && (d.status === "used" || d.status === "expired")) setStatus(d.status);
+        if (annule) return;
+        if (d.status === "used" || d.status === "expired") setStatus(d.status);
+        // QR remplacé par un autre (nouvelle récompense demandée ailleurs) :
+        // il n'est plus valable, on ne le laisse pas affiché pour rien.
+        else if (d.status === "unknown") setStatus("expired");
       } catch { /* réseau : on réessaie au prochain tour */ }
     };
     const id = setInterval(verifier, 2000);
@@ -60,6 +64,18 @@ function QRModal({ qr, onClose }: { qr: QRData; onClose: (changed: boolean) => v
     const fin = setTimeout(() => { if (!annule) verifier(); }, Math.max(0, qr.exp - Date.now()) + 500);
     return () => { annule = true; clearInterval(id); clearTimeout(fin); };
   }, [qr.token, qr.exp, status]);
+
+  // Tous les hooks AVANT les retours anticipés : sinon React plante au
+  // moment où l'écran passe à « validée » (moins de hooks qu'au rendu précédent).
+  useEffect(() => {
+    import("qrcode").then((QRCode) => {
+      QRCode.default.toDataURL(qr.token, {
+        width: 260,
+        margin: 2,
+        color: { dark: "#111827", light: "#ffffff" },
+      }).then(setQrDataUrl);
+    });
+  }, [qr.token]);
 
   if (status === "used") {
     return (
@@ -97,15 +113,6 @@ function QRModal({ qr, onClose }: { qr: QRData; onClose: (changed: boolean) => v
     );
   }
 
-  useEffect(() => {
-    import("qrcode").then((QRCode) => {
-      QRCode.default.toDataURL(qr.token, {
-        width: 260,
-        margin: 2,
-        color: { dark: "#111827", light: "#ffffff" },
-      }).then(setQrDataUrl);
-    });
-  }, [qr.token]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
