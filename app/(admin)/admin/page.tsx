@@ -313,7 +313,7 @@ export default function AdminPage() {
 
   const QUICK_LINKS = [
     { emoji: "🌐", label: "Site vitrine", url: "https://getcomeback.fr", desc: "Landing publique" },
-    { emoji: "🏪", label: "Inscription commerce", url: "https://app.getcomeback.fr/tarifs", desc: "Choix du plan → création de compte" },
+    { emoji: "🏪", label: "Inscription commerce", url: "https://app.getcomeback.fr/signup?plan=free", desc: "Création de compte avec l'essai gratuit de 30 jours" },
     { emoji: "👤", label: "Espace client", url: "https://app.getcomeback.fr/client/login", desc: "Connexion client (compte créé via le QR d'un commerce)" },
     { emoji: "🤝", label: "Inscription affilié", url: "https://app.getcomeback.fr/affilies/inscription", desc: "Devenir partenaire" },
   ];

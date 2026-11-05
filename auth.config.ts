@@ -29,6 +29,18 @@ export const authConfig = {
         return true;
       }
 
+      // /tarifs sert aux commerçants déjà inscrits (choisir Pro ou Business
+      // après l'essai, reprendre un abonnement). Un visiteur non connecté qui y
+      // arrive (ancien lien, affiliation…) part sur la création de compte avec
+      // l'essai : un seul parcours d'inscription.
+      if (pathname.startsWith("/tarifs") && !isLoggedIn) {
+        const to = new URL("/signup", nextUrl);
+        to.searchParams.set("plan", "free");
+        const billing = nextUrl.searchParams.get("billing");
+        if (billing && billing !== "cancel") to.searchParams.set("billing", billing);
+        return NextResponse.redirect(to);
+      }
+
       // Pages publiques normales
       const isPublic =
         pathname.startsWith("/login") ||

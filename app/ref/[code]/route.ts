@@ -3,7 +3,8 @@ import { getAffiliateByCode } from "@/lib/affiliates";
 
 /**
  * Lien d'affiliation : https://app.getcomeback.fr/ref/{code}
- * Pose un cookie d'attribution (30 jours, last-click) puis redirige vers /tarifs.
+ * Pose un cookie d'attribution (30 jours, last-click) puis redirige vers
+ * la création de compte avec l'essai gratuit.
  */
 export async function GET(
   req: NextRequest,
@@ -11,7 +12,7 @@ export async function GET(
 ) {
   const { code } = await params;
   const base = process.env.AUTH_URL ?? "https://app.getcomeback.fr";
-  const res = NextResponse.redirect(new URL("/tarifs", base));
+  const res = NextResponse.redirect(new URL("/signup?plan=free", base));
 
   try {
     const affiliate = await getAffiliateByCode(code);

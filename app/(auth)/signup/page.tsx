@@ -14,7 +14,8 @@ import {
 } from "@/lib/pricing";
 
 // Plus de plan gratuit : seuls l'essai (30 jours, carte demandée) et les plans
-// payants s'inscrivent. Un lien ?plan=starter renvoie vers /tarifs.
+// payants s'inscrivent. Un lien sans plan (ou avec un plan inconnu, ex. ancien
+// ?plan=starter) ouvre l'essai : la création de compte mène toujours à l'essai.
 type SignupPlan = Exclude<PlanId, "starter">;
 const PLAN_INFO: Record<SignupPlan, { label: string; price: number; color: string }> = {
   free:     { label: "Essai gratuit", price: 0, color: "text-emerald-700 bg-emerald-50" },
@@ -46,11 +47,16 @@ function SignupForm() {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState("");
 
+  // Lien sans plan valide (« Créer un compte » d'un ancien lien, d'un email…) :
+  // on remet ?plan=free dans l'URL en gardant les autres paramètres (UTM,
+  // fbclid, billing), au lieu de renvoyer vers /tarifs.
   useEffect(() => {
     if (!planParam || !(planParam in PLAN_INFO)) {
-      router.replace("/tarifs");
+      const next = new URLSearchParams(params.toString());
+      next.set("plan", "free");
+      router.replace(`/signup?${next.toString()}`);
     }
-  }, [planParam, router]);
+  }, [planParam, params, router]);
 
   const passwordStrength = password.length === 0 ? 0 : password.length < 8 ? 1 : password.length < 12 ? 2 : 3;
   const strengthColor = ["", "#ef4444", "#f59e0b", "#22c55e"][passwordStrength];
@@ -156,9 +162,13 @@ function SignupForm() {
               </div>
             ))}
           </div>
-          <Link href="/tarifs" className="inline-flex items-center gap-1.5 text-[12px] text-slate-500 hover:text-slate-300 transition-colors">
-            <ArrowLeft className="h-3 w-3" /> Changer de plan
-          </Link>
+          {/* Essai : pas de « Changer de plan », l'essai est l'unique entrée.
+              Formule payante : retour vers l'essai. */}
+          {plan !== "free" && (
+            <Link href="/signup?plan=free" className="inline-flex items-center gap-1.5 text-[12px] text-slate-500 hover:text-slate-300 transition-colors">
+              <ArrowLeft className="h-3 w-3" /> Revenir à l&apos;essai gratuit
+            </Link>
+          )}
         </div>
         <p className="relative text-[11px] text-slate-600">© 2025 Comeback · Tous droits réservés</p>
       </div>

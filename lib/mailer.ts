@@ -238,7 +238,8 @@ export async function sendTrialReminder(
   daysLeft: number,
   promoCode?: string,
 ): Promise<void> {
-  const url = `${APP_URL}/tarifs`;
+  // Le commerçant a déjà un compte : connexion, puis retour sur /tarifs.
+  const url = `${APP_URL}/login?callbackUrl=${encodeURIComponent("/tarifs")}`;
   const subject = promoCode
     ? `⏰ Dernier jour d'essai — -10 % avec le code ${promoCode}`
     : `⏰ Votre essai gratuit ComeBack se termine dans ${daysLeft} jours`;
