@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createUser, setEmailVerified } from "@/lib/users";
 import { isValidPhone } from "@/lib/validation";
+import { saveSignupSource } from "@/lib/acquisition";
 import type { PlanId } from "@/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -44,6 +45,10 @@ export async function POST(req: NextRequest) {
     // Vérification email désactivée pour l'instant : sans ça, la connexion
     // automatique post-inscription (et donc le paiement) serait bloquée
     await setEmailVerified(user.id);
+
+    // Source de l'inscription (landing + UTM de la pub), sans risque pour
+    // la création du compte si l'écriture échoue.
+    await saveSignupSource(user.id, body.acq);
 
     // Attribution affilié : cookie posé par /ref/{code}
     const affiliateCode = req.cookies.get("comeback_ref")?.value;

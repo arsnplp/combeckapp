@@ -82,7 +82,17 @@ function SignupForm() {
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmedEmail, password, storeName: trimmedStore, city: city.trim(), phone: trimmedPhone, plan }),
+        body: JSON.stringify({
+          email: trimmedEmail, password, storeName: trimmedStore, city: city.trim(), phone: trimmedPhone, plan,
+          // D'où vient cette inscription : landing (lp) et UTM de la pub,
+          // transmis dans l'URL par les landings.
+          acq: {
+            lp: params.get("lp"),
+            utm_source: params.get("utm_source"),
+            utm_campaign: params.get("utm_campaign"),
+            utm_content: params.get("utm_content"),
+          },
+        }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Erreur lors de la création du compte."); setLoading(false); return; }

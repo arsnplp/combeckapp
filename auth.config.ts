@@ -66,6 +66,9 @@ export const authConfig = {
         pathname.startsWith("/api/wallet") ||
         pathname.startsWith("/api/cron/") ||
         pathname.startsWith("/api/billing/webhook") ||
+        // Mesure d'audience des landings : appelée sans session depuis
+        // foodtruck/caviste.getcomeback.fr. La route filtre elle-même l'origine.
+        pathname.startsWith("/api/track") ||
         pathname.startsWith("/api/settings/logo") ||
         pathname.startsWith("/api/client/login") ||
         pathname.startsWith("/api/client/me") ||

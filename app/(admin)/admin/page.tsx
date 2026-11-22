@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AcquisitionFunnel from "@/components/admin/AcquisitionFunnel";
 import { Users, CreditCard, Store, Loader2, RefreshCw, Euro, LogIn, Key, Check, X, Trash2, ShieldAlert, ShieldCheck, AlertTriangle, Search, ArrowUpDown, Send, MessageCircle, Ban, RotateCcw } from "lucide-react";
 import { signIn } from "next-auth/react";
 import type { PlanId } from "@/types";
@@ -788,6 +789,9 @@ export default function AdminPage() {
         <StatCard icon={Users}      label="Clients total"    value={totalClients}     sub="Toutes enseignes" color="#f59e0b" />
         <StatCard icon={CreditCard} label="Cartes créées"    value={totalCards}       sub="Programmes de fidélité" color="#a78bfa" />
       </div>
+
+      {/* Acquisition : visites des landings → comptes → essais */}
+      <AcquisitionFunnel />
 
       {/* Tabs */}
       <div className="flex w-fit max-w-full flex-wrap gap-1 rounded-xl border border-white/[0.06] bg-white/[0.03] p-1">

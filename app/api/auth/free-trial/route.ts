@@ -5,6 +5,7 @@ import { createFreeTrial, suspendedPlanFields } from "@/lib/plan-billing";
 import { isValidPhone } from "@/lib/validation";
 import { checkRateLimit, getIp, tooManyRequests } from "@/lib/rate-limit";
 import { randomBytes } from "crypto";
+import { saveSignupSource } from "@/lib/acquisition";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
     return tooManyRequests();
   }
   try {
-    const { email, password, storeName, city, phone } = await req.json();
+    const { email, password, storeName, city, phone, acq } = await req.json();
 
     if (!email || !EMAIL_RE.test(email)) {
       return NextResponse.json({ error: "Email invalide." }, { status: 400 });
@@ -76,6 +77,10 @@ export async function POST(req: NextRequest) {
       }
       throw new Error(insertError.message);
     }
+
+    // Source de l'inscription (landing + UTM de la pub). Écriture à part :
+    // un échec ici ne doit jamais empêcher la création du compte.
+    await saveSignupSource(id, acq);
 
     // Créer une session JWT manuelle (backend auth)
     return NextResponse.json({
