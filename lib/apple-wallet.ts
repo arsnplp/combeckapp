@@ -17,7 +17,30 @@ const STRIP_PRESET_FILES: Record<string, string> = {
   boutique: "boutique.jpg",
 };
 
-async function loadStripPresetImage(stripPreset: string | undefined, width: number, height: number): Promise<Buffer | null> {
+/** Le commerçant a envoyé sa propre image plutôt qu'une des quatre proposées. */
+export function estImagePersonnelle(stripPreset: string | undefined): boolean {
+  return typeof stripPreset === "string" && stripPreset.startsWith("custom:");
+}
+
+async function loadStripPresetImage(
+  stripPreset: string | undefined,
+  width: number,
+  height: number,
+  tenantId?: string,
+): Promise<Buffer | null> {
+  // Image envoyée par le commerçant : elle vit dans le stockage, à côté des
+  // logos, et non dans public/. Même traitement ensuite.
+  if (estImagePersonnelle(stripPreset)) {
+    if (!tenantId) return null;
+    try {
+      const { data } = await supabase().storage.from("logos").download(`card-strips/${tenantId}.png`);
+      if (!data) return null;
+      const raw = Buffer.from(await data.arrayBuffer());
+      return sharp(raw).resize(width, height, { fit: "cover", position: "center" }).png().toBuffer();
+    } catch {
+      return null;
+    }
+  }
   if (!stripPreset || !STRIP_PRESET_FILES[stripPreset]) return null;
   try {
     const filePath = path.join(process.cwd(), "public", "card-strips", STRIP_PRESET_FILES[stripPreset]);
@@ -450,7 +473,7 @@ export async function generateClientPass(opts: ClientPassOptions): Promise<Buffe
   const [passJson, stripImage, logoBuffer] = await Promise.all([
     Promise.resolve(buildPassJSON(opts)),
     opts.stripPreset
-      ? loadStripPresetImage(opts.stripPreset, 750, 246).then((img) => img ?? undefined)
+      ? loadStripPresetImage(opts.stripPreset, 750, 246, opts.tenantId).then((img) => img ?? undefined)
       : generateStripImage(opts).catch(() => undefined),
     fetchTenantLogo(opts.tenantId),
   ]);
