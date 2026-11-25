@@ -149,6 +149,51 @@ export default function CartePage() {
     };
     img.src = objectUrl;
   };
+  // ── Image de bannière personnelle ────────────────────────────────────────
+  // Même mécanique que le logo juste au-dessus : on lit le fichier, on en
+  // fait une dataURL, le serveur recadre et stocke. On ne redimensionne pas
+  // ici — une bannière mérite mieux qu'un canvas de navigateur, et sharp le
+  // fait proprement côté serveur.
+  const [stripUploading, setStripUploading] = useState(false);
+  const stripFileRef = useRef<HTMLInputElement>(null);
+  const imagePerso = form.stripPreset?.startsWith("custom:") ?? false;
+
+  const handleStripChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Remis à zéro tout de suite : sans ça, renvoyer deux fois le même
+    // fichier ne déclenche pas d'événement et rien ne se passe.
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { alert("Choisissez un fichier image."); return; }
+    if (file.size > 6 * 1024 * 1024) { alert("Image trop lourde (max 6 Mo)."); return; }
+
+    setStripUploading(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await fetch("/api/settings/card-strip", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: String(reader.result) }),
+        });
+        const json = await res.json();
+        if (res.ok && json.stripPreset) {
+          // La version renvoyée change à chaque envoi : c'est elle qui fait
+          // repartir la carte vers les téléphones déjà équipés.
+          patch({ stripPreset: json.stripPreset });
+        } else {
+          alert("Envoi impossible : " + (json.error ?? "erreur inconnue"));
+        }
+      } catch (err) {
+        alert("Erreur réseau : " + String(err));
+      } finally {
+        setStripUploading(false);
+      }
+    };
+    reader.onerror = () => { setStripUploading(false); alert("Impossible de lire l'image."); };
+    reader.readAsDataURL(file);
+  };
+
   const [deleteTarget, setDeleteTarget] = useState<LoyaltyCard | null>(null);
 
   const selected = loyaltyCards.find((c) => c.id === selectedId) ?? loyaltyCards[0] ?? null;
@@ -748,7 +793,9 @@ export default function CartePage() {
                   {form.stripPreset && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={stripImages.find((s) => s.id === form.stripPreset)?.file}
+                      src={imagePerso
+                        ? `/api/settings/card-strip?v=${encodeURIComponent(form.stripPreset!.slice(7))}`
+                        : stripImages.find((s) => s.id === form.stripPreset)?.file}
                       alt=""
                       className="absolute inset-0 h-full w-full object-cover"
                     />
@@ -788,7 +835,7 @@ export default function CartePage() {
               {/* Image de bannière (optionnel) */}
               <div className="space-y-1.5">
                 <p className="text-[10px] text-slate-400">Image de la carte (optionnel)</p>
-                <div className="grid grid-cols-5 gap-1.5">
+                <div className="grid grid-cols-6 gap-1.5">
                   <button type="button"
                     onClick={() => patch({ stripPreset: undefined })}
                     title="Aucune — dégradé dynamique"
@@ -815,7 +862,36 @@ export default function CartePage() {
                       </button>
                     );
                   })}
+
+                  {/* Son image à soi. Dernière tuile, à côté des propositions :
+                      c'est une option de plus, pas un réglage à part. */}
+                  <button type="button"
+                    onClick={() => stripFileRef.current?.click()}
+                    disabled={stripUploading}
+                    title={imagePerso ? "Changer mon image" : "Envoyer ma propre image"}
+                    className="relative flex flex-col items-center gap-1 rounded-xl overflow-hidden transition-all disabled:opacity-60"
+                    style={{ outline: imagePerso ? "2px solid #16a34a" : "2px solid transparent", outlineOffset: "1px" }}>
+                    <div className="w-full h-11 relative overflow-hidden bg-slate-100 flex items-center justify-center">
+                      {stripUploading ? (
+                        <span className="text-[8px] text-slate-400">Envoi…</span>
+                      ) : imagePerso ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={`/api/settings/card-strip?v=${encodeURIComponent(form.stripPreset!.slice(7))}`}
+                          alt="Mon image" className="h-full w-full object-cover" />
+                      ) : (
+                        <Upload className="h-3.5 w-3.5 text-slate-300" />
+                      )}
+                    </div>
+                    <span className="text-[8px] text-slate-400 pb-0.5 leading-none text-center px-0.5">Mon image</span>
+                  </button>
                 </div>
+                <input ref={stripFileRef} type="file" accept="image/*" className="hidden" onChange={handleStripChange} />
+                {imagePerso && (
+                  <p className="text-[9px] text-slate-400">
+                    Votre image est recadrée automatiquement au format de la bannière.
+                  </p>
+                )}
               </div>
 
               {/* Preset grid */}

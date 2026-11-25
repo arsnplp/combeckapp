@@ -27,9 +27,26 @@ const STRIP_PRESET_FILES: Record<string, string> = {
   boutique: "boutique.jpg",
 };
 
-function heroImageFor(stripPreset: string | undefined, storeName: string): { sourceUri: { uri: string }; contentDescription: { defaultValue: { language: string; value: string } } } | undefined {
-  if (!stripPreset || !STRIP_PRESET_FILES[stripPreset]) return undefined;
+function heroImageFor(
+  stripPreset: string | undefined,
+  storeName: string,
+  tenantId?: string,
+): { sourceUri: { uri: string }; contentDescription: { defaultValue: { language: string; value: string } } } | undefined {
   const appUrl = process.env.AUTH_URL ?? "https://app.getcomeback.fr";
+
+  // Image envoyée par le commerçant. Google va la chercher lui-même par URL,
+  // d'où la route publique — et d'où la version dans l'URL : sans elle,
+  // Google resservirait l'ancienne image après un changement.
+  if (stripPreset?.startsWith("custom:")) {
+    if (!tenantId) return undefined;
+    const version = encodeURIComponent(stripPreset.slice("custom:".length));
+    return {
+      sourceUri: { uri: `${appUrl}/api/settings/card-strip?tenantId=${encodeURIComponent(tenantId)}&v=${version}` },
+      contentDescription: { defaultValue: { language: "fr-FR", value: storeName } },
+    };
+  }
+
+  if (!stripPreset || !STRIP_PRESET_FILES[stripPreset]) return undefined;
   return {
     sourceUri: { uri: `${appUrl}/card-strips/${STRIP_PRESET_FILES[stripPreset]}` },
     contentDescription: { defaultValue: { language: "fr-FR", value: storeName } },
@@ -143,7 +160,10 @@ export async function buildGoogleWalletUrl(input: GoogleWalletPassInput): Promis
       sourceUri: { uri: `${process.env.AUTH_URL ?? "https://app.getcomeback.fr"}/api/settings/logo?tenantId=${input.tenantId}` },
       contentDescription: { defaultValue: { language: "fr-FR", value: input.storeName } },
     },
-    ...(heroImageFor(input.stripPreset, input.storeName) ? { heroImage: heroImageFor(input.stripPreset, input.storeName) } : {}),
+    ...((() => {
+      const hero = heroImageFor(input.stripPreset, input.storeName, input.tenantId);
+      return hero ? { heroImage: hero } : {};
+    })()),
   };
 
   const appUrl = process.env.AUTH_URL ?? "https://app.getcomeback.fr";
@@ -276,7 +296,7 @@ export async function updateGoogleWalletClass(
   const classId = `${issuerId}.comeback_${sanitizeId(tenantId)}_${sanitizeId(cardId)}`;
   try {
     const accessToken = await getAccessToken();
-    const hero = heroImageFor(opts.stripPreset, opts.storeName);
+    const hero = heroImageFor(opts.stripPreset, opts.storeName, tenantId);
     const res = await fetch(
       `https://walletobjects.googleapis.com/walletobjects/v1/loyaltyClass/${encodeURIComponent(classId)}`,
       {

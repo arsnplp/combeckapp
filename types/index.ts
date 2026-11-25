@@ -95,8 +95,16 @@ export interface LoyaltyCard {
   rankThresholds?: RankThresholds;
   // referrerBonus/referredBonus s'interprètent en tampons ou points selon loyaltyMode
   referral?: { enabled: boolean; referrerBonus: number; referredBonus: number };
-  // Image de bannière prédéfinie (strip Apple Wallet / heroImage Google Wallet) —
+  // Image de bannière (strip Apple Wallet / heroImage Google Wallet) —
   // absent = pas d'image, la bannière affiche la progression dynamique (comportement historique).
+  // Trois formes possibles :
+  //   undefined            → dégradé dynamique
+  //   "salon" | "cafe" | … → une des images proposées (STRIP_PRESET_IDS)
+  //   "custom:<version>"   → image envoyée par le commerçant, servie par
+  //                          /api/settings/card-strip. La version change à
+  //                          chaque envoi : elle casse les caches ET fait
+  //                          bouger passFingerprint, ce qui déclenche la mise
+  //                          à jour des cartes déjà installées.
   stripPreset?: string;
 }
 

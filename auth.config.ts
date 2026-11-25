@@ -70,6 +70,10 @@ export const authConfig = {
         // foodtruck/caviste.getcomeback.fr. La route filtre elle-même l'origine.
         pathname.startsWith("/api/track") ||
         pathname.startsWith("/api/settings/logo") ||
+        // Image de bannière personnelle : Google Wallet la récupère par URL,
+        // sans session, comme le logo juste au-dessus. Le POST d'envoi vérifie
+        // la session lui-même et répond 401 sans elle.
+        pathname.startsWith("/api/settings/card-strip") ||
         pathname.startsWith("/api/client/login") ||
         pathname.startsWith("/api/client/me") ||
         pathname.startsWith("/api/client/leave") ||
