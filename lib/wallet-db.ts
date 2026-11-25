@@ -104,6 +104,32 @@ export async function walletDb_getPassBySerial(serialNumber: string): Promise<Wa
   return data ? mapPass(data as PassRow) : null;
 }
 
+/**
+ * Recherche d'un pass en distinguant les trois cas, ce que la fonction
+ * ci-dessus ne fait pas : elle renvoie `null` aussi bien quand la ligne
+ * n'existe pas que quand la requête a échoué.
+ *
+ * La nuance compte pour le service web appelé par les iPhones. Répondre
+ * « ce pass m'est inconnu » à cause d'une coupure réseau de deux secondes,
+ * c'est mentir à l'appareil d'un client dont la carte est parfaitement
+ * valide. Une panne doit se dire comme une panne (503, réessaie plus tard),
+ * jamais comme une absence.
+ */
+export type RechercheDePass =
+  | { etat: "trouve"; pass: WalletPass }
+  | { etat: "absent" }
+  | { etat: "indisponible" };
+
+export async function walletDb_lookupPassBySerial(serialNumber: string): Promise<RechercheDePass> {
+  const { data, error } = await supabase().from("wallet_passes").select(PASS_COLS)
+    .eq("serial_number", serialNumber).maybeSingle();
+  if (error) {
+    console.error("[wallet-db] lecture du pass impossible", serialNumber, error);
+    return { etat: "indisponible" };
+  }
+  return data ? { etat: "trouve", pass: mapPass(data as PassRow) } : { etat: "absent" };
+}
+
 export async function walletDb_getPassByCustomerCard(customerCardId: string): Promise<WalletPass | null> {
   const { data } = await supabase().from("wallet_passes").select(PASS_COLS)
     .eq("customer_card_id", customerCardId).limit(1).maybeSingle();

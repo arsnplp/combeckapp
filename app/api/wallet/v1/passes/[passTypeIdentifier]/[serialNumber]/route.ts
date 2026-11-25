@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { walletDb_getPassBySerial } from "@/lib/wallet-db";
+import { walletDb_lookupPassBySerial } from "@/lib/wallet-db";
 import { regeneratePass } from "@/lib/wallet-notification-service";
 
 type Params = { passTypeIdentifier: string; serialNumber: string };
@@ -23,10 +23,22 @@ export async function GET(
   const { serialNumber } = await params;
   const token = extractToken(req);
 
-  const walletPass = await walletDb_getPassBySerial(serialNumber);
-  if (!walletPass || walletPass.authenticationToken !== token) {
+  const recherche = await walletDb_lookupPassBySerial(serialNumber);
+  // Panne de base : 503, pour que l'appareil réessaie. Répondre 401 ici
+  // reviendrait à dire à un client parfaitement en règle que sa carte n'est
+  // plus reconnue, à cause d'une coupure de deux secondes.
+  if (recherche.etat === "indisponible") {
+    return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+  }
+  // Pass inconnu : 401, le seul code qu'Apple documente ici. On pourrait être
+  // tenté de répondre 410 pour que l'iPhone efface une carte supprimée, mais
+  // ce comportement n'est documenté nulle part chez Apple et une erreur de
+  // lecture ferait disparaître la carte d'un vrai client. À ne tenter qu'après
+  // vérification sur un appareil réel.
+  if (recherche.etat === "absent" || recherche.pass.authenticationToken !== token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const walletPass = recherche.pass;
 
   // Honour If-Modified-Since — comparaison à la seconde près : l'en-tête HTTP
   // n'a pas les millisecondes, sans troncature on renvoyait toujours le pass

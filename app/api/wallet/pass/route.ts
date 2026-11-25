@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { generateClientPass } from "@/lib/apple-wallet";
-import { walletDb_upsertPass, walletDb_getPassBySerial } from "@/lib/wallet-db";
+import { walletDb_upsertPass, walletDb_lookupPassBySerial } from "@/lib/wallet-db";
 import { findTenantByCustomerCardId } from "@/lib/server-db";
 import { buildPassLocations, PROXIMITY_RADIUS_M } from "@/lib/geofencing";
 
@@ -34,8 +34,24 @@ export async function GET(req: NextRequest) {
 
   // Réutiliser le token existant si ce pass a déjà été émis — sinon Apple Wallet
   // garde l'ancien token et ne peut plus authentifier les mises à jour (401).
-  const existingPass = await walletDb_getPassBySerial(serialNumber);
-  const authenticationToken = existingPass?.authenticationToken ?? randomBytes(20).toString("hex");
+  //
+  // Et surtout : ne JAMAIS en fabriquer un nouveau sans avoir pu vérifier.
+  // La lecture précédente renvoyait la même chose en cas de panne de base et
+  // de pass inexistant ; une coupure d'une seconde suffisait donc à émettre un
+  // nouveau token, écrasé en base, qui condamnait définitivement la carte déjà
+  // installée sur le téléphone du client — exactement le « Authentication
+  // failure » qu'on cherche à faire disparaître. Mieux vaut refuser le
+  // téléchargement et laisser réessayer.
+  const recherche = await walletDb_lookupPassBySerial(serialNumber);
+  if (recherche.etat === "indisponible") {
+    return NextResponse.json(
+      { error: "Service momentanément indisponible, réessayez." },
+      { status: 503 },
+    );
+  }
+  const authenticationToken = recherche.etat === "trouve"
+    ? recherche.pass.authenticationToken
+    : randomBytes(20).toString("hex");
   const webServiceURL = process.env.WALLET_WEB_SERVICE_URL; // e.g. https://app.comeback.app/api/wallet
 
   // Logo du commerce : résolu côté serveur depuis ccId (jamais fait confiance
